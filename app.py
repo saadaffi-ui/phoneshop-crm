@@ -7,44 +7,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
-# مثال داخل قسم عرض نتائج البحث أو تفاصيل الأجيال (service_cases)
-for case in saved_cases:
-        st.write(f"**Ärende #{case['id']}** - {case['first_name']} {case['last_name']} ({case['model']})")
-        
-        # خيار إظهار زر الحذف للموظفين المسجلين
-        if st.session_state.get("authenticated", False):
-            with st.expander(f"⚙️ Hantera Ärende #{case['id']}"):
-                # خانة إدخال الرمز السري الخاص بالحذف لهذا الطلب تحديداً
-                entered_del_pin = st.text_input(f"Ange raderingskod för #{case['id']}:", type="password", key=f"del_pin_{case['id']}")
-                
-                if st.button(f"🗑️ Radera Ärende #{case['id']}", key=f"btn_del_{case['id']}", type="primary"):
-                    # التحقق مما إذا كان الرمز المدخل يطابق رمز الحذف المختلف
-                    if entered_del_pin == DELETE_ACTION_PIN:
-                        # كود الحذف من قاعدة البيانات المحلية SQLite
-                        with sqlite3.connect(store.local_db_path) as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("DELETE FROM service_cases WHERE id = ?", (case['id'],))
-                            conn.commit()
-                        
-                        # إذا كنت تستخدم Supabase أيضاً:
-                        if store.client:
-                            try:
-                                store.client.table("service_cases").delete().eq("id", case['id']).execute()
-                            except Exception:
-                                pass
-                                
-                        st.success(f"✅ Ärende #{case['id']} har raderats permanent!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Felaktig raderingskod! Det gick inte att radera.")
+
 # Streamlit Page Config
 st.set_page_config(
     page_title="30 Minutes Phone Fix — CRM",
     page_icon="📱",
     layout="wide",
     initial_sidebar_state="expanded"
-)# رمز سري خاص بحذف السجلات
-DELETE_ACTION_PIN = st.secrets.get("DELETE_ACTION_PIN", os.getenv("DELETE_ACTION_PIN", "admin123"))
+)
 
 # ReportLab for PDF generation
 from reportlab.lib.pagesizes import A4
@@ -74,8 +44,10 @@ SWISH = "1230435420"
 # Secrets Support with fallback
 try:
     DELETE_PIN = st.secrets.get("DELETE_PIN", os.getenv("DELETE_PIN", "tunapark"))
+    DELETE_ACTION_PIN = st.secrets.get("DELETE_ACTION_PIN", os.getenv("DELETE_ACTION_PIN", "admin123"))
 except Exception:
     DELETE_PIN = os.getenv("DELETE_PIN", "tunapark")
+    DELETE_ACTION_PIN = os.getenv("DELETE_ACTION_PIN", "admin123")
 
 # Helper function to trigger browser print via JavaScript (Exclusive for Staff)
 def employee_print_button():
@@ -173,7 +145,6 @@ class CRMStore:
                 rows = result.data or []
             except Exception:
                 pass
-                
         if not rows:
             with sqlite3.connect(self.local_db_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -400,8 +371,8 @@ def generate_receipt_pdf_bytes(case):
         for term in [
             "1. Verkstaden ansvarar for felsokning och reparation enligt den felbeskrivning som anges ovan.",
             "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
-"3. Kunden ansvarar for att sakerhetskopiera enheten (om mojligt, eller begara hjalp av verkstaden). Verkstaden sparar ingen information automatiskt, men pa grund av mjukvarufel eller hardvaruskador (satom vattenskador eller fel pa moderkortet) finns det en risk for dataforlust under reparationen, och verkstaden garanterar inte att data bevaras, Detta inträffar inte när du byter batteri, skärm eller andra delar, men det kan inträffa om enheten redan är vattenskadad, har problem med datalagring eller om minnet är fullt." 
-]:
+            "3. Kunden ansvarar for att sakerhetskopiera enheten (om mojligt, eller begara hjalp av verkstaden). Verkstaden sparar ingen information automatiskt, men pa grund av mjukvarufel eller hardvaruskador (sasom vattenskador eller fel pa moderkortet) finns det en risk for dataforlust under reparationen, och verkstaden garanterar inte att data bevaras."
+        ]:
             story.append(Paragraph(safe_para(term), terms))
         story.append(Spacer(1, 5*mm))
 
@@ -605,6 +576,46 @@ if st.sidebar.button("Login"):
 # Navigation Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag (Public)", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning (Public)"])
 
+# TAB 1: Nytt Ärende
+with tab1:
+    st.header("📝 Skapa Nytt Serviceärende")
+    branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="new_case_branch")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        fn = st.text_input("Förnamn *", key="nc_fn")
+        ln = st.text_input("Efternamn *", key="nc_ln")
+        phone = st.text_input("Telefonnummer *", key="nc_phone")
+    with col2:
+        email = st.text_input("E-post", key="nc_email")
+        model = st.text_input("Enhet / Modell *", key="nc_model")
+        imei = st.text_input("IMEI / Serienummer", key="nc_imei")
+        sub_type = st.selectbox("Abonnemangstyp", ["Privat", "Företag", "Försäkring"], key="nc_sub")
+        
+    issue_desc = st.text_area("Felbeskrivning *", key="nc_desc")
+    
+    if st.button("💾 Spara och Skapa Ärende", type="primary", key="btn_create_case"):
+        if not fn or not ln or not phone or not model or not issue_desc:
+            st.warning("⚠️ Vänligen fyll i alla obligatoriska fält (Förnamn, Efternamn, Telefonnummer, Modell, Felbeskrivning).")
+        else:
+            case_data = {
+                "first_name": fn, "last_name": ln, "phone": phone,
+                "email": email, "model": model, "imei_serial": imei,
+                "subscription_type": sub_type, "issue_description": issue_desc,
+                "start_date": datetime.now().strftime('%Y-%m-%d'),
+                "branch": branch
+            }
+            new_case = store.create_case(case_data)
+            st.success(f"✅ Ärende #{new_case['id']} har skapats framgångsrikt!")
+            
+            pdf_bytes = generate_receipt_pdf_bytes(new_case)
+            st.download_button(
+                label="📥 Ladda ner Inlämningskvitto (PDF)",
+                data=pdf_bytes,
+                file_name=f"Inlaminingskvitto_Arende_{new_case['id']}.pdf",
+                mime="application/pdf"
+            )
+
 # TAB 2: Kostnadsförslag (Public Form for Customers + Staff View)
 with tab2:
     st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
@@ -637,7 +648,6 @@ with tab2:
             store.create_quote(quote_data)
             st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) och skickats till butiken!")
 
-    # Staff-only view & printing for quotes
     if st.session_state.authenticated:
         st.markdown("---")
         st.subheader("🔒 Personalvy: Sparade Kostnadsförslag i Databasen")
@@ -648,7 +658,6 @@ with tab2:
         if saved_quotes:
             st.dataframe(saved_quotes, use_container_width=True)
             
-            # Allow staff to generate PDF & Print for a specific quote
             st.markdown("#### Skriv ut sparat förslag")
             selected_quote_id = st.selectbox("Välj Förslag ID att skriva ut", [q["id"] for q in saved_quotes], key="sel_q_id")
             chosen_q = next((q for q in saved_quotes if q["id"] == selected_quote_id), None)
@@ -665,6 +674,96 @@ with tab2:
                 employee_print_button()
         else:
             st.info("Inga sparade kostnadsförslag hittades.")
+
+# TAB 3: Faktura
+with tab3:
+    st.header("📄 Skapa faktura")
+    st.write("Fyll i fakturauppgifterna nedan för att generera och ladda ner en professionell PDF-faktura:")
+    
+    inv_no = st.text_input("Fakturanummer", value="1001", key="inv_no")
+    inv_date = st.date_input("Fakturadatum", value=datetime.now(), key="inv_date")
+    due_date = st.date_input("Förfallodatum", value=datetime.now() + timedelta(days=30), key="due_date")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        cust_name = st.text_input("Kundnamn / Företag", key="inv_cname")
+        cust_addr = st.text_input("Adress", key="inv_caddr")
+    with c2:
+        cust_phone = st.text_input("Telefonnummer", key="inv_cphone")
+        cust_email = st.text_input("E-post", key="inv_cemail")
+        
+    st.markdown("#### Artiklar / Produkter / Tjänster")
+    item_desc = st.text_input("Beskrivning", value="Reparation och reservdel", key="inv_idesc")
+    item_qty = st.number_input("Antal", min_value=1.0, value=1.0, key="inv_iqty")
+    item_price = st.number_input("À-pris (SEK exkl. moms)", min_value=0.0, value=1000.0, key="inv_iprice")
+    item_vat = st.selectbox("Moms %", [25.0, 12.0, 6.0, 0.0], key="inv_ivat")
+    
+    if st.button("📄 Generera Faktura PDF", type="primary", key="btn_inv"):
+        invoice_payload = {
+            "invoice_no": inv_no,
+            "invoice_date": inv_date.strftime('%Y-%m-%d'),
+            "due_date": due_date.strftime('%Y-%m-%d'),
+            "customer_name": cust_name or "Kontantkund",
+            "customer_address": cust_addr,
+            "customer_phone": cust_phone,
+            "customer_email": cust_email,
+            "items": [{"code": "1", "desc": item_desc, "qty": item_qty, "price": item_price, "vat": item_vat}]
+        }
+        inv_pdf = generate_invoice_pdf_bytes(invoice_payload)
+        st.download_button(
+            label="📥 Ladda ner Faktura PDF",
+            data=inv_pdf,
+            file_name=f"Faktura_{inv_no}.pdf",
+            mime="application/pdf"
+        )
+
+# TAB 4: Sök Ärenden (With Secure Delete Option)
+with tab4:
+    st.header("🔍 Sök Serviceärenden")
+    search_branch_filter = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="search_branch_filter")
+    search_query = st.text_input("Sök på kundnamn, telefonnummer, modell eller ärende-ID:", key="search_query_input")
+    
+    saved_cases = store.search_cases(search_query, branch=search_branch_filter)
+    
+    if saved_cases:
+        st.write(f"Hittade {len(saved_cases)} ärenden:")
+        for case in saved_cases:
+            with st.expander(f"Ärende #{case['id']} - {case['first_name']} {case['last_name']} ({case['model']}) - Status: {case.get('status', 'Inlämnad')}"):
+                st.write(f"**Telefon:** {case.get('phone')} | **E-post:** {case.get('email', 'Ej angivet')}")
+                st.write(f"**Butik:** {case.get('branch')} | **Datum:** {case.get('created_at', 'Ej angivet')}")
+                st.write(f"**Felbeskrivning:** {case.get('issue_description')}")
+                
+                receipt_pdf = generate_receipt_pdf_bytes(case)
+                st.download_button(
+                    label=f"📥 Ladda ner Kvitto PDF (Ärende #{case['id']})",
+                    data=receipt_pdf,
+                    file_name=f"Kvitto_Arende_{case['id']}.pdf",
+                    mime="application/pdf",
+                    key=f"dl_receipt_{case['id']}"
+                )
+                
+                # Secure Delete Option with a different PIN (`DELETE_ACTION_PIN`)
+                if st.session_state.get("authenticated", False):
+                    st.markdown("---")
+                    st.markdown("##### 🗑️ Radera Ärende (Admin / Personal)")
+                    entered_del_pin = st.text_input(f"Ange raderingskod för ärende #{case['id']}:", type="password", key=f"del_pin_{case['id']}")
+                    if st.button(f"Radera Ärende #{case['id']} permanent", key=f"btn_del_{case['id']}", type="primary"):
+                        if entered_del_pin == DELETE_ACTION_PIN:
+                            with sqlite3.connect(store.local_db_path) as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("DELETE FROM service_cases WHERE id = ?", (case['id'],))
+                                conn.commit()
+                            if store.client:
+                                try:
+                                    store.client.table("service_cases").delete().eq("id", case['id']).execute()
+                                except Exception:
+                                    pass
+                            st.success(f"✅ Ärende #{case['id']} har raderats permanent!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Felaktig raderingskod!")
+    else:
+        st.info("Inga ärenden hittades.")
 
 # TAB 5: Pre-Orders (Public Access for Customers)
 with tab5:
@@ -687,156 +786,4 @@ with tab5:
                 "phone": po_phone, "part_model": part_model,
                 "deposit": deposit, "branch": po_branch
             })
-            st.success("✅ Din förbeställning har skickats till butiken! Vi kontaktar dig så snart varan finns tillgänglig.")
-
-    st.markdown("---")
-    
-    st.subheader("🔒 Personalvy: Befintliga Förbeställningar")
-    if st.session_state.authenticated:
-        emp_branch_filter = st.selectbox("Filtrera förbeställningar efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="emp_po_branch")
-        pre_orders_list = store.search_pre_orders(branch=emp_branch_filter)
-        if pre_orders_list:
-            st.dataframe(pre_orders_list, use_container_width=True)
-            employee_print_button()
-        else:
-            st.info("Inga förbeställningar hittades.")
-    else:
-        st.info("🔒 Endast anställda med PIN-kod kan se och skriva ut listan över sparade förbeställningar. Logga in i sidopanelen.")
-
-# Check Authentication for Rest of the Tabs (Nytt Ärende, Faktura, Sök Ärenden)
-if not st.session_state.authenticated:
-    st.info("🔒 Logga in med personal-PIN (`tunapark`) i sidopanelen för att komma åt Ärenden, Fakturor och Sökning.")
-    st.stop()
-
-# TAB 1: Register New Service Case (Staff Only)
-with tab1:
-    st.header("Registrera Nytt Serviceärende")
-    selected_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="t1_branch")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        first_name = st.text_input("Förnamn *", key="t1_fn")
-        last_name = st.text_input("Efternamn *", key="t1_ln")
-        phone = st.text_input("Telefonnummer *", key="t1_ph")
-        email = st.text_input("E-post", key="t1_em")
-    
-    with col2:
-        model = st.text_input("Enhet / Modell * (ex. iPhone 13 Pro)", key="t1_mod")
-        imei_serial = st.text_input("IMEI / Serienummer", key="t1_imei")
-        subscription_type = st.selectbox("Abonnemangstyp", ["Privat", "Företag", "Försäkringsärende", "Annat"], key="t1_sub")
-    
-    issue_description = st.text_area("Felbeskrivning (Issue Description)", key="t1_desc")
-
-    if st.button("💾 Spara Ärende & Skapa PDF", type="primary", key="btn_t1"):
-        if not first_name or not last_name or not phone or not model:
-            st.warning("⚠️ Fyll i alla obligatoriska fält (Förnamn, Efternamn, Telefon, Modell).")
-        else:
-            case_data = {
-                "first_name": first_name, "last_name": last_name, "phone": phone,
-                "email": email, "model": model, "imei_serial": imei_serial,
-                "subscription_type": subscription_type, "issue_description": issue_description,
-                "start_date": datetime.now().date().isoformat(),
-                "branch": selected_branch
-            }
-            saved_case = store.create_case(case_data)
-            st.success(f"✅ Ärende #{saved_case.get('id')} har sparats ({selected_branch})!")
-            
-            pdf_bytes = generate_receipt_pdf_bytes(saved_case)
-            st.download_button(
-                label="📄 Ladda ner PDF-kvitto (Download Receipt)",
-                data=pdf_bytes,
-                file_name=f"Kvitto_{saved_case.get('id')}.pdf",
-                mime="application/pdf",
-                key="dl_t1"
-            )
-            employee_print_button()
-
-# TAB 3: Faktura (Invoice Generator - Staff Only)
-with tab3:
-    st.header("📄 Skapa Officiell Faktura (Invoice)")
-    st.write(f"<b>Avsändare:</b> {COMPANY_NAME} | Org.nr: {ORG_NR} | Bankgiro: {BANKGIRO} | Swish: {SWISH}", unsafe_allow_html=True)
-    
-    inv_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="inv_branch")
-    
-    col_inv1, col_inv2 = st.columns(2)
-    with col_inv1:
-        inv_no = st.text_input("Fakturanummer (Fakturanr.)", value=f"FAK-{datetime.now().strftime('%Y%H%M')}")
-        cust_name = st.text_input("Kund / Företagsnamn *", key="inv_cname")
-        cust_addr = st.text_input("Adress", key="inv_caddr", placeholder="Storgatan 1, 632 20 Eskilstuna")
-    with col_inv2:
-        cust_phone = st.text_input("Telefonnummer", key="inv_cphone")
-        cust_email = st.text_input("E-post", key="inv_cemail")
-        terms_days = st.selectbox("Betalningsvillkor (dagar)", [10, 15, 20, 30], index=3)
-    
-    st.markdown("---")
-    st.subheader("Artikel- och tjänstelista")
-    
-    if "invoice_items" not in st.session_state:
-        st.session_state.invoice_items = [{"code": "REP-01", "desc": "Mobilreparation / Service", "qty": 1.0, "price": 990.0, "vat": 25.0}]
-    
-    for idx, item in enumerate(st.session_state.invoice_items):
-        cols = st.columns([2, 4, 1, 2, 1, 1])
-        with cols[0]:
-            item["code"] = st.text_input("Art.nr", value=item["code"], key=f"code_{idx}")
-        with cols[1]:
-            item["desc"] = st.text_input("Beskrivning", value=item["desc"], key=f"desc_{idx}")
-        with cols[2]:
-            item["qty"] = st.number_input("Antal", value=float(item["qty"]), min_value=0.1, step=1.0, key=f"qty_{idx}")
-        with cols[3]:
-            item["price"] = st.number_input("À-pris (SEK)", value=float(item["price"]), min_value=0.0, step=50.0, key=f"price_{idx}")
-        with cols[4]:
-            item["vat"] = st.selectbox("Moms %", [0, 6, 12, 25], index=3, key=f"vat_{idx}")
-        with cols[5]:
-            st.write("")
-            if st.button("🗑️", key=f"del_item_{idx}"):
-                st.session_state.invoice_items.pop(idx)
-                st.rerun()
-
-    if st.button("➕ Lägg till artikel"):
-        st.session_state.invoice_items.append({"code": "", "desc": "", "qty": 1.0, "price": 0.0, "vat": 25.0})
-        st.rerun()
-
-    st.markdown("---")
-    
-    if st.button("📄 Generera Officiell Faktura PDF", type="primary", key="btn_gen_invoice"):
-        if not cust_name or not st.session_state.invoice_items:
-            st.warning("⚠️ Fyll i kundens namn och minst en artikel.")
-        else:
-            inv_date_str = datetime.now().strftime('%Y-%m-%d')
-            due_date_str = (datetime.now() + timedelta(days=terms_days)).strftime('%Y-%m-%d')
-            
-            invoice_data = {
-                "invoice_no": inv_no,
-                "invoice_date": inv_date_str,
-                "due_date": due_date_str,
-                "terms": str(terms_days),
-                "customer_name": cust_name,
-                "customer_address": cust_addr,
-                "customer_phone": cust_phone,
-                "customer_email": cust_email,
-                "items": st.session_state.invoice_items,
-                "branch": inv_branch
-            }
-            
-            inv_pdf_bytes = generate_invoice_pdf_bytes(invoice_data)
-            st.success(f"✅ Faktura #{inv_no} skapad framgångsrikt!")
-            st.download_button(
-                label="📥 Ladda ner Faktura PDF",
-                data=inv_pdf_bytes,
-                file_name=f"Faktura_{inv_no}.pdf",
-                mime="application/pdf",
-                key="dl_invoice_pdf"
-            )
-            employee_print_button()
-
-# TAB 4: Search Cases & View History (Staff Only)
-with tab4:
-    st.header("Sök Serviceärenden")
-    search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="t3_branch")
-    search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:", key="t3_search")
-    
-    cases = store.search_cases(search_query, branch=search_branch)
-    if cases:
-        st.dataframe(cases, use_container_width=True)
-    else:
-        st.info("Inga ärenden hittades.")
+            st.success("✅ Förbeställning har sparats i databasen och skickats till butiken!")
