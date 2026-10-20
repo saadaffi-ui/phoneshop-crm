@@ -1,0 +1,4 @@
+supabase>=2.10,<3
+python-dotenv>=1.0,<2
+reportlab>=4.0,<5
+pyinstaller>=6.0,<7
