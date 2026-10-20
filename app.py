@@ -369,7 +369,7 @@ def generate_receipt_pdf_bytes(case):
         for term in [
             "1. Verkstaden ansvarar for felsokning och reparation enligt den felbeskrivning som anges ovan.",
             "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
-            "3. Kunden bor sakerhetskopiera enheten. Verkstaden kan inte garantera data bevaras vid reparation."
+            "3. يتوجب على العميل عمل نسخة احتياطية لبيانات الجهاز (إن أمكن ذلك، أو بطلب المساعدة من الورشة). الورشة لا تقوم بحفظ أي بيانات بشكل تلقائي، وبسبب الأعطال البرمجية أو أضرار الهاردوير (مثل أضرار المياه أو اللوحة الأم) هناك احتمال لفقدان البيانات أثناء عملية الإصلاح، ولا تضمن الورشة بقاء البيانات."
         ]:
             story.append(Paragraph(safe_para(term), terms))
         story.append(Spacer(1, 5*mm))
