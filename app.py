@@ -108,12 +108,22 @@ class CRMStore:
                     part_model TEXT, deposit REAL, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS price_quotes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_name TEXT, phone TEXT, model TEXT,
+                    total_price TEXT, description TEXT, branch TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
             for col_sql in [
                 "ALTER TABLE customers ADD COLUMN branch TEXT",
                 "ALTER TABLE service_cases ADD COLUMN branch TEXT",
                 "ALTER TABLE service_cases ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "ALTER TABLE pre_orders ADD COLUMN branch TEXT"
+                "ALTER TABLE pre_orders ADD COLUMN branch TEXT",
+                "ALTER TABLE price_quotes ADD COLUMN branch TEXT",
+                "ALTER TABLE price_quotes ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             ]:
                 try:
                     conn.execute(col_sql)
@@ -174,6 +184,59 @@ class CRMStore:
             rows = [r for r in rows if any(q in str(r.get(k) or "").casefold()
                     for k in ("first_name", "last_name", "phone", "part_model", "id"))]
         return rows
+
+    def search_quotes(self, query="", branch="Alla"):
+        q = query.casefold().strip()
+        rows = []
+        if self.client:
+            try:
+                query_builder = self.client.table("price_quotes").select("*").order("created_at", desc=True).limit(500)
+                if branch != "Alla":
+                    query_builder = query_builder.eq("branch", branch)
+                result = query_builder.execute()
+                rows = result.data or []
+            except Exception:
+                pass
+        if not rows:
+            with sqlite3.connect(self.local_db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                if branch != "Alla":
+                    cursor.execute("SELECT * FROM price_quotes WHERE branch = ? ORDER BY id DESC LIMIT 500", (branch,))
+                else:
+                    cursor.execute("SELECT * FROM price_quotes ORDER BY id DESC LIMIT 500")
+                rows = [dict(row) for row in cursor.fetchall()]
+
+        if q:
+            rows = [r for r in rows if any(q in str(r.get(k) or "").casefold()
+                    for k in ("customer_name", "phone", "model", "id", "description"))]
+        return rows
+
+    def create_quote(self, data):
+        payload = {
+            "customer_name": data["customer_name"],
+            "phone": data["phone"],
+            "model": data["model"],
+            "total_price": data["total_price"],
+            "description": data["description"],
+            "branch": data["branch"]
+        }
+        if self.client:
+            try:
+                res = self.client.table("price_quotes").insert(payload).execute()
+                return res.data[0]
+            except Exception:
+                pass
+
+        with sqlite3.connect(self.local_db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO price_quotes (customer_name, phone, model, total_price, description, branch)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (payload["customer_name"], payload["phone"], payload["model"], payload["total_price"], payload["description"], payload["branch"]))
+            conn.commit()
+            payload["id"] = cursor.lastrowid
+            return payload
 
     def upsert_customer(self, first, last, phone, email, subscription="", branch="Eskilstuna"):
         payload = {
@@ -511,9 +574,9 @@ if st.sidebar.button("Login"):
 # Navigation Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag (Public)", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning (Public)"])
 
-# TAB 2: Kostnadsförslag (Public Form for Customers)
+# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View)
 with tab2:
-    st.header("💡 Begär Kostnadsförslag (Price Quote Request)")
+    st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
     st.write("Fyll i uppgifterna nedan för att skicka en förfrågan om kostnadsförslag till butiken:")
     
     q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
@@ -524,39 +587,53 @@ with tab2:
         q_phone = st.text_input("Telefonnummer *", key="q_phone")
     with q_col2:
         q_model = st.text_input("Enhet / Modell * (ex. iPhone 12 Pro)", key="q_model")
-        q_price = st.text_input("Önskat / Uppskattat pris (SEK) [Valfritt]", key="q_price", placeholder="ex. 1290")
+        q_price = st.text_input("Totalpris inkl. moms (SEK) *", key="q_price", placeholder="ex. 1290")
     
-    q_desc = st.text_area("Beskrivning av problem / reparation *", key="q_desc", placeholder="ex. Skärmen är spräckt och behöver bytas.")
+    q_desc = st.text_area("Beskrivning av problem / reparation *", key="q_desc", placeholder="ex. Skärmbyte (Originaldel) inklusive arbete och garanti.")
 
-    if st.button("📤 Skicka Förfrågan", type="primary", key="btn_quote"):
-        if not q_name or not q_phone or not q_model:
-            st.warning("⚠️ Fyll i namn, telefonnummer och enhet/modell.")
+    if st.button("📤 Skicka / Spara Förslag", type="primary", key="btn_quote"):
+        if not q_name or not q_phone or not q_model or not q_price:
+            st.warning("⚠️ Fyll i namn, telefonnummer, modell och pris.")
         else:
-            st.success("✅ Tack! Din förfrågan om kostnadsförslag har skickats till butiken. Vår personal återkommer till dig så snart som möjligt.")
-            
-    # Print and Download buttons are ONLY visible if Employee is logged in
+            quote_data = {
+                "customer_name": q_name,
+                "phone": q_phone,
+                "model": q_model,
+                "total_price": q_price,
+                "description": q_desc,
+                "branch": q_branch
+            }
+            store.create_quote(quote_data)
+            st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) och skickats till butiken!")
+
+    # Staff-only view & printing for quotes
     if st.session_state.authenticated:
         st.markdown("---")
-        st.subheader("🔒 Personalalternativ (Generera & Skriv ut)")
-        if st.button("📄 Generera Kostnadsförslag PDF (Personal)", key="btn_quote_emp"):
-            if q_name and q_phone and q_model:
-                quote_data = {
-                    "customer_name": q_name,
-                    "phone": q_phone,
-                    "model": q_model,
-                    "total_price": q_price or "0",
-                    "description": q_desc,
-                    "branch": q_branch
-                }
-                q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
+        st.subheader("🔒 Personalvy: Sparade Kostnadsförslag i Databasen")
+        q_search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="q_search_branch")
+        q_query = st.text_input("Sök på namn, telefon eller modell:", key="q_search_input")
+        
+        saved_quotes = store.search_quotes(q_query, branch=q_search_branch)
+        if saved_quotes:
+            st.dataframe(saved_quotes, use_container_width=True)
+            
+            # Allow staff to generate PDF & Print for a specific quote
+            st.markdown("#### Skriv ut sparat förslag")
+            selected_quote_id = st.selectbox("Välj Förslag ID att skriva ut", [q["id"] for q in saved_quotes], key="sel_q_id")
+            chosen_q = next((q for q in saved_quotes if q["id"] == selected_quote_id), None)
+            
+            if chosen_q:
+                q_pdf = generate_quote_pdf_bytes(chosen_q)
                 st.download_button(
-                    label="📥 Ladda ner PDF",
-                    data=q_pdf_bytes,
-                    file_name=f"Kostnadsforslag_{q_name.replace(' ', '_')}.pdf",
+                    label="📥 Ladda ner PDF (Personal)",
+                    data=q_pdf,
+                    file_name=f"Kostnadsforslag_{chosen_q['customer_name'].replace(' ', '_')}.pdf",
                     mime="application/pdf",
-                    key="dl_quote"
+                    key="dl_saved_quote"
                 )
                 employee_print_button()
+        else:
+            st.info("Inga sparade kostnadsförslag hittades.")
 
 # TAB 5: Pre-Orders (Public Access for Customers)
 with tab5:
@@ -583,7 +660,6 @@ with tab5:
 
     st.markdown("---")
     
-    # Secure Section for Employees Only inside Pre-Orders Tab
     st.subheader("🔒 Personalvy: Befintliga Förbeställningar")
     if st.session_state.authenticated:
         emp_branch_filter = st.selectbox("Filtrera förbeställningar efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="emp_po_branch")
@@ -642,8 +718,6 @@ with tab1:
                 mime="application/pdf",
                 key="dl_t1"
             )
-            
-            # Direct Print Button for Employees Only
             employee_print_button()
 
 # TAB 3: Faktura (Invoice Generator - Staff Only)
@@ -722,8 +796,6 @@ with tab3:
                 mime="application/pdf",
                 key="dl_invoice_pdf"
             )
-            
-            # Direct Print Button for Employees Only
             employee_print_button()
 
 # TAB 4: Search Cases & View History (Staff Only)
