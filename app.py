@@ -41,7 +41,7 @@ VAT_NR = "SE559370803401"
 BANKGIRO = "5837-0354"
 SWISH = "1230435420"
 
-# Secrets Support with fallback
+# Secure PINs configuration (via Streamlit Secrets or Environment with fallback)
 try:
     DELETE_PIN = st.secrets.get("DELETE_PIN", os.getenv("DELETE_PIN", "tunapark"))
     DELETE_ACTION_PIN = st.secrets.get("DELETE_ACTION_PIN", os.getenv("DELETE_ACTION_PIN", "admin123"))
@@ -49,7 +49,7 @@ except Exception:
     DELETE_PIN = os.getenv("DELETE_PIN", "tunapark")
     DELETE_ACTION_PIN = os.getenv("DELETE_ACTION_PIN", "admin123")
 
-# Helper function to trigger browser print via JavaScript (Exclusive for Staff)
+# Helper function to trigger browser print via JavaScript (Exclusive for Authenticated Staff)
 def employee_print_button():
     print_js = """
     <script>
@@ -64,7 +64,7 @@ def employee_print_button():
     components.html(print_js, height=60)
 
 # -----------------------------------------------------------------------------
-# CRM Store (Supabase + Local SQLite Backup with auto-migration)
+# CRM Store (Supabase + Local SQLite Backup with Parameterized Security)
 # -----------------------------------------------------------------------------
 class CRMStore:
     def __init__(self):
@@ -158,33 +158,6 @@ class CRMStore:
         if q:
             rows = [r for r in rows if any(q in str(r.get(k) or "").casefold()
                     for k in ("first_name", "last_name", "phone", "id", "email", "model"))]
-        return rows
-
-    def search_pre_orders(self, query="", branch="Alla"):
-        q = query.casefold().strip()
-        rows = []
-        if self.client:
-            try:
-                query_builder = self.client.table("pre_orders").select("*").order("created_at", desc=True).limit(500)
-                if branch != "Alla":
-                    query_builder = query_builder.eq("branch", branch)
-                result = query_builder.execute()
-                rows = result.data or []
-            except Exception:
-                pass
-        if not rows:
-            with sqlite3.connect(self.local_db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                if branch != "Alla":
-                    cursor.execute("SELECT * FROM pre_orders WHERE branch = ? ORDER BY id DESC LIMIT 500", (branch,))
-                else:
-                    cursor.execute("SELECT * FROM pre_orders ORDER BY id DESC LIMIT 500")
-                rows = [dict(row) for row in cursor.fetchall()]
-
-        if q:
-            rows = [r for r in rows if any(q in str(r.get(k) or "").casefold()
-                    for k in ("first_name", "last_name", "phone", "part_model", "id"))]
         return rows
 
     def search_quotes(self, query="", branch="Alla"):
@@ -354,24 +327,24 @@ def generate_receipt_pdf_bytes(case):
     for index, copy_title in enumerate(("BUTIKENS KOPIA", "KUNDENS KOPIA")):
         if index:
             story.extend([Spacer(1, 4*mm), HRFlowable(width="100%", thickness=0.8, color=colors.grey, dash=[3, 3]), 
-                          Paragraph("KLIPP HAR / SAX LINJE", ParagraphStyle("Cut", parent=body, alignment=TA_CENTER, textColor=colors.grey)), Spacer(1, 3*mm)])
+                          Paragraph("KLIPP HÄR / SAX LINJE", ParagraphStyle("Cut", parent=body, alignment=TA_CENTER, textColor=colors.grey)), Spacer(1, 3*mm)])
         
         story.append(Paragraph(safe_para(COMPANY_NAME), title))
         company_line = f"Butik: {branch} | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB} | {COMPANY_EMAIL}"
         story.append(Paragraph(safe_para(company_line), ParagraphStyle("Company", parent=body, alignment=TA_CENTER)))
-        story.append(Paragraph(f"<b>{copy_title} - INLAMNINGSKVITTO & AVTAL</b>", title))
-        story.append(Paragraph(f"<b>Arendenummer:</b> {safe_para(case.get('id'))} &nbsp;&nbsp; <b>Datum:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", body))
+        story.append(Paragraph(f"<b>{copy_title} - INLÄMNINGSKVITTO & AVTAL</b>", title))
+        story.append(Paragraph(f"<b>Ärendenummer:</b> {safe_para(case.get('id'))} &nbsp;&nbsp; <b>Datum:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", body))
         story.append(Paragraph("KUND- OCH ENHETSINFORMATION", heading))
         story.append(Paragraph(f"<b>Kund:</b> {safe_para(full_name)} &nbsp;&nbsp; <b>Mobil:</b> {safe_para(case.get('phone'))}", body))
         story.append(Paragraph(f"<b>E-post:</b> {safe_para(case.get('email'))} &nbsp;&nbsp; <b>Modell:</b> {safe_para(case.get('model'))}", body))
         story.append(Paragraph(f"<b>IMEI / Serienummer:</b> {safe_para(case.get('imei_serial'))}", body))
         story.append(Paragraph(f"<b>Abonnemangstyp:</b> {safe_para(case.get('subscription_type'))} &nbsp;&nbsp; <b>Butik:</b> {safe_para(branch)}", body))
         story.append(Paragraph(f"<b>Felbeskrivning:</b> {safe_para(case.get('issue_description'))}", body))
-        story.append(Paragraph("SARSKILDA AVTALSVILLKOR", heading))
+        story.append(Paragraph("SÄRSKILDA AVTALSVILLKOR", heading))
         for term in [
-            "1. Verkstaden ansvarar for felsokning och reparation enligt den felbeskrivning som anges ovan.",
-            "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
-            "3. Kunden ansvarar for att sakerhetskopiera enheten (om mojligt, eller begara hjalp av verkstaden). Verkstaden sparar ingen information automatiskt, men pa grund av mjukvarufel eller hardvaruskador (sasom vattenskador eller fel pa moderkortet) finns det en risk for dataforlust under reparationen, och verkstaden garanterar inte att data bevaras."
+            "1. Verkstaden ansvarar för felsökning och reparation enligt den felbeskrivning som anges ovan.",
+            "2. Garanti gäller endast för de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
+            "3. Kunden ansvarar för att säkerhetskopiera enheten (om möjligt, eller begära hjälp av verkstaden). Verkstaden sparar ingen information automatiskt, men på grund av mjukvarufel eller hårdvaruskador (såsom vattenskador eller fel på moderkortet) finns det en risk för dataförlust under reparationen, och verkstaden garanterar inte att data bevaras."
         ]:
             story.append(Paragraph(safe_para(term), terms))
         story.append(Spacer(1, 5*mm))
@@ -394,7 +367,7 @@ def generate_quote_pdf_bytes(quote_data):
     story.append(Paragraph(safe_para(COMPANY_NAME), title))
     company_line = f"Butik: {branch} | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB}"
     story.append(Paragraph(safe_para(company_line), ParagraphStyle("Company", parent=body, alignment=TA_CENTER)))
-    story.append(Paragraph("<b>KOSTNADSFORSLAG (PRICE QUOTE)</b>", title))
+    story.append(Paragraph("<b>KOSTNADSFÖRSLAG (PRICE QUOTE)</b>", title))
     story.append(Paragraph(f"<b>Datum:</b> {datetime.now().strftime('%Y-%m-%d')} &nbsp;&nbsp; <b>Giltigt i:</b> 14 dagar", body))
     
     story.append(Paragraph("KUNDINFORMATION", heading))
@@ -402,12 +375,12 @@ def generate_quote_pdf_bytes(quote_data):
     story.append(Paragraph(f"<b>Enhet / Modell:</b> {safe_para(quote_data['model'])} &nbsp;&nbsp; <b>Butik:</b> {safe_para(branch)}", body))
     
     story.append(Paragraph("SPECIFIKATION AV REPARATION OCH PRIS", heading))
-    story.append(Paragraph(f"<b>Utfort arbete / Beskrivning:</b><br/>{safe_para(quote_data['description'])}", body))
+    story.append(Paragraph(f"<b>Utfört arbete / Beskrivning:</b><br/>{safe_para(quote_data['description'])}", body))
     story.append(Spacer(1, 4*mm))
     story.append(Paragraph(f"<b>Att betala totalt inkl. moms:</b> <font size=12><b>{quote_data['total_price']} SEK</b></font>", ParagraphStyle("Total", parent=body, fontSize=11, textColor=colors.HexColor("#003366"))))
     story.append(Spacer(1, 8*mm))
     
-    story.append(Paragraph("Villkor: Kostnadsforslaget ar kostnadsfritt om reparationen utfors hos oss. Vid enbart felsokning kan avgift tillkomma.", ParagraphStyle("Terms", parent=body, fontSize=7.5, textColor=colors.HexColor("#555555"))))
+    story.append(Paragraph("Villkor: Kostnadsförslaget är kostnadsfritt om reparationen utförs hos oss. Vid enbart felsökning kan avgift tillkomma.", ParagraphStyle("Terms", parent=body, fontSize=7.5, textColor=colors.HexColor("#555555"))))
 
     doc.build(story)
     buffer.seek(0)
@@ -555,26 +528,33 @@ def generate_invoice_pdf_bytes(inv_data):
     return buffer.getvalue()
 
 # -----------------------------------------------------------------------------
-# Streamlit Application UI
+# Streamlit Application UI & Authentication Handling
 # -----------------------------------------------------------------------------
 store = CRMStore()
 
 st.sidebar.title("📱 30 Minutes Phone Fix")
-st.sidebar.subheader("Employee Login")
+st.sidebar.subheader("🔒 Personal Inloggning (Staff Access)")
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-pin_input = st.sidebar.text_input("Enter Access Code / PIN:", type="password")
-if st.sidebar.button("Login"):
-    if pin_input == DELETE_PIN:
-        st.session_state.authenticated = True
-        st.sidebar.success("Logged in successfully!")
-    else:
-        st.sidebar.error("Incorrect PIN!")
+if not st.session_state.authenticated:
+    pin_input = st.sidebar.text_input("Ange Personal PIN / Kod:", type="password", key="login_pin")
+    if st.sidebar.button("🔑 Logga in", key="btn_login"):
+        if pin_input == DELETE_PIN:
+            st.session_state.authenticated = True
+            st.sidebar.success("✅ Inloggad som Personal/Admin")
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Felaktig PIN-kod!")
+else:
+    st.sidebar.success("🔒 Inloggad (Personalläge aktivt)")
+    if st.sidebar.button("🚪 Logga ut"):
+        st.session_state.authenticated = False
+        st.rerun()
 
 # Navigation Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag (Public)", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning (Public)"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag (Public)", "📄 Faktura", "🔍 Sök Ärenden (Protected)", "🛒 Förbeställning (Public)"])
 
 # TAB 1: Nytt Ärende
 with tab1:
@@ -616,7 +596,7 @@ with tab1:
                 mime="application/pdf"
             )
 
-# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View - Manual Itemized Pricing)
+# TAB 2: Kostnadsförslag (Manual Itemized Pricing)
 with tab2:
     st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
     st.write("Välj enhet och klicka i de reparationer som behövs samt ange pris för varje del:")
@@ -667,10 +647,8 @@ with tab2:
 
     extra_desc = st.text_area("Övriga anteckningar / Beskrivning", key="q_extra_desc", placeholder="ex. Extra detaljer om skadan...")
     
-    # عرض السعر الإجمالي المحسوب تلقائياً بناءً على الأسعار التي أدخلتها بنفسك
     st.markdown(f"### 💰 Beräknat Totalpris: **{total_calculated_price:.0f} SEK**")
     
-    # خانة السعر الإجمالي التي يتم ملؤها بالمجموع التلقائي مع إمكانية التعديل
     q_price = st.text_input("Totalpris inkl. moms (SEK) *", value=str(int(total_calculated_price)) if total_calculated_price > 0 else "", key="q_price")
 
     if st.button("📤 Skicka / Spara Förslag", type="primary", key="btn_quote"):
@@ -692,6 +670,7 @@ with tab2:
             store.create_quote(quote_data)
             st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) med totalpriset {q_price} SEK!")
 
+    # Protected View: Only authenticated staff can view all customer quotes
     if st.session_state.authenticated:
         st.markdown("---")
         st.subheader("🔒 Personalvy: Sparade Kostnadsförslag i Databasen")
@@ -761,34 +740,39 @@ with tab3:
             mime="application/pdf"
         )
 
-# TAB 4: Sök Ärenden (With Secure Delete Option)
+# TAB 4: Sök Ärenden (Protected with Admin Login & Separate Delete PIN)
 with tab4:
     st.header("🔍 Sök Serviceärenden")
-    search_branch_filter = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="search_branch_filter")
-    search_query = st.text_input("Sök på kundnamn, telefonnummer, modell eller ärende-ID:", key="search_query_input")
     
-    saved_cases = store.search_cases(search_query, branch=search_branch_filter)
-    
-    if saved_cases:
-        st.write(f"Hittade {len(saved_cases)} ärenden:")
-        for case in saved_cases:
-            with st.expander(f"Ärende #{case['id']} - {case['first_name']} {case['last_name']} ({case['model']}) - Status: {case.get('status', 'Inlämnad')}"):
-                st.write(f"**Telefon:** {case.get('phone')} | **E-post:** {case.get('email', 'Ej angivet')}")
-                st.write(f"**Butik:** {case.get('branch')} | **Datum:** {case.get('created_at', 'Ej angivet')}")
-                st.write(f"**Felbeskrivning:** {case.get('issue_description')}")
-                
-                receipt_pdf = generate_receipt_pdf_bytes(case)
-                st.download_button(
-                    label=f"📥 Ladda ner Kvitto PDF (Ärende #{case['id']})",
-                    data=receipt_pdf,
-                    file_name=f"Kvitto_Arende_{case['id']}.pdf",
-                    mime="application/pdf",
-                    key=f"dl_receipt_{case['id']}"
-                )
-                
-                if st.session_state.get("authenticated", False):
+    # 🔒 Security Barrier: Hide sensitive customer database unless authenticated
+    if not st.session_state.get("authenticated", False):
+        st.warning("🔒 Åtkomst nekad: Du måste logga in i sidomenyn till vänster med Personal-PIN för att se och söka i kundregistret.")
+    else:
+        search_branch_filter = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="search_branch_filter")
+        search_query = st.text_input("Sök på kundnamn, telefonnummer, modell eller ärende-ID:", key="search_query_input")
+        
+        saved_cases = store.search_cases(search_query, branch=search_branch_filter)
+        
+        if saved_cases:
+            st.write(f"Hittade {len(saved_cases)} ärenden:")
+            for case in saved_cases:
+                with st.expander(f"Ärende #{case['id']} - {case['first_name']} {case['last_name']} ({case['model']}) - Status: {case.get('status', 'Inlämnad')}"):
+                    st.write(f"**Telefon:** {case.get('phone')} | **E-post:** {case.get('email', 'Ej angivet')}")
+                    st.write(f"**Butik:** {case.get('branch')} | **Datum:** {case.get('created_at', 'Ej angivet')}")
+                    st.write(f"**Felbeskrivning:** {case.get('issue_description')}")
+                    
+                    receipt_pdf = generate_receipt_pdf_bytes(case)
+                    st.download_button(
+                        label=f"📥 Ladda ner Kvitto PDF (Ärende #{case['id']})",
+                        data=receipt_pdf,
+                        file_name=f"Kvitto_Arende_{case['id']}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_receipt_{case['id']}"
+                    )
+                    
+                    # 🔐 Secure Delete Operation: Requires dedicated DELETE_ACTION_PIN
                     st.markdown("---")
-                    st.markdown("##### 🗑️ Radera Ärende (Admin / Personal)")
+                    st.markdown("##### 🗑️ Radera Ärende (Kräver Raderingskod)")
                     entered_del_pin = st.text_input(f"Ange raderingskod för ärende #{case['id']}:", type="password", key=f"del_pin_{case['id']}")
                     if st.button(f"Radera Ärende #{case['id']} permanent", key=f"btn_del_{case['id']}", type="primary"):
                         if entered_del_pin == DELETE_ACTION_PIN:
@@ -805,10 +789,10 @@ with tab4:
                             st.rerun()
                         else:
                             st.error("❌ Felaktig raderingskod!")
-    else:
-        st.info("Inga ärenden hittades.")
+        else:
+            st.info("Inga ärenden hittades.")
 
-# TAB 5: Pre-Orders (Public Access for Customers)
+# TAB 5: Pre-Orders (Public Access)
 with tab5:
     st.header("🛒 Gör en Förbeställning (Pre-Order)")
     st.write("Fyll i uppgifterna nedan för att förbeställa en reservdel eller tillbehör:")
@@ -829,4 +813,4 @@ with tab5:
                 "phone": po_phone, "part_model": part_model,
                 "deposit": deposit, "branch": po_branch
             })
-            st.success("✅ Förbeställning har sparats i databasen och skickats till butiken!")
+            st.success("✅ Förbeställning har sparats i databasen och skickats till skärmen!")
