@@ -337,7 +337,6 @@ def generate_invoice_pdf_bytes(inv_data):
     buffer = io.BytesIO()
     styles = getSampleStyleSheet()
     
-    title = ParagraphStyle("InvTitle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=15, leading=18, alignment=TA_LEFT)
     sub = ParagraphStyle("InvSub", parent=styles["Normal"], fontSize=8.5, leading=11, textColor=colors.HexColor("#333333"))
     body = ParagraphStyle("InvBody", parent=styles["Normal"], fontSize=8.5, leading=11)
     bold_body = ParagraphStyle("InvBoldBody", parent=body, fontName="Helvetica-Bold")
@@ -346,7 +345,6 @@ def generate_invoice_pdf_bytes(inv_data):
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
     story = []
     
-    # Header Table: Company Info vs Invoice Meta
     header_data = [
         [
             Paragraph(f"<b>{COMPANY_NAME}</b><br/>{COMPANY_TAGLINE}<br/>{COMPANY_ADDRESS}<br/>Tel: {COMPANY_PHONE} | {COMPANY_EMAIL}<br/>Webb: {COMPANY_WEB}", sub),
@@ -361,7 +359,6 @@ def generate_invoice_pdf_bytes(inv_data):
     story.append(t_header)
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#003366"), spaceAfter=6, spaceBefore=2))
     
-    # Sender & Customer Box
     meta_box = [
         [
             Paragraph(f"<b>AVSÄNDARE:</b><br/>{COMPANY_NAME}<br/>Org.nr: {ORG_NR} • VAT.nr: {VAT_NR}<br/>Bankgiro: {BANKGIRO} • Swish: {SWISH}", body),
@@ -381,7 +378,6 @@ def generate_invoice_pdf_bytes(inv_data):
     story.append(t_meta)
     story.append(Spacer(1, 5*mm))
     
-    # References bar
     ref_data = [[
         Paragraph(f"<b>Er referens:</b> {inv_data.get('your_ref', '-')}", body),
         Paragraph(f"<b>Vår referens:</b> {inv_data.get('our_ref', '-')}", body),
@@ -399,7 +395,6 @@ def generate_invoice_pdf_bytes(inv_data):
     story.append(t_ref)
     story.append(Spacer(1, 6*mm))
     
-    # Items Table
     table_rows = [
         [Paragraph("<b>Artikel</b>", bold_body), Paragraph("<b>Benämning / beskrivning</b>", bold_body), Paragraph("<b>Antal</b>", bold_body), Paragraph("<b>À-pris (SEK)</b>", bold_body), Paragraph("<b>Moms %</b>", bold_body), Paragraph("<b>Totalt (SEK)</b>", bold_body)]
     ]
@@ -429,13 +424,11 @@ def generate_invoice_pdf_bytes(inv_data):
     t_items = Table(table_rows, colWidths=[20*mm, 80*mm, 15*mm, 25*mm, 15*mm, 25*mm])
     t_items.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#003366")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 5),
         ('TOPPADDING', (0,0), (-1,-1), 5),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#DDDDDD")),
     ]))
-    # Fix header text color for ReportLab paragraphs inside table header
     for i in range(len(table_rows[0])):
         table_rows[0][i].style.textColor = colors.white
         
@@ -444,7 +437,6 @@ def generate_invoice_pdf_bytes(inv_data):
     
     grand_total = subtotal + total_moms
     
-    # Summary Box
     summary_data = [
         [Paragraph("<b>Momsunderlag (SEK):</b>", body), Paragraph(f"{subtotal:.2f}", header_right)],
         [Paragraph("<b>Total moms (SEK):</b>", body), Paragraph(f"{total_moms:.2f}", header_right)],
@@ -461,7 +453,6 @@ def generate_invoice_pdf_bytes(inv_data):
     story.append(t_summary)
     story.append(Spacer(1, 10*mm))
     
-    # Payment Info Footer
     pay_box = [
         [
             Paragraph(f"<b>Betalningsuppgifter:</b><br/>Bankgiro: <b>{BANKGIRO}</b> | Swish: <b>{SWISH}</b><br/><i>Ange fakturanummer ({inv_data['invoice_no']}) som meddelande vid betalning.</i>", sub)
@@ -502,11 +493,50 @@ if st.sidebar.button("Login"):
     else:
         st.sidebar.error("Incorrect PIN!")
 
-if not st.session_state.authenticated:
-    st.info("🔒 Please enter the employee PIN code in the sidebar to access the CRM.")
-    st.stop()
+# Navigation Tabs (Pre-order is public, others need authentication)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning (Public)"])
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning"])
+# TAB 5: Pre-Orders (Public Access for Customers)
+with tab5:
+    st.header("🛒 Gör en Förbeställning (Pre-Order)")
+    st.write("Här kan du som kund beställa en reservdel eller tillbehör i förväg. Fyll i uppgifterna nedan:")
+    
+    po_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="po_branch")
+    po_fn = st.text_input("Förnamn *", key="po_fn")
+    po_ln = st.text_input("Efternamn *", key="po_ln")
+    po_phone = st.text_input("Telefonnummer *", key="po_phone")
+    part_model = st.text_input("Del / Modell / Artikel * (ex. Skärm iPhone 14)", key="po_part")
+    deposit = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0, key="po_dep")
+
+    if st.button("💾 Skicka Förbeställning", key="btn_po", type="primary"):
+        if not po_fn or not po_phone or not part_model:
+            st.warning("⚠️ Fyll i förnamn, telefonnummer och del/modell.")
+        else:
+            store.create_pre_order({
+                "first_name": po_fn, "last_name": po_ln,
+                "phone": po_phone, "part_model": part_model,
+                "deposit": deposit, "branch": po_branch
+            })
+            st.success("✅ Din förbeställning har skickats tillbutiken! Vi kontaktar dig så snart varan är klar.")
+
+    st.markdown("---")
+    
+    # Secure Section for Employees Only inside Pre-Orders Tab
+    st.subheader("🔒 Personalvy: Befintliga Förbeställningar")
+    if st.session_state.authenticated:
+        emp_branch_filter = st.selectbox("Filtrera förbeställningar efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="emp_po_branch")
+        pre_orders_list = store.search_pre_orders(branch=emp_branch_filter)
+        if pre_orders_list:
+            st.dataframe(pre_orders_list, use_container_width=True)
+        else:
+            st.info("Inga förbeställningar hittades.")
+    else:
+        st.info("🔒 Endast anställda med PIN-kod kan se listan över sparade förbeställningar ovan. Logga in i sidopanelen.")
+
+# Check Authentication for Rest of the Tabs
+if not st.session_state.authenticated:
+    st.info("🔒 Logga in med personal-PIN (i sidopanelen) för att komma åt Ärenden, Kostnadsförslag, Fakturor och Sökning.")
+    st.stop()
 
 # TAB 1: Register New Service Case
 with tab1:
@@ -545,154 +575,4 @@ with tab1:
             st.download_button(
                 label="📄 Ladda ner PDF-kvitto (Download Receipt)",
                 data=pdf_bytes,
-                file_name=f"Kvitto_{saved_case.get('id')}.pdf",
-                mime="application/pdf",
-                key="dl_t1"
-            )
-
-# TAB 2: Kostnadsförslag (Price Quote)
-with tab2:
-    st.header("Skapa Kostnadsförslag (Price Quote)")
-    q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
-    
-    q_col1, q_col2 = st.columns(2)
-    with q_col1:
-        q_name = st.text_input("Kundens Namn *", key="q_name")
-        q_phone = st.text_input("Telefonnummer *", key="q_phone")
-    with q_col2:
-        q_model = st.text_input("Enhet / Modell * (ex. iPhone 12)", key="q_model")
-        q_price = st.text_input("Totalpris inkl. moms (SEK) *", key="q_price", placeholder="ex. 1290")
-    
-    q_desc = st.text_area("Reparationsdetaljer / Åtgärder", key="q_desc", placeholder="ex. Skärmbyte (Originaldel) inklusive arbete och garanti.")
-
-    if st.button("📄 Generera Kostnadsförslag PDF", type="primary", key="btn_quote"):
-        if not q_name or not q_phone or not q_model or not q_price:
-            st.warning("⚠️ Fyll i kundens namn, telefon, modell och pris.")
-        else:
-            quote_data = {
-                "customer_name": q_name,
-                "phone": q_phone,
-                "model": q_model,
-                "total_price": q_price,
-                "description": q_desc,
-                "branch": q_branch
-            }
-            q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
-            st.success(f"✅ Kostnadsförslag skapat ({q_branch})!")
-            st.download_button(
-                label="📥 Ladda ner Kostnadsförslag PDF",
-                data=q_pdf_bytes,
-                file_name=f"Kostnadsforslag_{q_name.replace(' ', '_')}.pdf",
-                mime="application/pdf",
-                key="dl_quote"
-            )
-
-# TAB 3: Faktura (Invoice Generator)
-with tab3:
-    st.header("📄 Skapa Officiell Faktura (Invoice)")
-    st.write(f"<b>Avsändare:</b> {COMPANY_NAME} | Org.nr: {ORG_NR} | Bankgiro: {BANKGIRO} | Swish: {SWISH}", unsafe_allow_html=True)
-    
-    inv_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="inv_branch")
-    
-    col_inv1, col_inv2 = st.columns(2)
-    with col_inv1:
-        inv_no = st.text_input("Fakturanummer (Fakturanr.)", value=f"FAK-{datetime.now().strftime('%Y%H%M')}")
-        cust_name = st.text_input("Kund / Företagsnamn *", key="inv_cname")
-        cust_addr = st.text_input("Adress", key="inv_caddr", placeholder="Storgatan 1, 632 20 Eskilstuna")
-    with col_inv2:
-        cust_phone = st.text_input("Telefonnummer", key="inv_cphone")
-        cust_email = st.text_input("E-post", key="inv_cemail")
-        terms_days = st.selectbox("Betalningsvillkor (dagar)", [10, 15, 20, 30], index=3)
-    
-    st.markdown("---")
-    st.subheader("Artikel- och tjänstelista")
-    
-    if "invoice_items" not in st.session_state:
-        st.session_state.invoice_items = [{"code": "REP-01", "desc": "Mobilreparation / Service", "qty": 1.0, "price": 990.0, "vat": 25.0}]
-    
-    for idx, item in enumerate(st.session_state.invoice_items):
-        cols = st.columns([2, 4, 1, 2, 1, 1])
-        with cols[0]:
-            item["code"] = st.text_input("Art.nr", value=item["code"], key=f"code_{idx}")
-        with cols[1]:
-            item["desc"] = st.text_input("Beskrivning", value=item["desc"], key=f"desc_{idx}")
-        with cols[2]:
-            item["qty"] = st.number_input("Antal", value=float(item["qty"]), min_value=0.1, step=1.0, key=f"qty_{idx}")
-        with cols[3]:
-            item["price"] = st.number_input("À-pris (SEK)", value=float(item["price"]), min_value=0.0, step=50.0, key=f"price_{idx}")
-        with cols[4]:
-            item["vat"] = st.selectbox("Moms %", [0, 6, 12, 25], index=3, key=f"vat_{idx}")
-        with cols[5]:
-            st.write("")
-            if st.button("🗑️", key=f"del_item_{idx}"):
-                st.session_state.invoice_items.pop(idx)
-                st.rerun()
-
-    if st.button("➕ Lägg till artikel"):
-        st.session_state.invoice_items.append({"code": "", "desc": "", "qty": 1.0, "price": 0.0, "vat": 25.0})
-        st.rerun()
-
-    st.markdown("---")
-    
-    if st.button("📄 Generera Officiell Faktura PDF", type="primary", key="btn_gen_invoice"):
-        if not cust_name or not st.session_state.invoice_items:
-            st.warning("⚠️ Fyll i kundens namn och minst en artikel.")
-        else:
-            inv_date_str = datetime.now().strftime('%Y-%m-%d')
-            due_date_str = (datetime.now() + timedelta(days=terms_days)).strftime('%Y-%m-%d')
-            
-            invoice_data = {
-                "invoice_no": inv_no,
-                "invoice_date": inv_date_str,
-                "due_date": due_date_str,
-                "terms": str(terms_days),
-                "customer_name": cust_name,
-                "customer_address": cust_addr,
-                "customer_phone": cust_phone,
-                "customer_email": cust_email,
-                "items": st.session_state.invoice_items,
-                "branch": inv_branch
-            }
-            
-            inv_pdf_bytes = generate_invoice_pdf_bytes(invoice_data)
-            st.success(f"✅ Faktura #{inv_no} skapad framgångsrikt!")
-            st.download_button(
-                label="📥 Ladda ner Faktura PDF",
-                data=inv_pdf_bytes,
-                file_name=f"Faktura_{inv_no}.pdf",
-                mime="application/pdf",
-                key="dl_invoice_pdf"
-            )
-
-# TAB 4: Search Cases & View History
-with tab4:
-    st.header("Sök Serviceärenden")
-    search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="t3_branch")
-    search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:", key="t3_search")
-    
-    cases = store.search_cases(search_query, branch=search_branch)
-    if cases:
-        st.dataframe(cases, use_container_width=True)
-    else:
-        st.info("Inga ärenden hittades.")
-
-# TAB 5: Pre-Orders
-with tab5:
-    st.header("Registrera Förbeställning (Pre-Order)")
-    po_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="po_branch")
-    po_fn = st.text_input("Förnamn", key="po_fn")
-    po_ln = st.text_input("Efternamn", key="po_ln")
-    po_phone = st.text_input("Telefonnummer", key="po_phone")
-    part_model = st.text_input("Del / Modell (ex. Skärm iPhone 14)", key="po_part")
-    deposit = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0, key="po_dep")
-
-    if st.button("💾 Spara Förbeställning", key="btn_po"):
-        if po_fn and po_phone and part_model:
-            store.create_pre_order({
-                "first_name": po_fn, "last_name": po_ln,
-                "phone": po_phone, "part_model": part_model,
-                "deposit": deposit, "branch": po_branch
-            })
-            st.success(f"✅ Förbeställning sparad ({po_branch})!")
-        else:
-            st.warning("⚠️ Fyll i förnamn, telefon och del/modell.")
+                file_name=f"Kvitto_{saved_case.get
