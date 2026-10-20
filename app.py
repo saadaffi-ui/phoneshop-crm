@@ -143,6 +143,28 @@ class CRMStore:
                 rows = result.data or []
             except Exception:
                 pass
+                # التحقق من أن المستخدم موظف مسجل الدخول
+    if st.session_state.authenticated:
+        st.markdown("---")
+        st.subheader("⚠️ Hantera testärenden (Admin / Personal)")
+        
+        # زر لتفريغ أو حذف سجلات الاختبار (Test Fails / Test Cases)
+        # يمكنك تخصيص الشرط ليحذف السجلات التي تحمل اسم "Test" أو التي تريدها
+        if st.button("🗑️ Töm alla testärenden (Radera test-fails)", type="secondary"):
+            # تأكيد إضافي بالرقم السري أو التنفيذ المباشر لأن الموظف مسجل دخول أصلاً
+            with sqlite3.connect(store.local_db_path) as conn:
+                cursor = conn.cursor()
+                # مثال: حذف السجلات التي تحتوي على كلمة "test" في اسم العميل أو وصف المشكلة
+                cursor.execute("DELETE FROM service_cases WHERE lower(first_name) LIKE '%test%' OR lower(issue_description) LIKE '%test%'")
+                conn.commit()
+            
+            # إذا كنت تستخدم Supabase أيضاً، يمكنك إضافة كود الحذف هنا
+            
+            st.success("✅ Alla testärenden har rensats framgångsrikt!")
+            st.rerun()
+    else:
+        # رسالة توضيحية للمستخدم العادي أن خيار الحذف مخفي
+        pass
         if not rows:
             with sqlite3.connect(self.local_db_path) as conn:
                 conn.row_factory = sqlite3.Row
