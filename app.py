@@ -14,7 +14,8 @@ st.set_page_config(
     page_icon="📱",
     layout="wide",
     initial_sidebar_state="expanded"
-)
+)# رمز سري خاص بحذف السجلات
+DELETE_ACTION_PIN = st.secrets.get("DELETE_ACTION_PIN", os.getenv("DELETE_ACTION_PIN", "admin123"))
 
 # ReportLab for PDF generation
 from reportlab.lib.pagesizes import A4
