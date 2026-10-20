@@ -616,10 +616,10 @@ with tab1:
                 mime="application/pdf"
             )
 
-# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View)
+# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View with Menus & Auto Prices)
 with tab2:
     st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
-    st.write("Fyll i uppgifterna nedan för att skicka en förfrågan om kostnadsförslag till butiken:")
+    st.write("Välj enhet och klicka i de reparationer eller reservdelar som behövs:")
     
     q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
     
@@ -629,24 +629,65 @@ with tab2:
         q_phone = st.text_input("Telefonnummer *", key="q_phone")
     with q_col2:
         q_model = st.text_input("Enhet / Modell * (ex. iPhone 12 Pro)", key="q_model")
-        q_price = st.text_input("Totalpris inkl. moms (SEK) *", key="q_price", placeholder="ex. 1290")
     
-    q_desc = st.text_area("Beskrivning av problem / reparation *", key="q_desc", placeholder="ex. Skärmbyte (Originaldel) inklusive arbete och garanti.")
+    st.markdown("#### 🛠️ Välj reparationer / problem och priser")
+    
+    repair_options = {
+        "Skärmbyte (Display is cracked)": 1290.0,
+        "Vattenskada (Water damaged - Felsökning/Rengöring)": 500.0,
+        "Baksida skadad (Back glass cracked)": 990.0,
+        "Kamera (Camera repair)": 890.0,
+        "Kameralins (Camera lens)": 390.0,
+        "Antenn / Täckningsfel (Antenna)": 600.0,
+        "Laddport (Chargeport / Charging port)": 790.0,
+        "Hemknapp (Home button)": 490.0,
+        "Volymknapp / Strömknapp (Volume/Power button)": 600.0,
+        "Batteribyte (Battery replacement)": 690.0
+    }
+    
+    selected_repairs = []
+    total_calculated_price = 0.0
+    
+    col_a, col_b = st.columns(2)
+    items_list = list(repair_options.items())
+    half_len = (len(items_list) + 1) // 2
+    
+    with col_a:
+        for rep_name, rep_price in items_list[:half_len]:
+            if st.checkbox(f"{rep_name} ({rep_price:.0f} SEK)", key=f"rep_{rep_name}"):
+                selected_repairs.append(rep_name)
+                total_calculated_price += rep_price
+                
+    with col_b:
+        for rep_name, rep_price in items_list[half_len:]:
+            if st.checkbox(f"{rep_name} ({rep_price:.0f} SEK)", key=f"rep_{rep_name}"):
+                selected_repairs.append(rep_name)
+                total_calculated_price += rep_price
+
+    extra_desc = st.text_area("Övriga anteckningar / Beskrivning", key="q_extra_desc", placeholder="ex. Extra detaljer om skadan...")
+    
+    st.markdown(f"### 💰 Beräknat Totalpris: **{total_calculated_price:.0f} SEK**")
+    
+    q_price = st.text_input("Totalpris inkl. moms (SEK) *", value=str(int(total_calculated_price)) if total_calculated_price > 0 else "", key="q_price")
 
     if st.button("📤 Skicka / Spara Förslag", type="primary", key="btn_quote"):
         if not q_name or not q_phone or not q_model or not q_price:
             st.warning("⚠️ Fyll i namn, telefonnummer, modell och pris.")
         else:
+            combined_desc = f"Valda reparationer:\n- " + "\n- ".join(selected_repairs) if selected_repairs else ""
+            if extra_desc:
+                combined_desc += f"\n\nAnteckningar: {extra_desc}"
+                
             quote_data = {
                 "customer_name": q_name,
                 "phone": q_phone,
                 "model": q_model,
                 "total_price": q_price,
-                "description": q_desc,
+                "description": combined_desc if combined_desc else (extra_desc or "Reparation"),
                 "branch": q_branch
             }
             store.create_quote(quote_data)
-            st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) och skickats till butiken!")
+            st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) med totalpriset {q_price} SEK!")
 
     if st.session_state.authenticated:
         st.markdown("---")
@@ -742,7 +783,6 @@ with tab4:
                     key=f"dl_receipt_{case['id']}"
                 )
                 
-                # Secure Delete Option with a different PIN (`DELETE_ACTION_PIN`)
                 if st.session_state.get("authenticated", False):
                     st.markdown("---")
                     st.markdown("##### 🗑️ Radera Ärende (Admin / Personal)")
