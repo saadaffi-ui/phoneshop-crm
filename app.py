@@ -29,7 +29,7 @@ try:
 except ImportError:
     create_client = None
 
-# App Setup & Environment Settings
+# Company Setup & Constants
 COMPANY_NAME = "30 MINUTES FIX AB"
 COMPANY_TAGLINE = "Faktura • Mobilreparationer och tillbehör"
 COMPANY_ADDRESS = "Gunborg Nymans Väg 2, 63222 Eskilstuna"
@@ -41,7 +41,7 @@ VAT_NR = "SE559370803401"
 BANKGIRO = "5837-0354"
 SWISH = "1230435420"
 
-# Secure PINs configuration (via Streamlit Secrets or Environment with fallback)
+# Secure PINs configuration (Secrets or Fallbacks)
 try:
     DELETE_PIN = st.secrets.get("DELETE_PIN", os.getenv("DELETE_PIN", "tunapark"))
     DELETE_ACTION_PIN = st.secrets.get("DELETE_ACTION_PIN", os.getenv("DELETE_ACTION_PIN", "admin123"))
@@ -49,7 +49,7 @@ except Exception:
     DELETE_PIN = os.getenv("DELETE_PIN", "tunapark")
     DELETE_ACTION_PIN = os.getenv("DELETE_ACTION_PIN", "admin123")
 
-# Helper function to trigger browser print via JavaScript (Exclusive for Authenticated Staff)
+# Direct Print Helper for Staff
 def employee_print_button():
     print_js = """
     <script>
@@ -64,7 +64,7 @@ def employee_print_button():
     components.html(print_js, height=60)
 
 # -----------------------------------------------------------------------------
-# CRM Store (Supabase + Local SQLite Backup with Parameterized Security)
+# CRM Store Database Management (Supabase & Local SQLite Backup)
 # -----------------------------------------------------------------------------
 class CRMStore:
     def __init__(self):
@@ -115,6 +115,15 @@ class CRMStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer_name TEXT, phone TEXT, model TEXT,
                     total_price TEXT, description TEXT, branch TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS customer_subscriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    first_name TEXT, last_name TEXT, phone TEXT,
+                    email TEXT, model TEXT, sub_type TEXT,
+                    initial_paid REAL, monthly_fee REAL, status TEXT, branch TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -303,7 +312,7 @@ class CRMStore:
             return payload
 
 # -----------------------------------------------------------------------------
-# PDF Generation Helpers
+# PDF Generation Functions
 # -----------------------------------------------------------------------------
 def safe_para(value):
     val_str = str(value or "").strip()
@@ -528,12 +537,12 @@ def generate_invoice_pdf_bytes(inv_data):
     return buffer.getvalue()
 
 # -----------------------------------------------------------------------------
-# Streamlit Application UI & Authentication Handling
+# Streamlit Application Interface
 # -----------------------------------------------------------------------------
 store = CRMStore()
 
 st.sidebar.title("📱 30 Minutes Phone Fix")
-st.sidebar.subheader("🔒 Personal Inloggning (Staff Access)")
+st.sidebar.subheader("🔒 Personal Inloggning")
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -543,7 +552,7 @@ if not st.session_state.authenticated:
     if st.sidebar.button("🔑 Logga in", key="btn_login"):
         if pin_input == DELETE_PIN:
             st.session_state.authenticated = True
-            st.sidebar.success("✅ Inloggad som Personal/Admin")
+            st.sidebar.success("✅ Inloggad som Personal")
             st.rerun()
         else:
             st.sidebar.error("❌ Felaktig PIN-kod!")
@@ -553,8 +562,15 @@ else:
         st.session_state.authenticated = False
         st.rerun()
 
-# Navigation Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag (Public)", "📄 Faktura", "🔍 Sök Ärenden (Protected)", "🛒 Förbeställning (Public)"])
+# Application Tabs Navigation
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📝 Nytt Ärende", 
+    "💡 Kostnadsförslag (Public)", 
+    "📄 Faktura", 
+    "🔍 Sök Ärenden (Protected)", 
+    "🛒 Förbeställning (Public)",
+    "💳 Abonnemang"
+])
 
 # TAB 1: Nytt Ärende
 with tab1:
@@ -596,7 +612,7 @@ with tab1:
                 mime="application/pdf"
             )
 
-# TAB 2: Kostnadsförslag (Manual Itemized Pricing)
+# TAB 2: Kostnadsförslag (Interactive Checkboxes + Manual Itemized Pricing)
 with tab2:
     st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
     st.write("Välj enhet och klicka i de reparationer som behövs samt ange pris för varje del:")
@@ -670,7 +686,6 @@ with tab2:
             store.create_quote(quote_data)
             st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) med totalpriset {q_price} SEK!")
 
-    # Protected View: Only authenticated staff can view all customer quotes
     if st.session_state.authenticated:
         st.markdown("---")
         st.subheader("🔒 Personalvy: Sparade Kostnadsförslag i Databasen")
@@ -740,13 +755,12 @@ with tab3:
             mime="application/pdf"
         )
 
-# TAB 4: Sök Ärenden (Protected with Admin Login & Separate Delete PIN)
+# TAB 4: Sök Ärenden (Protected View & Secure Delete Action)
 with tab4:
     st.header("🔍 Sök Serviceärenden")
     
-    # 🔒 Security Barrier: Hide sensitive customer database unless authenticated
     if not st.session_state.get("authenticated", False):
-        st.warning("🔒 Åtkomst nekad: Du måste logga in i sidomenyn till vänster med Personal-PIN för att se och söka i kundregistret.")
+        st.warning("🔒 Åtkomst nekad: Du måste logga in i sidomenyn till vänster med Personal-PIN för att se kundregistret.")
     else:
         search_branch_filter = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="search_branch_filter")
         search_query = st.text_input("Sök på kundnamn, telefonnummer, modell eller ärende-ID:", key="search_query_input")
@@ -770,7 +784,6 @@ with tab4:
                         key=f"dl_receipt_{case['id']}"
                     )
                     
-                    # 🔐 Secure Delete Operation: Requires dedicated DELETE_ACTION_PIN
                     st.markdown("---")
                     st.markdown("##### 🗑️ Radera Ärende (Kräver Raderingskod)")
                     entered_del_pin = st.text_input(f"Ange raderingskod för ärende #{case['id']}:", type="password", key=f"del_pin_{case['id']}")
@@ -792,7 +805,7 @@ with tab4:
         else:
             st.info("Inga ärenden hittades.")
 
-# TAB 5: Pre-Orders (Public Access)
+# TAB 5: Pre-Orders
 with tab5:
     st.header("🛒 Gör en Förbeställning (Pre-Order)")
     st.write("Fyll i uppgifterna nedan för att förbeställa en reservdel eller tillbehör:")
@@ -813,4 +826,58 @@ with tab5:
                 "phone": po_phone, "part_model": part_model,
                 "deposit": deposit, "branch": po_branch
             })
-            st.success("✅ Förbeställning har sparats i databasen och skickats till skärmen!")
+            st.success("✅ Förbeställning har sparats i databasen och skickats till butiken!")
+
+# TAB 6: Abonnemang & Glasskyddsavtal
+with tab6:
+    st.header("💳 Hantera Kundabonnemang (Service- & Glasskyddsavtal)")
+    st.write("Skapa och hantera månadsprenumerationer för kunder (t.ex. skärmskydd eller återkommande reparationer till rabatterat pris).")
+    
+    ab_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="ab_branch")
+    
+    col_ab1, col_ab2 = st.columns(2)
+    with col_ab1:
+        ab_fn = st.text_input("Förnamn *", key="ab_fn")
+        ab_ln = st.text_input("Efternamn *", key="ab_ln")
+        ab_phone = st.text_input("Telefonnummer * (Unikt ID)", key="ab_phone")
+    with col_ab2:
+        ab_email = st.text_input("E-post", key="ab_email")
+        ab_model = st.text_input("Enhet / Modell (ex. iPhone 13 Pro)", key="ab_model")
+        ab_type = st.selectbox("Typ av Abonnemang", [
+            "Glasskyddsavtal (49 SEK/mån - Obegränsat byte vid stöt)", 
+            "Service- & Reparationsabonnemang (99 SEK/mån - Specialpris på delar)"
+        ], key="ab_type")
+
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        initial_part_cost = st.number_input("Första betalning / Delkostnad (SEK)", min_value=0.0, value=1000.0, step=50.0, key="ab_init_cost")
+    with col_p2:
+        monthly_fee = st.number_input("Månadsavgift (SEK / månad)", min_value=0.0, value=49.0, step=10.0, key="ab_monthly_fee")
+
+    if st.button("💾 Registrera Nytt Abonnemang", type="primary", key="btn_save_ab"):
+        if not ab_fn or not ab_phone or not ab_model:
+            st.warning("⚠️ Fyll i förnamn, telefonnummer och modell.")
+        else:
+            with sqlite3.connect(store.local_db_path) as conn:
+                conn.execute("""
+                    INSERT INTO customer_subscriptions (first_name, last_name, phone, email, model, sub_type, initial_paid, monthly_fee, status, branch)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (ab_fn, ab_ln, ab_phone, ab_email, ab_model, ab_type, initial_part_cost, monthly_fee, "Aktiv", ab_branch))
+                conn.commit()
+            st.success(f"✅ Abonnemang har registrerats för {ab_fn} {ab_ln}! Första betalning: {initial_part_cost} SEK, Månadsavgift: {monthly_fee} SEK/mån.")
+
+    if st.session_state.get("authenticated", False):
+        st.markdown("---")
+        st.subheader("🔒 Personalvy: Aktiva Abonnemang i Systemet")
+        try:
+            with sqlite3.connect(store.local_db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM customer_subscriptions ORDER BY id DESC")
+                subs = [dict(row) for row in cursor.fetchall()]
+                if subs:
+                    st.dataframe(subs, use_container_width=True)
+                else:
+                    st.info("Inga aktiva abonnemang hittades.")
+        except Exception:
+            st.info("Inga abonnemang registrerade än.")
