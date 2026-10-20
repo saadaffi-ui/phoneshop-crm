@@ -123,7 +123,8 @@ class CRMStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT,
                     email TEXT, model TEXT, sub_type TEXT,
-                    initial_paid REAL, monthly_fee REAL, status TEXT, branch TEXT,
+                    initial_paid REAL, monthly_fee REAL, next_payment_date TEXT,
+                    expiry_date TEXT, status TEXT, branch TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -134,7 +135,9 @@ class CRMStore:
                 "ALTER TABLE service_cases ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "ALTER TABLE pre_orders ADD COLUMN branch TEXT",
                 "ALTER TABLE price_quotes ADD COLUMN branch TEXT",
-                "ALTER TABLE price_quotes ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                "ALTER TABLE price_quotes ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE customer_subscriptions ADD COLUMN next_payment_date TEXT",
+                "ALTER TABLE customer_subscriptions ADD COLUMN expiry_date TEXT"
             ]:
                 try:
                     conn.execute(col_sql)
@@ -828,10 +831,10 @@ with tab5:
             })
             st.success("✅ Förbeställning har sparats i databasen och skickats till butiken!")
 
-# TAB 6: Abonnemang & Glasskyddsavtal
+# TAB 6: Abonnemang & Glasskyddsavtal (With Expiry & Next Payment Calculation)
 with tab6:
     st.header("💳 Hantera Kundabonnemang (Service- & Glasskyddsavtal)")
-    st.write("Skapa och hantera månadsprenumerationer för kunder (t.ex. skärmskydd eller återkommande reparationer till rabatterat pris).")
+    st.write("Registrera abonnemang där kunden betalar delkostnad första gången och en fast månadskostnad därefter.")
     
     ab_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="ab_branch")
     
@@ -852,23 +855,27 @@ with tab6:
     with col_p1:
         initial_part_cost = st.number_input("Första betalning / Delkostnad (SEK)", min_value=0.0, value=1000.0, step=50.0, key="ab_init_cost")
     with col_p2:
-        monthly_fee = st.number_input("Månadsavgift (SEK / månad)", min_value=0.0, value=49.0, step=10.0, key="ab_monthly_fee")
+        monthly_fee = st.number_input("Månadsavgift / Nästa belopp (SEK / månad)", min_value=0.0, value=49.0, step=10.0, key="ab_monthly_fee")
 
     if st.button("💾 Registrera Nytt Abonnemang", type="primary", key="btn_save_ab"):
         if not ab_fn or not ab_phone or not ab_model:
             st.warning("⚠️ Fyll i förnamn, telefonnummer och modell.")
         else:
+            now = datetime.now()
+            next_payment = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+            expiry = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+            
             with sqlite3.connect(store.local_db_path) as conn:
                 conn.execute("""
-                    INSERT INTO customer_subscriptions (first_name, last_name, phone, email, model, sub_type, initial_paid, monthly_fee, status, branch)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (ab_fn, ab_ln, ab_phone, ab_email, ab_model, ab_type, initial_part_cost, monthly_fee, "Aktiv", ab_branch))
+                    INSERT INTO customer_subscriptions (first_name, last_name, phone, email, model, sub_type, initial_paid, monthly_fee, next_payment_date, expiry_date, status, branch)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (ab_fn, ab_ln, ab_phone, ab_email, ab_model, ab_type, initial_part_cost, monthly_fee, next_payment, expiry, "Aktiv", ab_branch))
                 conn.commit()
-            st.success(f"✅ Abonnemang har registrerats för {ab_fn} {ab_ln}! Första betalning: {initial_part_cost} SEK, Månadsavgift: {monthly_fee} SEK/mån.")
+            st.success(f"✅ Abonnemang registrerat! Nästa betalning: {monthly_fee} SEK den {next_payment}. Giltigt till: {expiry}.")
 
     if st.session_state.get("authenticated", False):
         st.markdown("---")
-        st.subheader("🔒 Personalvy: Aktiva Abonnemang i Systemet")
+        st.subheader("🔒 Personalvy: Aktiva Abonnemang med betalnings- och utgångsdatum")
         try:
             with sqlite3.connect(store.local_db_path) as conn:
                 conn.row_factory = sqlite3.Row
