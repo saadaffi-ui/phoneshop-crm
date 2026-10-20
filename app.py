@@ -47,7 +47,7 @@ try:
 except Exception:
     DELETE_PIN = os.getenv("DELETE_PIN", "tunapark")
 
-# Helper function to trigger browser print via JavaScript
+# Helper function to trigger browser print via JavaScript (Exclusive for Staff)
 def employee_print_button():
     print_js = """
     <script>
@@ -56,7 +56,7 @@ def employee_print_button():
     }
     </script>
     <button onclick="triggerPrint()" style="background-color: #003366; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 10px;">
-        🖨️ Skriv ut denna sida (Direct Print)
+        🖨️ Skriv ut (Direct Print - Staff Only)
     </button>
     """
     components.html(print_js, height=60)
@@ -508,52 +508,60 @@ if st.sidebar.button("Login"):
     else:
         st.sidebar.error("Incorrect PIN!")
 
-# Navigation Tabs (Kostnadsförslag and Pre-order are public, others need authentication)
+# Navigation Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag (Public)", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning (Public)"])
 
-# TAB 2: Kostnadsförslag (Public Access for Customers)
+# TAB 2: Kostnadsförslag (Public Form for Customers)
 with tab2:
-    st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
-    st.write("Här kan du som kund begära eller generera ett prisförslag för din enhetsreparation.")
+    st.header("💡 Begär Kostnadsförslag (Price Quote Request)")
+    st.write("Fyll i uppgifterna nedan för att skicka en förfrågan om kostnadsförslag till butiken:")
     
     q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
     
     q_col1, q_col2 = st.columns(2)
     with q_col1:
-        q_name = st.text_input("Kundens Namn *", key="q_name")
+        q_name = st.text_input("Ditt Namn *", key="q_name")
         q_phone = st.text_input("Telefonnummer *", key="q_phone")
     with q_col2:
-        q_model = st.text_input("Enhet / Modell * (ex. iPhone 12)", key="q_model")
-        q_price = st.text_input("Totalpris inkl. moms (SEK) *", key="q_price", placeholder="ex. 1290")
+        q_model = st.text_input("Enhet / Modell * (ex. iPhone 12 Pro)", key="q_model")
+        q_price = st.text_input("Önskat / Uppskattat pris (SEK) [Valfritt]", key="q_price", placeholder="ex. 1290")
     
-    q_desc = st.text_area("Reparationsdetaljer / Åtgärder", key="q_desc", placeholder="ex. Skärmbyte (Originaldel) inklusive arbete och garanti.")
+    q_desc = st.text_area("Beskrivning av problem / reparation *", key="q_desc", placeholder="ex. Skärmen är spräckt och behöver bytas.")
 
-    if st.button("📄 Generera Kostnadsförslag PDF", type="primary", key="btn_quote"):
-        if not q_name or not q_phone or not q_model or not q_price:
-            st.warning("⚠️ Fyll i kundens namn, telefon, modell och pris.")
+    if st.button("📤 Skicka Förfrågan", type="primary", key="btn_quote"):
+        if not q_name or not q_phone or not q_model:
+            st.warning("⚠️ Fyll i namn, telefonnummer och enhet/modell.")
         else:
-            quote_data = {
-                "customer_name": q_name,
-                "phone": q_phone,
-                "model": q_model,
-                "total_price": q_price,
-                "description": q_desc,
-                "branch": q_branch
-            }
-            q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
-            st.success(f"✅ Kostnadsförslag skapat ({q_branch})!")
-            st.download_button(
-                label="📥 Ladda ner Kostnadsförslag PDF",
-                data=q_pdf_bytes,
-                file_name=f"Kostnadsforslag_{q_name.replace(' ', '_')}.pdf",
-                mime="application/pdf",
-                key="dl_quote"
-            )
+            st.success("✅ Tack! Din förfrågan om kostnadsförslag har skickats till butiken. Vår personal återkommer till dig så snart som möjligt.")
+            
+    # Print and Download buttons are ONLY visible if Employee is logged in
+    if st.session_state.authenticated:
+        st.markdown("---")
+        st.subheader("🔒 Personalalternativ (Generera & Skriv ut)")
+        if st.button("📄 Generera Kostnadsförslag PDF (Personal)", key="btn_quote_emp"):
+            if q_name and q_phone and q_model:
+                quote_data = {
+                    "customer_name": q_name,
+                    "phone": q_phone,
+                    "model": q_model,
+                    "total_price": q_price or "0",
+                    "description": q_desc,
+                    "branch": q_branch
+                }
+                q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
+                st.download_button(
+                    label="📥 Ladda ner PDF",
+                    data=q_pdf_bytes,
+                    file_name=f"Kostnadsforslag_{q_name.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key="dl_quote"
+                )
+                employee_print_button()
 
 # TAB 5: Pre-Orders (Public Access for Customers)
 with tab5:
     st.header("🛒 Gör en Förbeställning (Pre-Order)")
-    st.write("Här kan du som kund beställa en reservdel eller tillbehör i förväg. Fyll i uppgifterna nedan:")
+    st.write("Fyll i uppgifterna nedan för att förbeställa en reservdel eller tillbehör:")
     
     po_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="po_branch")
     po_fn = st.text_input("Förnamn *", key="po_fn")
@@ -571,7 +579,7 @@ with tab5:
                 "phone": po_phone, "part_model": part_model,
                 "deposit": deposit, "branch": po_branch
             })
-            st.success("✅ Din förbeställning har skickats till butiken! Vi kontaktar dig så snart varan är klar.")
+            st.success("✅ Din förbeställning har skickats till butiken! Vi kontaktar dig så snart varan finns tillgänglig.")
 
     st.markdown("---")
     
@@ -582,17 +590,18 @@ with tab5:
         pre_orders_list = store.search_pre_orders(branch=emp_branch_filter)
         if pre_orders_list:
             st.dataframe(pre_orders_list, use_container_width=True)
+            employee_print_button()
         else:
             st.info("Inga förbeställningar hittades.")
     else:
-        st.info("🔒 Endast anställda med PIN-kod kan se listan över sparade förbeställningar ovan. Logga in i sidopanelen.")
+        st.info("🔒 Endast anställda med PIN-kod kan se och skriva ut listan över sparade förbeställningar. Logga in i sidopanelen.")
 
 # Check Authentication for Rest of the Tabs (Nytt Ärende, Faktura, Sök Ärenden)
 if not st.session_state.authenticated:
     st.info("🔒 Logga in med personal-PIN (`tunapark`) i sidopanelen för att komma åt Ärenden, Fakturor och Sökning.")
     st.stop()
 
-# TAB 1: Register New Service Case
+# TAB 1: Register New Service Case (Staff Only)
 with tab1:
     st.header("Registrera Nytt Serviceärende")
     selected_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="t1_branch")
@@ -634,11 +643,10 @@ with tab1:
                 key="dl_t1"
             )
             
-            # Direct Print Button for Employees
-            st.markdown("### 🖨️ Direktutskrift (Endast personal)")
+            # Direct Print Button for Employees Only
             employee_print_button()
 
-# TAB 3: Faktura (Invoice Generator)
+# TAB 3: Faktura (Invoice Generator - Staff Only)
 with tab3:
     st.header("📄 Skapa Officiell Faktura (Invoice)")
     st.write(f"<b>Avsändare:</b> {COMPANY_NAME} | Org.nr: {ORG_NR} | Bankgiro: {BANKGIRO} | Swish: {SWISH}", unsafe_allow_html=True)
@@ -715,11 +723,10 @@ with tab3:
                 key="dl_invoice_pdf"
             )
             
-            # Direct Print Button for Employees on Invoices
-            st.markdown("### 🖨️ Direktutskrift (Endast personal)")
+            # Direct Print Button for Employees Only
             employee_print_button()
 
-# TAB 4: Search Cases & View History
+# TAB 4: Search Cases & View History (Staff Only)
 with tab4:
     st.header("Sök Serviceärenden")
     search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="t3_branch")
