@@ -7,7 +7,36 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
-
+# مثال داخل قسم عرض نتائج البحث أو تفاصيل الأجيال (service_cases)
+    for case in saved_cases:
+        st.write(f"**Ärende #{case['id']}** - {case['first_name']} {case['last_name']} ({case['model']})")
+        
+        # خيار إظهار زر الحذف للموظفين المسجلين
+        if st.session_state.get("authenticated", False):
+            with st.expander(f"⚙️ Hantera Ärende #{case['id']}"):
+                # خانة إدخال الرمز السري الخاص بالحذف لهذا الطلب تحديداً
+                entered_del_pin = st.text_input(f"Ange raderingskod för #{case['id']}:", type="password", key=f"del_pin_{case['id']}")
+                
+                if st.button(f"🗑️ Radera Ärende #{case['id']}", key=f"btn_del_{case['id']}", type="primary"):
+                    # التحقق مما إذا كان الرمز المدخل يطابق رمز الحذف المختلف
+                    if entered_del_pin == DELETE_ACTION_PIN:
+                        # كود الحذف من قاعدة البيانات المحلية SQLite
+                        with sqlite3.connect(store.local_db_path) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM service_cases WHERE id = ?", (case['id'],))
+                            conn.commit()
+                        
+                        # إذا كنت تستخدم Supabase أيضاً:
+                        if store.client:
+                            try:
+                                store.client.table("service_cases").delete().eq("id", case['id']).execute()
+                            except Exception:
+                                pass
+                                
+                        st.success(f"✅ Ärende #{case['id']} har raderats permanent!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Felaktig raderingskod! Det gick inte att radera.")
 # Streamlit Page Config
 st.set_page_config(
     page_title="30 Minutes Phone Fix — CRM",
