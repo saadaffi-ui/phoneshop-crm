@@ -575,4 +575,133 @@ with tab1:
             st.download_button(
                 label="📄 Ladda ner PDF-kvitto (Download Receipt)",
                 data=pdf_bytes,
-                file_name=f"Kvitto_{saved_case.get
+                file_name=f"Kvitto_{saved_case.get('id')}.pdf",
+                mime="application/pdf",
+                key="dl_t1"
+            )
+
+# TAB 2: Kostnadsförslag (Price Quote)
+with tab2:
+    st.header("Skapa Kostnadsförslag (Price Quote)")
+    q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
+    
+    q_col1, q_col2 = st.columns(2)
+    with q_col1:
+        q_name = st.text_input("Kundens Namn *", key="q_name")
+        q_phone = st.text_input("Telefonnummer *", key="q_phone")
+    with q_col2:
+        q_model = st.text_input("Enhet / Modell * (ex. iPhone 12)", key="q_model")
+        q_price = st.text_input("Totalpris inkl. moms (SEK) *", key="q_price", placeholder="ex. 1290")
+    
+    q_desc = st.text_area("Reparationsdetaljer / Åtgärder", key="q_desc", placeholder="ex. Skärmbyte (Originaldel) inklusive arbete och garanti.")
+
+    if st.button("📄 Generera Kostnadsförslag PDF", type="primary", key="btn_quote"):
+        if not q_name or not q_phone or not q_model or not q_price:
+            st.warning("⚠️ Fyll i kundens namn, telefon, modell och pris.")
+        else:
+            quote_data = {
+                "customer_name": q_name,
+                "phone": q_phone,
+                "model": q_model,
+                "total_price": q_price,
+                "description": q_desc,
+                "branch": q_branch
+            }
+            q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
+            st.success(f"✅ Kostnadsförslag skapat ({q_branch})!")
+            st.download_button(
+                label="📥 Ladda ner Kostnadsförslag PDF",
+                data=q_pdf_bytes,
+                file_name=f"Kostnadsforslag_{q_name.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                key="dl_quote"
+            )
+
+# TAB 3: Faktura (Invoice Generator)
+with tab3:
+    st.header("📄 Skapa Officiell Faktura (Invoice)")
+    st.write(f"<b>Avsändare:</b> {COMPANY_NAME} | Org.nr: {ORG_NR} | Bankgiro: {BANKGIRO} | Swish: {SWISH}", unsafe_allow_html=True)
+    
+    inv_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="inv_branch")
+    
+    col_inv1, col_inv2 = st.columns(2)
+    with col_inv1:
+        inv_no = st.text_input("Fakturanummer (Fakturanr.)", value=f"FAK-{datetime.now().strftime('%Y%H%M')}")
+        cust_name = st.text_input("Kund / Företagsnamn *", key="inv_cname")
+        cust_addr = st.text_input("Adress", key="inv_caddr", placeholder="Storgatan 1, 632 20 Eskilstuna")
+    with col_inv2:
+        cust_phone = st.text_input("Telefonnummer", key="inv_cphone")
+        cust_email = st.text_input("E-post", key="inv_cemail")
+        terms_days = st.selectbox("Betalningsvillkor (dagar)", [10, 15, 20, 30], index=3)
+    
+    st.markdown("---")
+    st.subheader("Artikel- och tjänstelista")
+    
+    if "invoice_items" not in st.session_state:
+        st.session_state.invoice_items = [{"code": "REP-01", "desc": "Mobilreparation / Service", "qty": 1.0, "price": 990.0, "vat": 25.0}]
+    
+    for idx, item in enumerate(st.session_state.invoice_items):
+        cols = st.columns([2, 4, 1, 2, 1, 1])
+        with cols[0]:
+            item["code"] = st.text_input("Art.nr", value=item["code"], key=f"code_{idx}")
+        with cols[1]:
+            item["desc"] = st.text_input("Beskrivning", value=item["desc"], key=f"desc_{idx}")
+        with cols[2]:
+            item["qty"] = st.number_input("Antal", value=float(item["qty"]), min_value=0.1, step=1.0, key=f"qty_{idx}")
+        with cols[3]:
+            item["price"] = st.number_input("À-pris (SEK)", value=float(item["price"]), min_value=0.0, step=50.0, key=f"price_{idx}")
+        with cols[4]:
+            item["vat"] = st.selectbox("Moms %", [0, 6, 12, 25], index=3, key=f"vat_{idx}")
+        with cols[5]:
+            st.write("")
+            if st.button("🗑️", key=f"del_item_{idx}"):
+                st.session_state.invoice_items.pop(idx)
+                st.rerun()
+
+    if st.button("➕ Lägg till artikel"):
+        st.session_state.invoice_items.append({"code": "", "desc": "", "qty": 1.0, "price": 0.0, "vat": 25.0})
+        st.rerun()
+
+    st.markdown("---")
+    
+    if st.button("📄 Generera Officiell Faktura PDF", type="primary", key="btn_gen_invoice"):
+        if not cust_name or not st.session_state.invoice_items:
+            st.warning("⚠️ Fyll i kundens namn och minst en artikel.")
+        else:
+            inv_date_str = datetime.now().strftime('%Y-%m-%d')
+            due_date_str = (datetime.now() + timedelta(days=terms_days)).strftime('%Y-%m-%d')
+            
+            invoice_data = {
+                "invoice_no": inv_no,
+                "invoice_date": inv_date_str,
+                "due_date": due_date_str,
+                "terms": str(terms_days),
+                "customer_name": cust_name,
+                "customer_address": cust_addr,
+                "customer_phone": cust_phone,
+                "customer_email": cust_email,
+                "items": st.session_state.invoice_items,
+                "branch": inv_branch
+            }
+            
+            inv_pdf_bytes = generate_invoice_pdf_bytes(invoice_data)
+            st.success(f"✅ Faktura #{inv_no} skapad framgångsrikt!")
+            st.download_button(
+                label="📥 Ladda ner Faktura PDF",
+                data=inv_pdf_bytes,
+                file_name=f"Faktura_{inv_no}.pdf",
+                mime="application/pdf",
+                key="dl_invoice_pdf"
+            )
+
+# TAB 4: Search Cases & View History
+with tab4:
+    st.header("Sök Serviceärenden")
+    search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="t3_branch")
+    search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:", key="t3_search")
+    
+    cases = store.search_cases(search_query, branch=search_branch)
+    if cases:
+        st.dataframe(cases, use_container_width=True)
+    else:
+        st.info("Inga ärenden hittades.")
