@@ -616,10 +616,10 @@ with tab1:
                 mime="application/pdf"
             )
 
-# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View - With Default Prices & Auto Calculation)
+# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View - Manual Itemized Pricing)
 with tab2:
     st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
-    st.write("Välj enhet och klicka i de reparationer eller reservdelar som behövs:")
+    st.write("Välj enhet och klicka i de reparationer som behövs samt ange pris för varje del:")
     
     q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
     
@@ -630,55 +630,54 @@ with tab2:
     with q_col2:
         q_model = st.text_input("Enhet / Modell * (ex. iPhone 12 Pro)", key="q_model")
     
-    st.markdown("#### 🛠️ Välj reparationer / problem och förinställda priser")
+    st.markdown("#### 🛠️ Välj reparationer och ange pris manuellt")
     
-    # القاموس الذي يحتوي على اسم الخيار وسعره الافتراضي (يمكنك تعديل الأرقام حسب رغبتك)
-    repair_options = {
-        "Skärmbyte (Display is cracked)": 1290.0,
-        "Vattenskada (Water damaged - Felsökning/Rengöring)": 500.0,
-        "Baksida skadad (Back glass cracked)": 990.0,
-        "Kamera (Camera repair)": 890.0,
-        "Kameralins (Camera lens)": 390.0,
-        "Antenn / Täckningsfel (Antenna)": 600.0,
-        "Laddport (Chargeport / Charging port)": 790.0,
-        "Hemknapp (Home button)": 490.0,
-        "Volymknapp / Strömknapp (Volume/Power button)": 600.0,
-        "Batteribyte (Battery replacement)": 690.0
-    }
+    repair_options = [
+        "Skärmbyte (Display is cracked)",
+        "Vattenskada (Water damaged - Felsökning/Rengöring)",
+        "Baksida skadad (Back glass cracked)",
+        "Kamera (Camera repair)",
+        "Kameralins (Camera lens)",
+        "Antenn / Täckningsfel (Antenna)",
+        "Laddport (Chargeport / Charging port)",
+        "Hemknapp (Home button)",
+        "Volymknapp / Strömknapp (Volume/Power button)",
+        "Batteribyte (Battery replacement)"
+    ]
     
-    selected_repairs = []
+    selected_repairs_info = []
     total_calculated_price = 0.0
     
     col_a, col_b = st.columns(2)
-    items_list = list(repair_options.items())
-    half_len = (len(items_list) + 1) // 2
+    half_len = (len(repair_options) + 1) // 2
     
     with col_a:
-        for rep_name, rep_price in items_list[:half_len]:
-            # عرض السعر بجانب اسم الخيار
-            if st.checkbox(f"{rep_name} ({rep_price:.0f} SEK)", key=f"rep_{rep_name}"):
-                selected_repairs.append(rep_name)
-                total_calculated_price += rep_price
+        for idx, rep_name in enumerate(repair_options[:half_len]):
+            if st.checkbox(rep_name, key=f"rep_chk_{idx}"):
+                item_price = st.number_input(f"Pris för {rep_name} (SEK)", min_value=0.0, step=50.0, value=0.0, key=f"rep_price_{idx}")
+                selected_repairs_info.append(f"{rep_name}: {item_price:.0f} SEK")
+                total_calculated_price += item_price
                 
     with col_b:
-        for rep_name, rep_price in items_list[half_len:]:
-            if st.checkbox(f"{rep_name} ({rep_price:.0f} SEK)", key=f"rep_{rep_name}"):
-                selected_repairs.append(rep_name)
-                total_calculated_price += rep_price
+        for idx, rep_name in enumerate(repair_options[half_len:], start=half_len):
+            if st.checkbox(rep_name, key=f"rep_chk_{idx}"):
+                item_price = st.number_input(f"Pris för {rep_name} (SEK)", min_value=0.0, step=50.0, value=0.0, key=f"rep_price_{idx}")
+                selected_repairs_info.append(f"{rep_name}: {item_price:.0f} SEK")
+                total_calculated_price += item_price
 
     extra_desc = st.text_area("Övriga anteckningar / Beskrivning", key="q_extra_desc", placeholder="ex. Extra detaljer om skadan...")
     
-    # عرض السعر الإجمالي الافتراضي المحسوب تلقائياً
+    # عرض السعر الإجمالي المحسوب تلقائياً بناءً على الأسعار التي أدخلتها بنفسك
     st.markdown(f"### 💰 Beräknat Totalpris: **{total_calculated_price:.0f} SEK**")
     
-    # خانة السعر التي تعبأ تلقائياً بالقيمة المحسوبة مع إمكانية تعديلها
+    # خانة السعر الإجمالي التي يتم ملؤها بالمجموع التلقائي مع إمكانية التعديل
     q_price = st.text_input("Totalpris inkl. moms (SEK) *", value=str(int(total_calculated_price)) if total_calculated_price > 0 else "", key="q_price")
 
     if st.button("📤 Skicka / Spara Förslag", type="primary", key="btn_quote"):
         if not q_name or not q_phone or not q_model or not q_price:
             st.warning("⚠️ Fyll i namn, telefonnummer, modell och pris.")
         else:
-            combined_desc = f"Valda reparationer:\n- " + "\n- ".join(selected_repairs) if selected_repairs else ""
+            combined_desc = f"Valda reparationer:\n- " + "\n- ".join(selected_repairs_info) if selected_repairs_info else ""
             if extra_desc:
                 combined_desc += f"\n\nAnteckningar: {extra_desc}"
                 
