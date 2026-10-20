@@ -8,8 +8,8 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 # مثال داخل قسم عرض نتائج البحث أو تفاصيل الأجيال (service_cases)
-    for case in saved_cases:
-        st.write(f"**Ärende #{case['id']}** - {case['first_name']} {case['last_name']} ({case['model']})")
+for case in saved_cases:
+st.write(f"**Ärende #{case['id']}** - {case['first_name']} {case['last_name']} ({case['model']})")
         
         # خيار إظهار زر الحذف للموظفين المسجلين
         if st.session_state.get("authenticated", False):
