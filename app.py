@@ -3,7 +3,7 @@ import os
 import io
 import html
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import streamlit as st
 
@@ -19,8 +19,8 @@ st.set_page_config(
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
 from reportlab.lib.units import mm
 
 try:
@@ -29,10 +29,16 @@ except ImportError:
     create_client = None
 
 # App Setup & Environment Settings
-COMPANY_NAME = os.getenv("COMPANY_NAME", "30 Minutes Phone Fix")
-COMPANY_PHONE = os.getenv("COMPANY_PHONE", "016-51 01 01")
-COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "info@30minutesphonefix.se")
-COMPANY_WEB = os.getenv("COMPANY_WEB", "www.30minutesphonefix.se")
+COMPANY_NAME = "30 MINUTES FIX AB"
+COMPANY_TAGLINE = "Faktura • Mobilreparationer och tillbehör"
+COMPANY_ADDRESS = "Gunborg Nymans Väg 2, 63222 Eskilstuna"
+COMPANY_PHONE = "0700122444"
+COMPANY_EMAIL = "info@30minutesphonefix.se"
+COMPANY_WEB = "www.30minutesphonefix.se"
+ORG_NR = "5593708034"
+VAT_NR = "SE559370803401"
+BANKGIRO = "5837-0354"
+SWISH = "1230435420"
 
 # Secrets Support with fallback
 try:
@@ -68,7 +74,7 @@ class CRMStore:
                 CREATE TABLE IF NOT EXISTS customers (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT UNIQUE,
-                    email TEXT, subscription_type TEXT
+                    email TEXT, subscription_type TEXT, branch TEXT
                 )
             """)
             conn.execute("""
@@ -77,18 +83,17 @@ class CRMStore:
                     customer_id INTEGER, legacy_id TEXT, first_name TEXT, last_name TEXT,
                     phone TEXT, email TEXT, subscription_type TEXT, model TEXT,
                     imei_serial TEXT, issue_description TEXT, start_date TEXT,
-                    end_date TEXT, status TEXT
+                    end_date TEXT, status TEXT, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS pre_orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT,
-                    part_model TEXT, deposit REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    part_model TEXT, deposit REAL, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Safe column migrations for existing local DBs
             for col_sql in [
                 "ALTER TABLE customers ADD COLUMN branch TEXT",
                 "ALTER TABLE service_cases ADD COLUMN branch TEXT",
@@ -245,7 +250,7 @@ class CRMStore:
             return payload
 
 # -----------------------------------------------------------------------------
-# PDF Generation Helper
+# PDF Generation Helpers
 # -----------------------------------------------------------------------------
 def safe_para(value):
     val_str = str(value or "").strip()
@@ -328,6 +333,156 @@ def generate_quote_pdf_bytes(quote_data):
     buffer.seek(0)
     return buffer.getvalue()
 
+def generate_invoice_pdf_bytes(inv_data):
+    buffer = io.BytesIO()
+    styles = getSampleStyleSheet()
+    
+    title = ParagraphStyle("InvTitle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=15, leading=18, alignment=TA_LEFT)
+    sub = ParagraphStyle("InvSub", parent=styles["Normal"], fontSize=8.5, leading=11, textColor=colors.HexColor("#333333"))
+    body = ParagraphStyle("InvBody", parent=styles["Normal"], fontSize=8.5, leading=11)
+    bold_body = ParagraphStyle("InvBoldBody", parent=body, fontName="Helvetica-Bold")
+    header_right = ParagraphStyle("InvRight", parent=body, alignment=TA_RIGHT)
+    
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=12*mm, bottomMargin=12*mm)
+    story = []
+    
+    # Header Table: Company Info vs Invoice Meta
+    header_data = [
+        [
+            Paragraph(f"<b>{COMPANY_NAME}</b><br/>{COMPANY_TAGLINE}<br/>{COMPANY_ADDRESS}<br/>Tel: {COMPANY_PHONE} | {COMPANY_EMAIL}<br/>Webb: {COMPANY_WEB}", sub),
+            Paragraph(f"<b>FAKTURA</b><br/><b>Fakturanr:</b> {inv_data['invoice_no']}<br/><b>Fakturadatum:</b> {inv_data['invoice_date']}<br/><b>Förfallodatum:</b> {inv_data['due_date']}", header_right)
+        ]
+    ]
+    t_header = Table(header_data, colWidths=[100*mm, 80*mm])
+    t_header.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(t_header)
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#003366"), spaceAfter=6, spaceBefore=2))
+    
+    # Sender & Customer Box
+    meta_box = [
+        [
+            Paragraph(f"<b>AVSÄNDARE:</b><br/>{COMPANY_NAME}<br/>Org.nr: {ORG_NR} • VAT.nr: {VAT_NR}<br/>Bankgiro: {BANKGIRO} • Swish: {SWISH}", body),
+            Paragraph(f"<b>MOTTAGARE / KUND:</b><br/><b>{inv_data['customer_name']}</b><br/>{inv_data.get('customer_address', '')}<br/>Tel: {inv_data['customer_phone']}<br/>E-post: {inv_data.get('customer_email', 'Ej angivet')}", body)
+        ]
+    ]
+    t_meta = Table(meta_box, colWidths=[90*mm, 90*mm])
+    t_meta.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F9F9F9")),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#CCCCCC")),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(t_meta)
+    story.append(Spacer(1, 5*mm))
+    
+    # References bar
+    ref_data = [[
+        Paragraph(f"<b>Er referens:</b> {inv_data.get('your_ref', '-')}", body),
+        Paragraph(f"<b>Vår referens:</b> {inv_data.get('our_ref', '-')}", body),
+        Paragraph(f"<b>Betalningsvillkor:</b> {inv_data.get('terms', '30 dagar')} dagar", body),
+        Paragraph(f"<b>Ordernr:</b> {inv_data.get('order_no', '-')}", body)
+    ]]
+    t_ref = Table(ref_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
+    t_ref.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#DDDDDD")),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#EEEEEE")),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(t_ref)
+    story.append(Spacer(1, 6*mm))
+    
+    # Items Table
+    table_rows = [
+        [Paragraph("<b>Artikel</b>", bold_body), Paragraph("<b>Benämning / beskrivning</b>", bold_body), Paragraph("<b>Antal</b>", bold_body), Paragraph("<b>À-pris (SEK)</b>", bold_body), Paragraph("<b>Moms %</b>", bold_body), Paragraph("<b>Totalt (SEK)</b>", bold_body)]
+    ]
+    
+    subtotal = 0.0
+    total_moms = 0.0
+    
+    for item in inv_data['items']:
+        qty = float(item['qty'])
+        price = float(item['price'])
+        vat_rate = float(item['vat'])
+        line_total = qty * price
+        line_vat = line_total * (vat_rate / 100.0)
+        
+        subtotal += line_total
+        total_moms += line_vat
+        
+        table_rows.append([
+            Paragraph(str(item.get('code', '-')), body),
+            Paragraph(str(item['desc']), body),
+            Paragraph(str(qty), body),
+            Paragraph(f"{price:.2f}", body),
+            Paragraph(f"{vat_rate}%", body),
+            Paragraph(f"{line_total:.2f}", body)
+        ])
+        
+    t_items = Table(table_rows, colWidths=[20*mm, 80*mm, 15*mm, 25*mm, 15*mm, 25*mm])
+    t_items.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#003366")),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#DDDDDD")),
+    ]))
+    # Fix header text color for ReportLab paragraphs inside table header
+    for i in range(len(table_rows[0])):
+        table_rows[0][i].style.textColor = colors.white
+        
+    story.append(t_items)
+    story.append(Spacer(1, 6*mm))
+    
+    grand_total = subtotal + total_moms
+    
+    # Summary Box
+    summary_data = [
+        [Paragraph("<b>Momsunderlag (SEK):</b>", body), Paragraph(f"{subtotal:.2f}", header_right)],
+        [Paragraph("<b>Total moms (SEK):</b>", body), Paragraph(f"{total_moms:.2f}", header_right)],
+        [Paragraph("<b>ATT BETALA (SEK):</b>", bold_body), Paragraph(f"<b>{grand_total:.2f} SEK</b>", header_right)]
+    ]
+    t_summary = Table(summary_data, colWidths=[100*mm, 80*mm])
+    t_summary.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor("#EBF2F8")),
+        ('BOX', (0,0), (-1,-1), 0.8, colors.HexColor("#003366")),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(t_summary)
+    story.append(Spacer(1, 10*mm))
+    
+    # Payment Info Footer
+    pay_box = [
+        [
+            Paragraph(f"<b>Betalningsuppgifter:</b><br/>Bankgiro: <b>{BANKGIRO}</b> | Swish: <b>{SWISH}</b><br/><i>Ange fakturanummer ({inv_data['invoice_no']}) som meddelande vid betalning.</i>", sub)
+        ]
+    ]
+    t_pay = Table(pay_box, colWidths=[180*mm])
+    t_pay.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F4F4F4")),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#CCCCCC")),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(t_pay)
+    story.append(Spacer(1, 6*mm))
+    story.append(Paragraph(f"<font size=7 color='#666666'>{COMPANY_NAME} • Org.nr {ORG_NR} • VAT {VAT_NR} • Tack för ditt förtroende!</font>", ParagraphStyle("Foot", parent=body, alignment=TA_CENTER)))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 # -----------------------------------------------------------------------------
 # Streamlit Application UI
 # -----------------------------------------------------------------------------
@@ -351,12 +506,11 @@ if not st.session_state.authenticated:
     st.info("🔒 Please enter the employee PIN code in the sidebar to access the CRM.")
     st.stop()
 
-tab1, tab2, tab3, tab4 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag", "🔍 Sök Ärenden", "🛒 Förbeställning"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag", "📄 Faktura", "🔍 Sök Ärenden", "🛒 Förbeställning"])
 
 # TAB 1: Register New Service Case
 with tab1:
     st.header("Registrera Nytt Serviceärende")
-    
     selected_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="t1_branch")
     
     col1, col2 = st.columns(2)
@@ -399,7 +553,6 @@ with tab1:
 # TAB 2: Kostnadsförslag (Price Quote)
 with tab2:
     st.header("Skapa Kostnadsförslag (Price Quote)")
-    
     q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
     
     q_col1, q_col2 = st.columns(2)
@@ -434,10 +587,86 @@ with tab2:
                 key="dl_quote"
             )
 
-# TAB 3: Search Cases & View History
+# TAB 3: Faktura (Invoice Generator)
 with tab3:
-    st.header("Sök Serviceärenden")
+    st.header("📄 Skapa Officiell Faktura (Invoice)")
+    st.write(f"<b>Avsändare:</b> {COMPANY_NAME} | Org.nr: {ORG_NR} | Bankgiro: {BANKGIRO} | Swish: {SWISH}", unsafe_allow_html=True)
     
+    inv_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="inv_branch")
+    
+    col_inv1, col_inv2 = st.columns(2)
+    with col_inv1:
+        inv_no = st.text_input("Fakturanummer (Fakturanr.)", value=f"FAK-{datetime.now().strftime('%Y%H%M')}")
+        cust_name = st.text_input("Kund / Företagsnamn *", key="inv_cname")
+        cust_addr = st.text_input("Adress", key="inv_caddr", placeholder="Storgatan 1, 632 20 Eskilstuna")
+    with col_inv2:
+        cust_phone = st.text_input("Telefonnummer", key="inv_cphone")
+        cust_email = st.text_input("E-post", key="inv_cemail")
+        terms_days = st.selectbox("Betalningsvillkor (dagar)", [10, 15, 20, 30], index=3)
+    
+    st.markdown("---")
+    st.subheader("Artikel- och tjänstelista")
+    
+    if "invoice_items" not in st.session_state:
+        st.session_state.invoice_items = [{"code": "REP-01", "desc": "Mobilreparation / Service", "qty": 1.0, "price": 990.0, "vat": 25.0}]
+    
+    for idx, item in enumerate(st.session_state.invoice_items):
+        cols = st.columns([2, 4, 1, 2, 1, 1])
+        with cols[0]:
+            item["code"] = st.text_input("Art.nr", value=item["code"], key=f"code_{idx}")
+        with cols[1]:
+            item["desc"] = st.text_input("Beskrivning", value=item["desc"], key=f"desc_{idx}")
+        with cols[2]:
+            item["qty"] = st.number_input("Antal", value=float(item["qty"]), min_value=0.1, step=1.0, key=f"qty_{idx}")
+        with cols[3]:
+            item["price"] = st.number_input("À-pris (SEK)", value=float(item["price"]), min_value=0.0, step=50.0, key=f"price_{idx}")
+        with cols[4]:
+            item["vat"] = st.selectbox("Moms %", [0, 6, 12, 25], index=3, key=f"vat_{idx}")
+        with cols[5]:
+            st.write("")
+            if st.button("🗑️", key=f"del_item_{idx}"):
+                st.session_state.invoice_items.pop(idx)
+                st.rerun()
+
+    if st.button("➕ Lägg till artikel"):
+        st.session_state.invoice_items.append({"code": "", "desc": "", "qty": 1.0, "price": 0.0, "vat": 25.0})
+        st.rerun()
+
+    st.markdown("---")
+    
+    if st.button("📄 Generera Officiell Faktura PDF", type="primary", key="btn_gen_invoice"):
+        if not cust_name or not st.session_state.invoice_items:
+            st.warning("⚠️ Fyll i kundens namn och minst en artikel.")
+        else:
+            inv_date_str = datetime.now().strftime('%Y-%m-%d')
+            due_date_str = (datetime.now() + timedelta(days=terms_days)).strftime('%Y-%m-%d')
+            
+            invoice_data = {
+                "invoice_no": inv_no,
+                "invoice_date": inv_date_str,
+                "due_date": due_date_str,
+                "terms": str(terms_days),
+                "customer_name": cust_name,
+                "customer_address": cust_addr,
+                "customer_phone": cust_phone,
+                "customer_email": cust_email,
+                "items": st.session_state.invoice_items,
+                "branch": inv_branch
+            }
+            
+            inv_pdf_bytes = generate_invoice_pdf_bytes(invoice_data)
+            st.success(f"✅ Faktura #{inv_no} skapad framgångsrikt!")
+            st.download_button(
+                label="📥 Ladda ner Faktura PDF",
+                data=inv_pdf_bytes,
+                file_name=f"Faktura_{inv_no}.pdf",
+                mime="application/pdf",
+                key="dl_invoice_pdf"
+            )
+
+# TAB 4: Search Cases & View History
+with tab4:
+    st.header("Sök Serviceärenden")
     search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="t3_branch")
     search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:", key="t3_search")
     
@@ -447,10 +676,9 @@ with tab3:
     else:
         st.info("Inga ärenden hittades.")
 
-# TAB 4: Pre-Orders
-with tab4:
+# TAB 5: Pre-Orders
+with tab5:
     st.header("Registrera Förbeställning (Pre-Order)")
-    
     po_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="po_branch")
     po_fn = st.text_input("Förnamn", key="po_fn")
     po_ln = st.text_input("Efternamn", key="po_ln")
