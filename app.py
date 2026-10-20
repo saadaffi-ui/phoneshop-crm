@@ -260,7 +260,7 @@ def generate_receipt_pdf_bytes(case):
         story.append(Paragraph("SARSKILDA AVTALSVILLKOR", heading))
         for term in [
             "1. Verkstaden ansvarar for felsokning och reparation enligt den felbeskrivning som anges ovan.",
-            "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
+            "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas van verkstadens garanti.",
             "3. Kunden bor sakerhetskopiera enheten. Verkstaden kan inte garantera att data bevaras vid reparation."
         ]:
             story.append(Paragraph(safe_para(term), terms))
