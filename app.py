@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import io
 import html
@@ -19,7 +20,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 from reportlab.lib.units import mm
 
 try:
@@ -32,19 +33,18 @@ COMPANY_NAME = os.getenv("COMPANY_NAME", "30 Minutes Phone Fix")
 COMPANY_PHONE = os.getenv("COMPANY_PHONE", "016-51 01 01")
 COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "info@30minutesphonefix.se")
 COMPANY_WEB = os.getenv("COMPANY_WEB", "www.30minutesphonefix.se")
-DELETE_PIN = os.getenv("DELETE_PIN", "1234")
 
-STORE_LOCATIONS = {
-    "Eskilstuna (Tuna Park)": "Gunborg Nymans väg 2, Tuna Park, 632 22 Eskilstuna",
-    "Västerås": "Krankroksgatan 17, 721 38 Västerås"
-}
+# Secrets Support with fallback
+try:
+    DELETE_PIN = st.secrets.get("DELETE_PIN", os.getenv("DELETE_PIN", "1234"))
+except Exception:
+    DELETE_PIN = os.getenv("DELETE_PIN", "1234")
 
 # -----------------------------------------------------------------------------
 # CRM Store (Supabase + Local SQLite Backup)
 # -----------------------------------------------------------------------------
 class CRMStore:
     def __init__(self):
-        # Read from Streamlit Secrets or Environment Variables safely
         try:
             self.url = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
             self.key = st.secrets.get("SUPABASE_ANON_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
@@ -58,7 +58,7 @@ class CRMStore:
                 self.client = create_client(self.url, self.key)
             except Exception:
                 pass
-                
+
         self.local_db_path = Path("local_crm.db")
         self._init_local_db()
 
@@ -244,24 +244,24 @@ def generate_receipt_pdf_bytes(case):
     for index, copy_title in enumerate(("BUTIKENS KOPIA", "KUNDENS KOPIA")):
         if index:
             story.extend([Spacer(1, 4*mm), HRFlowable(width="100%", thickness=0.8, color=colors.grey, dash=[3, 3]), 
-                          Paragraph("KLIPP HÄR / SAX LINJE", ParagraphStyle("Cut", parent=body, alignment=TA_CENTER, textColor=colors.grey)), Spacer(1, 3*mm)])
+                          Paragraph("KLIPP HAR / SAX LINJE", ParagraphStyle("Cut", parent=body, alignment=TA_CENTER, textColor=colors.grey)), Spacer(1, 3*mm)])
         
         story.append(Paragraph(safe_para(COMPANY_NAME), title))
-        company_line = f"Gunborg Nymans väg 2, Tuna Park, 632 22 Eskilstuna | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB} | {COMPANY_EMAIL}"
+        company_line = f"Gunborg Nymans vag 2, Tuna Park, 632 22 Eskilstuna | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB} | {COMPANY_EMAIL}"
         story.append(Paragraph(safe_para(company_line), ParagraphStyle("Company", parent=body, alignment=TA_CENTER)))
-        story.append(Paragraph(f"<b>{copy_title} – INLÄMNINGSKVITTO & AVTAL</b>", title))
-        story.append(Paragraph(f"<b>Ärendenummer:</b> {safe_para(case.get('id'))} &nbsp;&nbsp; <b>Datum:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", body))
+        story.append(Paragraph(f"<b>{copy_title} - INLAMNINGSKVITTO & AVTAL</b>", title))
+        story.append(Paragraph(f"<b>Arendenummer:</b> {safe_para(case.get('id'))} &nbsp;&nbsp; <b>Datum:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", body))
         story.append(Paragraph("KUND- OCH ENHETSINFORMATION", heading))
         story.append(Paragraph(f"<b>Kund:</b> {safe_para(full_name)} &nbsp;&nbsp; <b>Mobil:</b> {safe_para(case.get('phone'))}", body))
         story.append(Paragraph(f"<b>E-post:</b> {safe_para(case.get('email'))} &nbsp;&nbsp; <b>Modell:</b> {safe_para(case.get('model'))}", body))
         story.append(Paragraph(f"<b>IMEI / Serienummer:</b> {safe_para(case.get('imei_serial'))}", body))
         story.append(Paragraph(f"<b>Abonnemangstyp:</b> {safe_para(case.get('subscription_type'))}", body))
         story.append(Paragraph(f"<b>Felbeskrivning:</b> {safe_para(case.get('issue_description'))}", body))
-        story.append(Paragraph("SÄRSKILDA AVTALSVILLKOR", heading))
+        story.append(Paragraph("SARSKILDA AVTALSVILLKOR", heading))
         for term in [
-            "1. Verkstaden ansvarar för felsökning och reparation enligt den felbeskrivning som anges ovan.",
-            "2. Garanti gäller endast för de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
-            "3. Kunden bör säkerhetskopiera enheten. Verkstaden kan inte garantera att data bevaras vid reparation."
+            "1. Verkstaden ansvarar for felsokning och reparation enligt den felbeskrivning som anges ovan.",
+            "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
+            "3. Kunden bor sakerhetskopiera enheten. Verkstaden kan inte garantera att data bevaras vid reparation."
         ]:
             story.append(Paragraph(safe_para(term), terms))
         story.append(Spacer(1, 5*mm))
@@ -293,15 +293,15 @@ if not st.session_state.authenticated:
     st.info("🔒 Please enter the employee PIN code in the sidebar to access the CRM.")
     st.stop()
 
-tab1, tab2, tab3 = st.tabs(["📝 Nytt Ärende (New Case)", "🔍 Sök Ärenden (Search)", "🛒 Förbeställning (Pre-Order)"])
+tab1, tab2, tab3 = st.tabs(["📝 Nytt Arende (New Case)", "🔍 Sok Arenden (Search)", "🛒 Forbestallning (Pre-Order)"])
 
 # TAB 1: Register New Service Case
 with tab1:
-    st.header("Registrera Nytt Serviceärende")
+    st.header("Registrera Nytt Servicearende")
     
     col1, col2 = st.columns(2)
     with col1:
-        first_name = st.text_input("Förnamn *")
+        first_name = st.text_input("Fornamn *")
         last_name = st.text_input("Efternamn *")
         phone = st.text_input("Telefonnummer *")
         email = st.text_input("E-post")
@@ -309,13 +309,13 @@ with tab1:
     with col2:
         model = st.text_input("Enhet / Modell * (ex. iPhone 13 Pro)")
         imei_serial = st.text_input("IMEI / Serienummer")
-        subscription_type = st.selectbox("Abonnemangstyp", ["Privat", "Företag", "Försäkringsärende", "Annat"])
+        subscription_type = st.selectbox("Abonnemangstyp", ["Privat", "Foretag", "Forsakringsarende", "Annat"])
     
     issue_description = st.text_area("Felbeskrivning (Issue Description)")
 
-    if st.button("💾 Spara Ärende & Skapa PDF", type="primary"):
+    if st.button("💾 Spara Arende & Skapa PDF", type="primary"):
         if not first_name or not last_name or not phone or not model:
-            st.warning("⚠️ Fyll i alla obligatoriska fält (Förnamn, Efternamn, Telefon, Modell).")
+            st.warning("⚠️ Fyll i alla obligatoriska falt (Fornamn, Efternamn, Telefon, Modell).")
         else:
             case_data = {
                 "first_name": first_name, "last_name": last_name, "phone": phone,
@@ -324,7 +324,7 @@ with tab1:
                 "start_date": datetime.now().date().isoformat()
             }
             saved_case = store.create_case(case_data)
-            st.success(f"✅ Ärende #{saved_case.get('id')} har sparats!")
+            st.success(f"✅ Arende #{saved_case.get('id')} har sparats!")
             
             pdf_bytes = generate_receipt_pdf_bytes(saved_case)
             st.download_button(
@@ -336,31 +336,31 @@ with tab1:
 
 # TAB 2: Search Cases & View History
 with tab2:
-    st.header("Sök Serviceärenden")
-    search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:")
+    st.header("Sok Servicearenden")
+    search_query = st.text_input("Sok pa namn, telefon, modell eller arendenummer:")
     
     cases = store.search_cases(search_query)
     if cases:
         st.dataframe(cases, use_container_width=True)
     else:
-        st.info("Inga ärenden hittades.")
+        st.info("Inga arenden hittades.")
 
 # TAB 3: Pre-Orders
 with tab3:
-    st.header("Registrera Förbeställning (Pre-Order)")
-    po_fn = st.text_input("Förnamn", key="po_fn")
+    st.header("Registrera Forbestallning (Pre-Order)")
+    po_fn = st.text_input("Fornamn", key="po_fn")
     po_ln = st.text_input("Efternamn", key="po_ln")
     po_phone = st.text_input("Telefonnummer", key="po_phone")
-    part_model = st.text_input("Del / Modell (ex. Skärm iPhone 14)")
+    part_model = st.text_input("Del / Modell (ex. Skarm iPhone 14)")
     deposit = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0)
 
-    if st.button("💾 Spara Förbeställning"):
+    if st.button("💾 Spara Forbestallning"):
         if po_fn and po_phone and part_model:
             store.create_pre_order({
                 "first_name": po_fn, "last_name": po_ln,
                 "phone": po_phone, "part_model": part_model,
                 "deposit": deposit
             })
-            st.success("✅ Förbeställning sparad!")
+            st.success("✅ Forbestallning sparad!")
         else:
-            st.warning("⚠️ Fyll i förnamn, telefon och del/modell.")
+            st.warning("⚠️ Fyll i fornamn, telefon och del/modell.")
