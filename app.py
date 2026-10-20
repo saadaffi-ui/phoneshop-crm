@@ -41,7 +41,7 @@ except Exception:
     DELETE_PIN = os.getenv("DELETE_PIN", "tunapark")
 
 # -----------------------------------------------------------------------------
-# CRM Store (Supabase + Local SQLite Backup)
+# CRM Store (Supabase + Local SQLite Backup with auto-migration)
 # -----------------------------------------------------------------------------
 class CRMStore:
     def __init__(self):
@@ -68,7 +68,7 @@ class CRMStore:
                 CREATE TABLE IF NOT EXISTS customers (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT UNIQUE,
-                    email TEXT, subscription_type TEXT, branch TEXT
+                    email TEXT, subscription_type TEXT
                 )
             """)
             conn.execute("""
@@ -77,16 +77,28 @@ class CRMStore:
                     customer_id INTEGER, legacy_id TEXT, first_name TEXT, last_name TEXT,
                     phone TEXT, email TEXT, subscription_type TEXT, model TEXT,
                     imei_serial TEXT, issue_description TEXT, start_date TEXT,
-                    end_date TEXT, status TEXT, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    end_date TEXT, status TEXT
                 )
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS pre_orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT,
-                    part_model TEXT, deposit REAL, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    part_model TEXT, deposit REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # Safe column migrations for existing local DBs
+            for col_sql in [
+                "ALTER TABLE customers ADD COLUMN branch TEXT",
+                "ALTER TABLE service_cases ADD COLUMN branch TEXT",
+                "ALTER TABLE service_cases ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE pre_orders ADD COLUMN branch TEXT"
+            ]:
+                try:
+                    conn.execute(col_sql)
+                except sqlite3.OperationalError:
+                    pass
             conn.commit()
 
     def search_cases(self, query="", branch="Alla"):
