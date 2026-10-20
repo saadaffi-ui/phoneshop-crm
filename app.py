@@ -36,9 +36,9 @@ COMPANY_WEB = os.getenv("COMPANY_WEB", "www.30minutesphonefix.se")
 
 # Secrets Support with fallback
 try:
-    DELETE_PIN = st.secrets.get("DELETE_PIN", os.getenv("DELETE_PIN", "1234"))
+    DELETE_PIN = st.secrets.get("DELETE_PIN", os.getenv("DELETE_PIN", "tunapark"))
 except Exception:
-    DELETE_PIN = os.getenv("DELETE_PIN", "1234")
+    DELETE_PIN = os.getenv("DELETE_PIN", "tunapark")
 
 # -----------------------------------------------------------------------------
 # CRM Store (Supabase + Local SQLite Backup)
@@ -68,7 +68,7 @@ class CRMStore:
                 CREATE TABLE IF NOT EXISTS customers (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT UNIQUE,
-                    email TEXT, subscription_type TEXT
+                    email TEXT, subscription_type TEXT, branch TEXT
                 )
             """)
             conn.execute("""
@@ -77,24 +77,27 @@ class CRMStore:
                     customer_id INTEGER, legacy_id TEXT, first_name TEXT, last_name TEXT,
                     phone TEXT, email TEXT, subscription_type TEXT, model TEXT,
                     imei_serial TEXT, issue_description TEXT, start_date TEXT,
-                    end_date TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    end_date TEXT, status TEXT, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS pre_orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     first_name TEXT, last_name TEXT, phone TEXT,
-                    part_model TEXT, deposit REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    part_model TEXT, deposit REAL, branch TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.commit()
 
-    def search_cases(self, query=""):
+    def search_cases(self, query="", branch="Alla"):
         q = query.casefold().strip()
         rows = []
         if self.client:
             try:
-                result = self.client.table("service_cases").select("*").order("created_at", desc=True).limit(500).execute()
+                query_builder = self.client.table("service_cases").select("*").order("created_at", desc=True).limit(500)
+                if branch != "Alla":
+                    query_builder = query_builder.eq("branch", branch)
+                result = query_builder.execute()
                 rows = result.data or []
             except Exception:
                 pass
@@ -102,7 +105,10 @@ class CRMStore:
             with sqlite3.connect(self.local_db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM service_cases ORDER BY id DESC LIMIT 500")
+                if branch != "Alla":
+                    cursor.execute("SELECT * FROM service_cases WHERE branch = ? ORDER BY id DESC LIMIT 500", (branch,))
+                else:
+                    cursor.execute("SELECT * FROM service_cases ORDER BY id DESC LIMIT 500")
                 rows = [dict(row) for row in cursor.fetchall()]
 
         if q:
@@ -110,12 +116,15 @@ class CRMStore:
                     for k in ("first_name", "last_name", "phone", "id", "email", "model"))]
         return rows
 
-    def search_pre_orders(self, query=""):
+    def search_pre_orders(self, query="", branch="Alla"):
         q = query.casefold().strip()
         rows = []
         if self.client:
             try:
-                result = self.client.table("pre_orders").select("*").order("created_at", desc=True).limit(500).execute()
+                query_builder = self.client.table("pre_orders").select("*").order("created_at", desc=True).limit(500)
+                if branch != "Alla":
+                    query_builder = query_builder.eq("branch", branch)
+                result = query_builder.execute()
                 rows = result.data or []
             except Exception:
                 pass
@@ -123,7 +132,10 @@ class CRMStore:
             with sqlite3.connect(self.local_db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM pre_orders ORDER BY id DESC LIMIT 500")
+                if branch != "Alla":
+                    cursor.execute("SELECT * FROM pre_orders WHERE branch = ? ORDER BY id DESC LIMIT 500", (branch,))
+                else:
+                    cursor.execute("SELECT * FROM pre_orders ORDER BY id DESC LIMIT 500")
                 rows = [dict(row) for row in cursor.fetchall()]
 
         if q:
@@ -131,10 +143,10 @@ class CRMStore:
                     for k in ("first_name", "last_name", "phone", "part_model", "id"))]
         return rows
 
-    def upsert_customer(self, first, last, phone, email, subscription=""):
+    def upsert_customer(self, first, last, phone, email, subscription="", branch="Eskilstuna"):
         payload = {
             "first_name": first, "last_name": last, "phone": phone,
-            "email": email or None, "subscription_type": subscription or None
+            "email": email or None, "subscription_type": subscription or None, "branch": branch
         }
         if self.client:
             try:
@@ -154,20 +166,20 @@ class CRMStore:
             row = cursor.fetchone()
             if row:
                 cid = row[0]
-                cursor.execute("UPDATE customers SET first_name=?, last_name=?, email=?, subscription_type=? WHERE id=?", 
-                               (first, last, email or None, subscription or None, cid))
+                cursor.execute("UPDATE customers SET first_name=?, last_name=?, email=?, subscription_type=?, branch=? WHERE id=?", 
+                               (first, last, email or None, subscription or None, branch, cid))
                 conn.commit()
                 return cid
             else:
-                cursor.execute("INSERT INTO customers (first_name, last_name, phone, email, subscription_type) VALUES (?, ?, ?, ?, ?)", 
-                               (first, last, phone, email or None, subscription or None))
+                cursor.execute("INSERT INTO customers (first_name, last_name, phone, email, subscription_type, branch) VALUES (?, ?, ?, ?, ?, ?)", 
+                               (first, last, phone, email or None, subscription or None, branch))
                 conn.commit()
                 return cursor.lastrowid
 
     def create_case(self, data):
         customer_id = self.upsert_customer(
             data["first_name"], data["last_name"], data["phone"],
-            data["email"], data["subscription_type"]
+            data["email"], data["subscription_type"], data["branch"]
         )
         payload = {
             "customer_id": customer_id, "first_name": data["first_name"],
@@ -175,7 +187,7 @@ class CRMStore:
             "email": data["email"] or None, "subscription_type": data["subscription_type"] or None,
             "model": data["model"], "imei_serial": data["imei_serial"] or None,
             "issue_description": data["issue_description"], "start_date": data["start_date"],
-            "end_date": None, "status": "Inlämnad"
+            "end_date": None, "status": "Inlämnad", "branch": data["branch"]
         }
 
         if self.client:
@@ -188,12 +200,12 @@ class CRMStore:
         with sqlite3.connect(self.local_db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO service_cases (customer_id, first_name, last_name, phone, email, subscription_type, model, imei_serial, issue_description, start_date, end_date, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO service_cases (customer_id, first_name, last_name, phone, email, subscription_type, model, imei_serial, issue_description, start_date, end_date, status, branch)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 customer_id, payload["first_name"], payload["last_name"], payload["phone"],
                 payload["email"], payload["subscription_type"], payload["model"], payload["imei_serial"],
-                payload["issue_description"], payload["start_date"], payload["end_date"], payload["status"]
+                payload["issue_description"], payload["start_date"], payload["end_date"], payload["status"], payload["branch"]
             ))
             conn.commit()
             payload["id"] = cursor.lastrowid
@@ -203,7 +215,7 @@ class CRMStore:
         payload = {
             "first_name": data["first_name"], "last_name": data["last_name"],
             "phone": data["phone"], "part_model": data["part_model"],
-            "deposit": data["deposit"]
+            "deposit": data["deposit"], "branch": data["branch"]
         }
         if self.client:
             try:
@@ -214,8 +226,8 @@ class CRMStore:
 
         with sqlite3.connect(self.local_db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO pre_orders (first_name, last_name, phone, part_model, deposit) VALUES (?, ?, ?, ?, ?)", 
-                           (payload["first_name"], payload["last_name"], payload["phone"], payload["part_model"], payload["deposit"]))
+            cursor.execute("INSERT INTO pre_orders (first_name, last_name, phone, part_model, deposit, branch) VALUES (?, ?, ?, ?, ?, ?)", 
+                           (payload["first_name"], payload["last_name"], payload["phone"], payload["part_model"], payload["deposit"], payload["branch"]))
             conn.commit()
             payload["id"] = cursor.lastrowid
             return payload
@@ -240,6 +252,7 @@ def generate_receipt_pdf_bytes(case):
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=10*mm, bottomMargin=10*mm)
     story = []
     full_name = f"{case.get('first_name', '')} {case.get('last_name', '')}".strip()
+    branch = case.get('branch', 'Eskilstuna')
 
     for index, copy_title in enumerate(("BUTIKENS KOPIA", "KUNDENS KOPIA")):
         if index:
@@ -247,7 +260,7 @@ def generate_receipt_pdf_bytes(case):
                           Paragraph("KLIPP HAR / SAX LINJE", ParagraphStyle("Cut", parent=body, alignment=TA_CENTER, textColor=colors.grey)), Spacer(1, 3*mm)])
         
         story.append(Paragraph(safe_para(COMPANY_NAME), title))
-        company_line = f"Gunborg Nymans vag 2, Tuna Park, 632 22 Eskilstuna | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB} | {COMPANY_EMAIL}"
+        company_line = f"Butik: {branch} | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB} | {COMPANY_EMAIL}"
         story.append(Paragraph(safe_para(company_line), ParagraphStyle("Company", parent=body, alignment=TA_CENTER)))
         story.append(Paragraph(f"<b>{copy_title} - INLAMNINGSKVITTO & AVTAL</b>", title))
         story.append(Paragraph(f"<b>Arendenummer:</b> {safe_para(case.get('id'))} &nbsp;&nbsp; <b>Datum:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", body))
@@ -255,7 +268,7 @@ def generate_receipt_pdf_bytes(case):
         story.append(Paragraph(f"<b>Kund:</b> {safe_para(full_name)} &nbsp;&nbsp; <b>Mobil:</b> {safe_para(case.get('phone'))}", body))
         story.append(Paragraph(f"<b>E-post:</b> {safe_para(case.get('email'))} &nbsp;&nbsp; <b>Modell:</b> {safe_para(case.get('model'))}", body))
         story.append(Paragraph(f"<b>IMEI / Serienummer:</b> {safe_para(case.get('imei_serial'))}", body))
-        story.append(Paragraph(f"<b>Abonnemangstyp:</b> {safe_para(case.get('subscription_type'))}", body))
+        story.append(Paragraph(f"<b>Abonnemangstyp:</b> {safe_para(case.get('subscription_type'))} &nbsp;&nbsp; <b>Butik:</b> {safe_para(branch)}", body))
         story.append(Paragraph(f"<b>Felbeskrivning:</b> {safe_para(case.get('issue_description'))}", body))
         story.append(Paragraph("SARSKILDA AVTALSVILLKOR", heading))
         for term in [
@@ -279,16 +292,17 @@ def generate_quote_pdf_bytes(quote_data):
     
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=12*mm, bottomMargin=12*mm)
     story = []
+    branch = quote_data.get('branch', 'Eskilstuna')
     
     story.append(Paragraph(safe_para(COMPANY_NAME), title))
-    company_line = f"Gunborg Nymans vag 2, Tuna Park, 632 22 Eskilstuna | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB}"
+    company_line = f"Butik: {branch} | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB}"
     story.append(Paragraph(safe_para(company_line), ParagraphStyle("Company", parent=body, alignment=TA_CENTER)))
     story.append(Paragraph("<b>KOSTNADSFORSLAG (PRICE QUOTE)</b>", title))
     story.append(Paragraph(f"<b>Datum:</b> {datetime.now().strftime('%Y-%m-%d')} &nbsp;&nbsp; <b>Giltigt i:</b> 14 dagar", body))
     
     story.append(Paragraph("KUNDINFORMATION", heading))
     story.append(Paragraph(f"<b>Kund:</b> {safe_para(quote_data['customer_name'])} &nbsp;&nbsp; <b>Telefon:</b> {safe_para(quote_data['phone'])}", body))
-    story.append(Paragraph(f"<b>Enhet / Modell:</b> {safe_para(quote_data['model'])}", body))
+    story.append(Paragraph(f"<b>Enhet / Modell:</b> {safe_para(quote_data['model'])} &nbsp;&nbsp; <b>Butik:</b> {safe_para(branch)}", body))
     
     story.append(Paragraph("SPECIFIKATION AV REPARATION OCH PRIS", heading))
     story.append(Paragraph(f"<b>Utfort arbete / Beskrivning:</b><br/>{safe_para(quote_data['description'])}", body))
@@ -331,6 +345,8 @@ tab1, tab2, tab3, tab4 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag", 
 with tab1:
     st.header("Registrera Nytt Serviceärende")
     
+    selected_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="t1_branch")
+    
     col1, col2 = st.columns(2)
     with col1:
         first_name = st.text_input("Förnamn *", key="t1_fn")
@@ -353,10 +369,11 @@ with tab1:
                 "first_name": first_name, "last_name": last_name, "phone": phone,
                 "email": email, "model": model, "imei_serial": imei_serial,
                 "subscription_type": subscription_type, "issue_description": issue_description,
-                "start_date": datetime.now().date().isoformat()
+                "start_date": datetime.now().date().isoformat(),
+                "branch": selected_branch
             }
             saved_case = store.create_case(case_data)
-            st.success(f"✅ Ärende #{saved_case.get('id')} har sparats!")
+            st.success(f"✅ Ärende #{saved_case.get('id')} har sparats ({selected_branch})!")
             
             pdf_bytes = generate_receipt_pdf_bytes(saved_case)
             st.download_button(
@@ -370,7 +387,8 @@ with tab1:
 # TAB 2: Kostnadsförslag (Price Quote)
 with tab2:
     st.header("Skapa Kostnadsförslag (Price Quote)")
-    st.write("Generera ett professionellt prisförslag att visa eller skicka till kunden innan reparation.")
+    
+    q_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="q_branch")
     
     q_col1, q_col2 = st.columns(2)
     with q_col1:
@@ -391,10 +409,11 @@ with tab2:
                 "phone": q_phone,
                 "model": q_model,
                 "total_price": q_price,
-                "description": q_desc
+                "description": q_desc,
+                "branch": q_branch
             }
             q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
-            st.success("✅ Kostnadsförslag skapat!")
+            st.success(f"✅ Kostnadsförslag skapat ({q_branch})!")
             st.download_button(
                 label="📥 Ladda ner Kostnadsförslag PDF",
                 data=q_pdf_bytes,
@@ -406,9 +425,11 @@ with tab2:
 # TAB 3: Search Cases & View History
 with tab3:
     st.header("Sök Serviceärenden")
+    
+    search_branch = st.selectbox("Filtrera efter Butik", ["Alla", "Eskilstuna", "Västerås"], key="t3_branch")
     search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:", key="t3_search")
     
-    cases = store.search_cases(search_query)
+    cases = store.search_cases(search_query, branch=search_branch)
     if cases:
         st.dataframe(cases, use_container_width=True)
     else:
@@ -417,6 +438,8 @@ with tab3:
 # TAB 4: Pre-Orders
 with tab4:
     st.header("Registrera Förbeställning (Pre-Order)")
+    
+    po_branch = st.selectbox("Välj Butik / Plats *", ["Eskilstuna", "Västerås"], key="po_branch")
     po_fn = st.text_input("Förnamn", key="po_fn")
     po_ln = st.text_input("Efternamn", key="po_ln")
     po_phone = st.text_input("Telefonnummer", key="po_phone")
@@ -428,8 +451,8 @@ with tab4:
             store.create_pre_order({
                 "first_name": po_fn, "last_name": po_ln,
                 "phone": po_phone, "part_model": part_model,
-                "deposit": deposit
+                "deposit": deposit, "branch": po_branch
             })
-            st.success("✅ Förbeställning sparad!")
+            st.success(f"✅ Förbeställning sparad ({po_branch})!")
         else:
             st.warning("⚠️ Fyll i förnamn, telefon och del/modell.")
