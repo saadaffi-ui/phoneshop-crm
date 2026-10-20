@@ -260,11 +260,43 @@ def generate_receipt_pdf_bytes(case):
         story.append(Paragraph("SARSKILDA AVTALSVILLKOR", heading))
         for term in [
             "1. Verkstaden ansvarar for felsokning och reparation enligt den felbeskrivning som anges ovan.",
-            "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas van verkstadens garanti.",
-            "3. Kunden bor sakerhetskopiera enheten. Verkstaden kan inte garantera att data bevaras vid reparation."
+            "2. Garanti galler endast for de delar och det arbete som uttryckligen omfattas av verkstadens garanti.",
+            "3. Kunden bor sakerhetskopiera enheten. Verkstaden kan inte garantera data bevaras vid reparation."
         ]:
             story.append(Paragraph(safe_para(term), terms))
         story.append(Spacer(1, 5*mm))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def generate_quote_pdf_bytes(quote_data):
+    buffer = io.BytesIO()
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("QuoteTitle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=14, leading=17, alignment=TA_CENTER, spaceAfter=6)
+    heading = ParagraphStyle("QuoteHeading", parent=styles["Heading3"], fontSize=10, leading=12, spaceBefore=6, spaceAfter=4)
+    body = ParagraphStyle("QuoteBody", parent=styles["Normal"], fontSize=9, leading=12, spaceAfter=4)
+    
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=12*mm, bottomMargin=12*mm)
+    story = []
+    
+    story.append(Paragraph(safe_para(COMPANY_NAME), title))
+    company_line = f"Gunborg Nymans vag 2, Tuna Park, 632 22 Eskilstuna | Tel: {COMPANY_PHONE} | Webb: {COMPANY_WEB}"
+    story.append(Paragraph(safe_para(company_line), ParagraphStyle("Company", parent=body, alignment=TA_CENTER)))
+    story.append(Paragraph("<b>KOSTNADSFORSLAG (PRICE QUOTE)</b>", title))
+    story.append(Paragraph(f"<b>Datum:</b> {datetime.now().strftime('%Y-%m-%d')} &nbsp;&nbsp; <b>Giltigt i:</b> 14 dagar", body))
+    
+    story.append(Paragraph("KUNDINFORMATION", heading))
+    story.append(Paragraph(f"<b>Kund:</b> {safe_para(quote_data['customer_name'])} &nbsp;&nbsp; <b>Telefon:</b> {safe_para(quote_data['phone'])}", body))
+    story.append(Paragraph(f"<b>Enhet / Modell:</b> {safe_para(quote_data['model'])}", body))
+    
+    story.append(Paragraph("SPECIFIKATION AV REPARATION OCH PRIS", heading))
+    story.append(Paragraph(f"<b>Utfort arbete / Beskrivning:</b><br/>{safe_para(quote_data['description'])}", body))
+    story.append(Spacer(1, 4*mm))
+    story.append(Paragraph(f"<b>Att betala totalt inkl. moms:</b> <font size=12><b>{quote_data['total_price']} SEK</b></font>", ParagraphStyle("Total", parent=body, fontSize=11, textColor=colors.HexColor("#003366"))))
+    story.append(Spacer(1, 8*mm))
+    
+    story.append(Paragraph("Villkor: Kostnadsforslaget ar kostnadsfritt om reparationen utfors hos oss. Vid enbart felsokning kan avgift tillkomma.", ParagraphStyle("Terms", parent=body, fontSize=7.5, textColor=colors.HexColor("#555555"))))
 
     doc.build(story)
     buffer.seek(0)
@@ -293,29 +325,29 @@ if not st.session_state.authenticated:
     st.info("🔒 Please enter the employee PIN code in the sidebar to access the CRM.")
     st.stop()
 
-tab1, tab2, tab3 = st.tabs(["📝 Nytt Arende (New Case)", "🔍 Sok Arenden (Search)", "🛒 Forbestallning (Pre-Order)"])
+tab1, tab2, tab3, tab4 = st.tabs(["📝 Nytt Ärende", "💡 Kostnadsförslag", "🔍 Sök Ärenden", "🛒 Förbeställning"])
 
 # TAB 1: Register New Service Case
 with tab1:
-    st.header("Registrera Nytt Servicearende")
+    st.header("Registrera Nytt Serviceärende")
     
     col1, col2 = st.columns(2)
     with col1:
-        first_name = st.text_input("Fornamn *")
-        last_name = st.text_input("Efternamn *")
-        phone = st.text_input("Telefonnummer *")
-        email = st.text_input("E-post")
+        first_name = st.text_input("Förnamn *", key="t1_fn")
+        last_name = st.text_input("Efternamn *", key="t1_ln")
+        phone = st.text_input("Telefonnummer *", key="t1_ph")
+        email = st.text_input("E-post", key="t1_em")
     
     with col2:
-        model = st.text_input("Enhet / Modell * (ex. iPhone 13 Pro)")
-        imei_serial = st.text_input("IMEI / Serienummer")
-        subscription_type = st.selectbox("Abonnemangstyp", ["Privat", "Foretag", "Forsakringsarende", "Annat"])
+        model = st.text_input("Enhet / Modell * (ex. iPhone 13 Pro)", key="t1_mod")
+        imei_serial = st.text_input("IMEI / Serienummer", key="t1_imei")
+        subscription_type = st.selectbox("Abonnemangstyp", ["Privat", "Företag", "Försäkringsärende", "Annat"], key="t1_sub")
     
-    issue_description = st.text_area("Felbeskrivning (Issue Description)")
+    issue_description = st.text_area("Felbeskrivning (Issue Description)", key="t1_desc")
 
-    if st.button("💾 Spara Arende & Skapa PDF", type="primary"):
+    if st.button("💾 Spara Ärende & Skapa PDF", type="primary", key="btn_t1"):
         if not first_name or not last_name or not phone or not model:
-            st.warning("⚠️ Fyll i alla obligatoriska falt (Fornamn, Efternamn, Telefon, Modell).")
+            st.warning("⚠️ Fyll i alla obligatoriska fält (Förnamn, Efternamn, Telefon, Modell).")
         else:
             case_data = {
                 "first_name": first_name, "last_name": last_name, "phone": phone,
@@ -324,43 +356,80 @@ with tab1:
                 "start_date": datetime.now().date().isoformat()
             }
             saved_case = store.create_case(case_data)
-            st.success(f"✅ Arende #{saved_case.get('id')} har sparats!")
+            st.success(f"✅ Ärende #{saved_case.get('id')} har sparats!")
             
             pdf_bytes = generate_receipt_pdf_bytes(saved_case)
             st.download_button(
                 label="📄 Ladda ner PDF-kvitto (Download Receipt)",
                 data=pdf_bytes,
                 file_name=f"Kvitto_{saved_case.get('id')}.pdf",
-                mime="application/pdf"
+                mime="application/pdf",
+                key="dl_t1"
             )
 
-# TAB 2: Search Cases & View History
+# TAB 2: Kostnadsförslag (Price Quote)
 with tab2:
-    st.header("Sok Servicearenden")
-    search_query = st.text_input("Sok pa namn, telefon, modell eller arendenummer:")
+    st.header("Skapa Kostnadsförslag (Price Quote)")
+    st.write("Generera ett professionellt prisförslag att visa eller skicka till kunden innan reparation.")
+    
+    q_col1, q_col2 = st.columns(2)
+    with q_col1:
+        q_name = st.text_input("Kundens Namn *", key="q_name")
+        q_phone = st.text_input("Telefonnummer *", key="q_phone")
+    with q_col2:
+        q_model = st.text_input("Enhet / Modell * (ex. iPhone 12)", key="q_model")
+        q_price = st.text_input("Totalpris inkl. moms (SEK) *", key="q_price", placeholder="ex. 1290")
+    
+    q_desc = st.text_area("Reparationsdetaljer / Åtgärder", key="q_desc", placeholder="ex. Skärmbyte (Originaldel) inklusive arbete och garanti.")
+
+    if st.button("📄 Generera Kostnadsförslag PDF", type="primary", key="btn_quote"):
+        if not q_name or not q_phone or not q_model or not q_price:
+            st.warning("⚠️ Fyll i kundens namn, telefon, modell och pris.")
+        else:
+            quote_data = {
+                "customer_name": q_name,
+                "phone": q_phone,
+                "model": q_model,
+                "total_price": q_price,
+                "description": q_desc
+            }
+            q_pdf_bytes = generate_quote_pdf_bytes(quote_data)
+            st.success("✅ Kostnadsförslag skapat!")
+            st.download_button(
+                label="📥 Ladda ner Kostnadsförslag PDF",
+                data=q_pdf_bytes,
+                file_name=f"Kostnadsforslag_{q_name.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                key="dl_quote"
+            )
+
+# TAB 3: Search Cases & View History
+with tab3:
+    st.header("Sök Serviceärenden")
+    search_query = st.text_input("Sök på namn, telefon, modell eller ärendenummer:", key="t3_search")
     
     cases = store.search_cases(search_query)
     if cases:
         st.dataframe(cases, use_container_width=True)
     else:
-        st.info("Inga arenden hittades.")
+        st.info("Inga ärenden hittades.")
 
-# TAB 3: Pre-Orders
-with tab3:
-    st.header("Registrera Forbestallning (Pre-Order)")
-    po_fn = st.text_input("Fornamn", key="po_fn")
+# TAB 4: Pre-Orders
+with tab4:
+    st.header("Registrera Förbeställning (Pre-Order)")
+    po_fn = st.text_input("Förnamn", key="po_fn")
     po_ln = st.text_input("Efternamn", key="po_ln")
     po_phone = st.text_input("Telefonnummer", key="po_phone")
-    part_model = st.text_input("Del / Modell (ex. Skarm iPhone 14)")
-    deposit = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0)
+    part_model = st.text_input("Del / Modell (ex. Skärm iPhone 14)", key="po_part")
+    deposit = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0, key="po_dep")
 
-    if st.button("💾 Spara Forbestallning"):
+    if st.button("💾 Spara Förbeställning", key="btn_po"):
         if po_fn and po_phone and part_model:
             store.create_pre_order({
                 "first_name": po_fn, "last_name": po_ln,
                 "phone": po_phone, "part_model": part_model,
                 "deposit": deposit
             })
-            st.success("✅ Forbestallning sparad!")
+            st.success("✅ Förbeställning sparad!")
         else:
-            st.warning("⚠️ Fyll i fornamn, telefon och del/modell.")
+            st.warning("⚠️ Fyll i förnamn, telefon och del/modell.")
