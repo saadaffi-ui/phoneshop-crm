@@ -616,7 +616,7 @@ with tab1:
                 mime="application/pdf"
             )
 
-# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View with Menus & Auto Prices)
+# TAB 2: Kostnadsförslag (Public Form for Customers + Staff View - No Default Prices)
 with tab2:
     st.header("💡 Skapa / Begär Kostnadsförslag (Price Quote)")
     st.write("Välj enhet och klicka i de reparationer eller reservdelar som behövs:")
@@ -630,45 +630,40 @@ with tab2:
     with q_col2:
         q_model = st.text_input("Enhet / Modell * (ex. iPhone 12 Pro)", key="q_model")
     
-    st.markdown("#### 🛠️ Välj reparationer / problem och priser")
+    st.markdown("#### 🛠️ Välj reparationer / problem")
     
-    repair_options = {
-        "Skärmbyte (Display is cracked)": 1290.0,
-        "Vattenskada (Water damaged - Felsökning/Rengöring)": 500.0,
-        "Baksida skadad (Back glass cracked)": 990.0,
-        "Kamera (Camera repair)": 890.0,
-        "Kameralins (Camera lens)": 390.0,
-        "Antenn / Täckningsfel (Antenna)": 600.0,
-        "Laddport (Chargeport / Charging port)": 790.0,
-        "Hemknapp (Home button)": 490.0,
-        "Volymknapp / Strömknapp (Volume/Power button)": 600.0,
-        "Batteribyte (Battery replacement)": 690.0
-    }
+    repair_options = [
+        "Skärmbyte (Display is cracked)",
+        "Vattenskada (Water damaged - Felsökning/Rengöring)",
+        "Baksida skadad (Back glass cracked)",
+        "Kamera (Camera repair)",
+        "Kameralins (Camera lens)",
+        "Antenn / Täckningsfel (Antenna)",
+        "Laddport (Chargeport / Charging port)",
+        "Hemknapp (Home button)",
+        "Volymknapp / Strömknapp (Volume/Power button)",
+        "Batteribyte (Battery replacement)"
+    ]
     
     selected_repairs = []
-    total_calculated_price = 0.0
     
     col_a, col_b = st.columns(2)
-    items_list = list(repair_options.items())
-    half_len = (len(items_list) + 1) // 2
+    half_len = (len(repair_options) + 1) // 2
     
     with col_a:
-        for rep_name, rep_price in items_list[:half_len]:
-            if st.checkbox(f"{rep_name} ({rep_price:.0f} SEK)", key=f"rep_{rep_name}"):
+        for rep_name in repair_options[:half_len]:
+            if st.checkbox(rep_name, key=f"rep_{rep_name}"):
                 selected_repairs.append(rep_name)
-                total_calculated_price += rep_price
                 
     with col_b:
-        for rep_name, rep_price in items_list[half_len:]:
-            if st.checkbox(f"{rep_name} ({rep_price:.0f} SEK)", key=f"rep_{rep_name}"):
+        for rep_name in repair_options[half_len:]:
+            if st.checkbox(rep_name, key=f"rep_{rep_name}"):
                 selected_repairs.append(rep_name)
-                total_calculated_price += rep_price
 
     extra_desc = st.text_area("Övriga anteckningar / Beskrivning", key="q_extra_desc", placeholder="ex. Extra detaljer om skadan...")
     
-    st.markdown(f"### 💰 Beräknat Totalpris: **{total_calculated_price:.0f} SEK**")
-    
-    q_price = st.text_input("Totalpris inkl. moms (SEK) *", value=str(int(total_calculated_price)) if total_calculated_price > 0 else "", key="q_price")
+    # خانة إدخال السعر يدوياً
+    q_price = st.text_input("Totalpris inkl. moms (SEK) *", placeholder="Ange pris manuellt...", key="q_price")
 
     if st.button("📤 Skicka / Spara Förslag", type="primary", key="btn_quote"):
         if not q_name or not q_phone or not q_model or not q_price:
@@ -687,7 +682,7 @@ with tab2:
                 "branch": q_branch
             }
             store.create_quote(quote_data)
-            st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) med totalpriset {q_price} SEK!")
+            st.success(f"✅ Kostnadsförslag har sparats i databasen ({q_branch}) med priset {q_price} SEK!")
 
     if st.session_state.authenticated:
         st.markdown("---")
