@@ -148,7 +148,7 @@ if not st.session_state['authenticated']:
         st.sidebar.error("❌ Fel PIN-kod / Incorrect PIN")
 
 if not st.session_state['authenticated']:
-    st.title("🔒 30 Minutes Fix CRM - Locked")
+    st.title("🔒 30 Minutes Fix CRM - Locked / Låst")
     st.info("Please enter the system PIN in the sidebar to log in. / Ange PIN-kod i sidofältet för att logga in.")
     st.stop()
 
@@ -163,19 +163,19 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📄 Faktura / Invoice", 
     "🛒 Förbeställning / Pre-order", 
     "💳 Abonnemang / Subscriptions",
-    "📊 Data Center & Sök / All Saved Data"
+    "📊 Data Center & Sök / All Data & Search"
 ])
 
 # --- 1. NYTT ÄRENDE / NEW REPAIR ---
 if menu == "📝 Nytt Ärende / New Repair":
-    st.header("📝 Registrera nytt ärende / Register Repair")
+    st.header("📝 Registrera nytt ärende / Register New Repair")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
     
     c_name = st.text_input("Kundens namn / Customer Name")
     c_phone = st.text_input("Telefonnummer / Phone Number")
-    c_email = st.text_input("E-post / Email (Optional)")
+    c_email = st.text_input("E-post / Email (Valfritt / Optional)")
     device = st.text_input("Enhet / Modell / Device Model")
-    imei = st.text_input("IMEI / Serienummer / IMEI Number")
+    imei = st.text_input("IMEI / Serienummer / IMEI / Serial Number")
     price = st.number_input("Pris (Kr) / Price", min_value=0.0, step=50.0)
     issue = st.text_area("Beskrivning av fel / Issue Description")
     
@@ -199,11 +199,11 @@ if menu == "📝 Nytt Ärende / New Repair":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Ärendet har sparats i molnet! / Saved to cloud!")
+                st.success("✅ Ärendet har sparats i molnet! / Repair saved to cloud successfully!")
             except Exception as e:
-                st.error(f"❌ Fel: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
-            st.warning("⚠️ Fyll i obligatoriska fält. / Fill required fields.")
+            st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
 
 # --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == "💡 Kostnadsförslag / Quote":
@@ -214,7 +214,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
     c_name = st.text_input("Kundens namn / Customer Name")
     c_phone = st.text_input("Telefonnummer / Phone Number")
     device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15, MacBook Pro)")
-    imei = st.text_input("IMEI / Serienummer (Valfritt)")
+    imei = st.text_input("IMEI / Serienummer (Valfritt / Optional)")
 
     st.markdown("---")
     st.subheader("🛠️ Välj Fel / Reparationer (Mobil, Laptop & Elektronik)")
@@ -229,37 +229,37 @@ elif menu == "💡 Kostnadsförslag / Quote":
         has_screen = st.checkbox("📱 Skärmbyte / Damaged Screen")
         if has_screen:
             p_screen = st.number_input("Pris: Skärmbyte (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_scr")
-            issues_list.append(f"Skärmbyte: {p_screen} Kr")
+            issues_list.append(f"Skärmbyte / Screen: {p_screen} Kr")
             total_price += p_screen
 
         has_backglass = st.checkbox("📱 Baksida kraschad / Back Glass Damaged")
         if has_backglass:
             p_backglass = st.number_input("Pris: Baksida (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bg")
-            issues_list.append(f"Baksida kraschad: {p_backglass} Kr")
+            issues_list.append(f"Baksida kraschad / Back Glass: {p_backglass} Kr")
             total_price += p_backglass
 
         has_water = st.checkbox("💧 Vattenskada / Water Damage")
         if has_water:
             p_water = st.number_input("Pris: Vattenskada (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_wat")
-            issues_list.append(f"Vattenskada: {p_water} Kr")
+            issues_list.append(f"Vattenskada / Water Damage: {p_water} Kr")
             total_price += p_water
 
         has_battery = st.checkbox("🔋 Batteriproblem / Battery Replacement")
         if has_battery:
             p_battery = st.number_input("Pris: Batteri (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bat")
-            issues_list.append(f"Batteribyte: {p_battery} Kr")
+            issues_list.append(f"Batteribyte / Battery: {p_battery} Kr")
             total_price += p_battery
 
         has_charging = st.checkbox("🔌 Laddport / Charging Port Issue")
         if has_charging:
             p_charging = st.number_input("Pris: Laddport (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_chg")
-            issues_list.append(f"Laddport reparation: {p_charging} Kr")
+            issues_list.append(f"Laddport / Charging Port: {p_charging} Kr")
             total_price += p_charging
 
         has_cam = st.checkbox("📷 Kameraproblem / Camera Repair")
         if has_cam:
             p_cam = st.number_input("Pris: Kamera (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cam")
-            issues_list.append(f"Kamerabyte/reparation: {p_cam} Kr")
+            issues_list.append(f"Kamera / Camera: {p_cam} Kr")
             total_price += p_cam
 
     with col_q2:
@@ -267,38 +267,38 @@ elif menu == "💡 Kostnadsförslag / Quote":
         has_laptopscreen = st.checkbox("💻 Laptop Skärmbyte / Laptop Screen")
         if has_laptopscreen:
             p_lapscreen = st.number_input("Pris: Laptop Skärm (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_lscr")
-            issues_list.append(f"Laptop Skärmbyte: {p_lapscreen} Kr")
+            issues_list.append(f"Laptop Skärm / Screen: {p_lapscreen} Kr")
             total_price += p_lapscreen
 
         has_keyboard = st.checkbox("⌨️ Tangentbord / Keyboard Problem")
         if has_keyboard:
             p_keyboard = st.number_input("Pris: Tangentbord (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_key")
-            issues_list.append(f"Tangentbordbyte: {p_keyboard} Kr")
+            issues_list.append(f"Tangentbord / Keyboard: {p_keyboard} Kr")
             total_price += p_keyboard
 
         has_software = st.checkbox("⚙️ Mjukvara & OS / Software & Virus Help")
         if has_software:
             p_software = st.number_input("Pris: Mjukvara (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_sof")
-            issues_list.append(f"Mjukvara / OS installation: {p_software} Kr")
+            issues_list.append(f"Mjukvara / Software: {p_software} Kr")
             total_price += p_software
 
         has_cleaning = st.checkbox("🧹 Rengöring & Fläkt / Cleaning & Fan Service")
         if has_cleaning:
             p_cleaning = st.number_input("Pris: Rengöring (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cln")
-            issues_list.append(f"Datorrengöring / Fläkt: {p_cleaning} Kr")
+            issues_list.append(f"Rengöring & Fläkt / Cleaning: {p_cleaning} Kr")
             total_price += p_cleaning
 
-    custom_issue = st.text_input("Övrigt fel / Annan elektronik (Valfritt / Custom)")
+    custom_issue = st.text_input("Övrigt fel / Annan elektronik (Valfritt / Custom Issue)")
     if custom_issue:
         p_custom = st.number_input("Pris för övrigt (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cust")
         issues_list.append(f"{custom_issue}: {p_custom} Kr")
         total_price += p_custom
 
     st.markdown("---")
-    st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms)**")
-    st.info("📜 *Detta kostnadsförslag gäller endast i vår verkstad (This quote is valid only in our workshop).*")
+    st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms / incl. VAT)**")
+    st.info("📜 *Detta kostnadsförslag gäller endast i vår verkstad / This quote is valid only in our workshop.*")
 
-    if st.button("Spara & Generera PDF Kostnadsförslag", type="primary"):
+    if st.button("Spara & Generera PDF Kostnadsförslag / Save & Generate PDF Quote", type="primary"):
         if c_name and device and issues_list:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -318,9 +318,9 @@ elif menu == "💡 Kostnadsförslag / Quote":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Kostnadsförslag sparat i molnet! / Saved to cloud!")
+                st.success("✅ Kostnadsförslag sparat i molnet! / Quote saved to cloud!")
             except Exception as e:
-                st.error(f"❌ Fel: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
@@ -329,9 +329,9 @@ elif menu == "💡 Kostnadsförslag / Quote":
             p.drawString(50, 770, f"Org.nr: {comp['org_nr']}")
             p.drawString(50, 750, "--------------------------------------------------------")
             p.drawString(50, 730, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
-            p.drawString(50, 710, f"Datum: {date.today().strftime('%Y-%m-%d')}")
-            p.drawString(50, 690, f"Kund: {c_name} | Tel: {c_phone}")
-            p.drawString(50, 670, f"Enhet: {device} | IMEI/Serienr: {imei}")
+            p.drawString(50, 710, f"Datum / Date: {date.today().strftime('%Y-%m-%d')}")
+            p.drawString(50, 690, f"Kund / Customer: {c_name} | Tel: {c_phone}")
+            p.drawString(50, 670, f"Enhet / Device: {device} | IMEI/Serial: {imei}")
             p.drawString(50, 650, "--------------------------------------------------------")
             
             y_pos = 620
@@ -342,7 +342,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             y_pos -= 20
             p.drawString(50, y_pos, f"TOTAL SUMMA / TOTAL: {total_price:.2f} Kr (inkl. moms)")
             y_pos -= 30
-            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad.")
+            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad / Valid only in our workshop.")
             
             p.showPage()
             p.save()
@@ -358,17 +358,17 @@ elif menu == "📄 Faktura / Invoice":
     comp = COMPANY_INFO[branch]
     
     st.info(f"""
-    🏢 **Företagsuppgifter ({branch}):**
-    * **Företag:** {comp['name']}
-    * **Adress:** {comp['address']}
-    * **Telefon:** {comp['phone']} | **Org.nr:** {comp['org_nr']}
+    🏢 **Företagsuppgifter ({branch}) / Company Details:**
+    * **Företag / Company:** {comp['name']}
+    * **Adress / Address:** {comp['address']}
+    * **Telefon / Phone:** {comp['phone']} | **Org.nr:** {comp['org_nr']}
     * **Swish:** {comp['swish']} | **Bankgiro:** {comp['bankgiro']}
     """)
 
     st.markdown("---")
     st.subheader("👤 Kunduppgifter / Customer Info")
     f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
-    f_org = st.text_input("Org.nr / Personnummer (Optional)")
+    f_org = st.text_input("Org.nr / Personnummer / Org.nr / ID (Valfritt / Optional)")
     f_address = st.text_input("Adress / Address")
     invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
     invoice_date = st.date_input("Fakturadatum / Invoice Date", value=date.today())
@@ -378,7 +378,7 @@ elif menu == "📄 Faktura / Invoice":
     st.subheader("🛒 Artikel & Pris / Item & Price")
     item_desc = st.text_input("Beskrivning / Description", value="Reparation och reservdelar / Repair & Parts")
     item_qty = st.number_input("Antal / Quantity", min_value=1, value=1)
-    item_price = st.number_input("Pris per enhet inkl. moms (Kr)", min_value=0.0, step=50.0)
+    item_price = st.number_input("Pris per enhet inkl. moms (Kr) / Unit Price incl. VAT", min_value=0.0, step=50.0)
     
     total_amount = item_qty * item_price
     moms = total_amount * 0.20
@@ -386,13 +386,13 @@ elif menu == "📄 Faktura / Invoice":
     
     st.markdown(f"""
     ### 📊 Sammanfattning / Summary:
-    * **Netto (exkl. moms):** {netto:.2f} Kr
-    * **Moms (25%):** {moms:.2f} Kr
-    * **Att betala / Total Summa:** **{total_amount:.2f} Kr**
+    * **Netto (exkl. moms) / Net (excl. VAT):** {netto:.2f} Kr
+    * **Moms (25%) / VAT (25%):** {moms:.2f} Kr
+    * **Att betala / Total Summa / Total:** **{total_amount:.2f} Kr**
     """)
-    st.markdown(f"💳 **Betalningsmetod:** Swish: `{comp['swish']}` | Bankgiro: `{comp['bankgiro']}`")
+    st.markdown(f"💳 **Betalningsmetod / Payment Method:** Swish: `{comp['swish']}` | Bankgiro: `{comp['bankgiro']}`")
     
-    if st.button("Spara & Skapa Faktura PDF", type="primary"):
+    if st.button("Spara & Skapa Faktura PDF / Save & Create Invoice PDF", type="primary"):
         if f_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -411,9 +411,9 @@ elif menu == "📄 Faktura / Invoice":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Faktura sparad i molnet! / Saved to cloud!")
+                st.success("✅ Faktura sparad i molnet! / Invoice saved to cloud!")
             except Exception as e:
-                st.error(f"❌ Fel: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
@@ -422,10 +422,10 @@ elif menu == "📄 Faktura / Invoice":
             p.drawString(50, 770, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
             p.drawString(50, 750, "--------------------------------------------------------")
             p.drawString(50, 730, "FAKTURA / INVOICE")
-            p.drawString(50, 710, f"Fakturanr: {invoice_no} | Datum: {invoice_date} | Förfallodag: {due_date}")
-            p.drawString(50, 690, f"Kund: {f_name} | Adress: {f_address}")
+            p.drawString(50, 710, f"Fakturanr / Invoice No: {invoice_no} | Datum / Date: {invoice_date} | Förfallodag / Due: {due_date}")
+            p.drawString(50, 690, f"Kund / Customer: {f_name} | Adress: {f_address}")
             p.drawString(50, 670, "--------------------------------------------------------")
-            p.drawString(50, 640, f"Beskrivning: {item_desc} (Antal: {item_qty})")
+            p.drawString(50, 640, f"Beskrivning / Description: {item_desc} (Antal / Qty: {item_qty})")
             p.drawString(50, 610, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
             p.drawString(50, 580, f"Att betala Totalt / Total: {total_amount:.2f} Kr")
             p.drawString(50, 540, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
@@ -433,16 +433,16 @@ elif menu == "📄 Faktura / Invoice":
             p.showPage()
             p.save()
             buffer.seek(0)
-            st.download_button("📥 Ladda ner Faktura PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
+            st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
         else:
             st.warning("⚠️ Ange kundens namn. / Enter customer name.")
 
 # --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
-    st.header("🛒 Förbeställning av reservdelar / Pre-order")
-    branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
+    st.header("🛒 Förbeställning av reservdelar / Spare Parts Pre-order")
+    branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
     fb_name = st.text_input("Kundens namn / Customer Name")
-    fb_phone = st.text_input("Telefon / Phone")
+    fb_phone = st.text_input("Telefonnummer / Phone Number")
     fb_details = st.text_area("Artikel / Delar detaljer / Part Details")
     fb_deposit = st.number_input("Handpenning / Deposit (Kr)", min_value=0.0, step=50.0)
     
@@ -464,22 +464,22 @@ elif menu == "🛒 Förbeställning / Pre-order":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Förbeställning sparad i molnet! / Saved to cloud!")
+                st.success("✅ Förbeställning sparad i molnet! / Pre-order saved to cloud!")
             except Exception as e:
-                st.error(f"❌ Fel: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
-            st.warning("⚠️ Fyll i namn och telefon. / Fill name and phone.")
+            st.warning("⚠️ Fyll i namn och telefonnummer. / Fill name and phone number.")
 
 # --- 5. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == "💳 Abonnemang / Subscriptions":
-    st.header("💳 IMEI-kopplade Abonnemang / Subscriptions")
+    st.header("💳 IMEI-kopplade Abonnemang & Villkor / IMEI Subscriptions & Terms")
     
     sub_imei = st.text_input("IMEI-nummer (Unikt för enheten) / IMEI Number")
     sub_device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
     branch = st.selectbox("Butik / Branch", ["Eskilstuna", "Västerås"])
     sub_name = st.text_input("Kundens namn / Customer Name")
     sub_phone = st.text_input("Telefonnummer / Phone Number")
-    sub_email = st.text_input("E-post / Email (Valfritt)")
+    sub_email = st.text_input("E-post / Email (Valfritt / Optional)")
 
     st.markdown("---")
     plan_choice = st.selectbox("Välj Plan / Plan Type", [
@@ -490,24 +490,31 @@ elif menu == "💳 Abonnemang / Subscriptions":
     
     if "Glass Protection" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Glass Protection:** 99 Kr/mån | Byt skärmskydd 2 ggr/mån utan självrisk.")
+        st.info("💡 **Glass Protection Plan:** 99 Kr/mån | Byt skärmskydd upp till 2 ggr/mån utan självrisk (0 SEK självrisk). / Screen protector replacement up to 2 times/month with 0 SEK deductible.")
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Case / Cover:** 399 Kr start + 99 Kr/mån | Byt kفر/غطاء 1 gång var 3:e månad.")
+        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån | Byt kفر/غطاء 1 gång var 3:e månad utan självrisk. / Replace case 1 time every 3 months with 0 SEK deductible.")
     else:
         sub_price = 99.0
-        st.info("💡 **Teknik & Mjukvara:** 99 Kr/mån | Fri support och virusrensning.")
+        st.info("💡 **Teknik & Mjukvara Plan:** 99 Kr/mån | Fri hjälp med mjukvara och virusrensning. / Free software help and virus removal.")
 
     st.markdown("---")
     st.info("""
-    **Villkor:**
-    1. Abonnemanget är strikt kopplat till enhetens **IMEI-nummer**.
-    2. 3 månaders uppsägningstid gäller.
+    **Svenska (Villkor):**
+    1. **IMEI-koppling:** Abonnemanget är strikt kopplat till enhetens **IMEI-nummer**, inte till en specifik privatperson.
+    2. **Uppsägningstid:** 3 månaders uppsägningstid gäller. Kunden måste meddela oss senast **3 månader i förväg** vid uppsägning.
+    3. **Byte av IMEI / Enhet:** Kunden kan begära byte av registrerat IMEI-nummer **efter 3 månaders bindningstid**.
+    
+    ---
+    **English (Terms):**
+    1. **IMEI Linking:** The subscription is strictly linked to the device's **IMEI number**, not to an individual.
+    2. **Notice Period:** 3 months notice period required. Customer must inform us **3 months in advance** for cancellation.
+    3. **IMEI / Device Change:** Customer can change the registered IMEI number **after 3 months**.
     """)
     
-    agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren / Customer accepts terms")
+    agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren & IMEI-regler / Customer accepts terms & IMEI rules")
 
-    if st.button("Spara Abonnemang / Save Subscription", type="primary"):
+    if st.button("Spara Abonnemang i Molnet / Save Subscription", type="primary"):
         if sub_imei and sub_name and agree_terms:
             conn, db_type = get_db_connection()
             start_date = datetime.now().strftime("%Y-%m-%d")
@@ -527,19 +534,19 @@ elif menu == "💳 Abonnemang / Subscriptions":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Abonnemanget har sparats i molnet! / Saved to cloud!")
+                st.success("✅ Abonnemanget kopplat till IMEI har sparats i molnet! / Subscription saved to cloud!")
             except Exception as e:
-                st.error(f"❌ Fel: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
         elif not sub_imei:
-            st.warning("⚠️ IMEI-nummer krävs. / IMEI required.")
+            st.warning("⚠️ IMEI-nummer är obligatoriskt! / IMEI number is required.")
         elif not agree_terms:
-            st.warning("⚠️ Godkänn villkoren. / Accept terms.")
+            st.warning("⚠️ Du måste bocka i att kunden godkänner villkoren. / Please confirm terms.")
         else:
-            st.warning("⚠️ Fyll i kundens namn. / Enter name.")
+            st.warning("⚠️ Fyll i kundens namn. / Enter customer name.")
 
-# --- 6. DATA CENTER, SEARCH, EXPORT & DELETE ---
-elif menu == "📊 Data Center & Sök / All Saved Data":
-    st.header("📊 Data Center, Sök, Export & Hantering")
+# --- 6. DATA CENTER & SEARCH, EXPORT & DELETE ---
+elif menu == "📊 Data Center & Sök / All Data & Search":
+    st.header("📊 Data Center, Sök, Export & Hantering / Search, Export & Management")
     st.markdown("Sök, exportera eller radera poster från molnet / Search, export, or delete cloud records:")
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
@@ -554,7 +561,6 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
     
     conn, db_type = get_db_connection()
     
-    # تحديد اسم الجدول بناءً على القئة المختارة
     table_map = {
         "📝 Reparationer / Repairs": "repairs",
         "💳 Abonnemang / Subscriptions": "subscriptions",
@@ -568,7 +574,6 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
     if db_type == "turso":
         res = conn.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
         rows = res.fetchall()
-        # تحويل النتائج إلى DataFrame لسهولة التصدير والعرض
         columns_res = conn.execute(f"PRAGMA table_info({current_table})").fetchall()
         col_names = [c[1] for c in columns_res]
         df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
@@ -580,7 +585,6 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
         df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
         conn.close()
         
-    # فلترة النتائج حسب نص البحث
     if not df.empty and search_term:
         mask = df.astype(str).apply(lambda x: x.str.lower().str.contains(search_term).any(), axis=1)
         filtered_df = df[mask]
@@ -588,31 +592,29 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
         filtered_df = df
         
     if not filtered_df.empty:
-        st.markdown(f"### النتائج المطابقة ({len(filtered_df)} پستر):")
+        st.markdown(### `f"Matchande poster / Matching Records ({len(filtered_df)}):"`)
         st.dataframe(filtered_df, use_container_width=True)
         
-        # --- خيارات التصدير (Export options) ---
+        # --- Export Options ---
         st.markdown("---")
-        st.subheader("📥 Exportera Data / تصدير البيانات")
+        st.subheader("📥 Exportera Data / Export Data")
         col_ex1, col_ex2 = st.columns(2)
         
         with col_ex1:
-            # تصدير كـ Excel (CSV)
             csv_data = filtered_df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Ladda ner som Excel / CSV",
+                label="📥 Ladda ner som Excel / CSV / Download CSV",
                 data=csv_data,
                 file_name=f"{current_table}_export.csv",
                 mime="text/csv"
             )
             
         with col_ex2:
-            # تصدير كـ PDF بسيط للجدول
-            if st.button("📥 Generera PDF Export"):
+            if st.button("📥 Generera PDF Export / Generate PDF"):
                 pdf_buffer = io.BytesIO()
                 p = canvas.Canvas(pdf_buffer, pagesize=A4)
                 p.drawString(50, 800, f"30 MINUTES FIX AB - Export: {search_category}")
-                p.drawString(50, 780, f"Datum: {date.today().strftime('%Y-%m-%d')}")
+                p.drawString(50, 780, f"Datum / Date: {date.today().strftime('%Y-%m-%d')}")
                 p.drawString(50, 760, "-------------------------------------------------------------------")
                 
                 y = 730
@@ -620,29 +622,29 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
                     if y < 50:
                         p.showPage()
                         y = 800
-                    row_text = f"ID: {row.iloc[0]} | Kund: {row.iloc[2] if len(row)>2 else ''} | Detalj: {row.iloc[3] if len(row)>3 else ''}"
+                    row_text = f"ID: {row.iloc[0]} | Namn/Name: {row.iloc[2] if len(row)>2 else ''} | Info: {row.iloc[3] if len(row)>3 else ''}"
                     p.drawString(50, y, str(row_text)[:90])
                     y -= 20
                 
                 p.save()
                 pdf_buffer.seek(0)
                 st.download_button(
-                    label="📥 Ladda ner PDF Export",
+                    label="📥 Ladda ner PDF Export / Download PDF",
                     data=pdf_buffer,
                     file_name=f"{current_table}_export.pdf",
                     mime="application/pdf"
                 )
 
-        # --- خيار الحذف (Delete option - محمي ولا يسمح بحذف Abonnemang أو Invoices) ---
+        # --- Protected Deletion (Abonnemang & Fakturor are locked) ---
         if current_table not in ["subscriptions", "invoices"]:
             st.markdown("---")
-            st.subheader("🗑️ Radera Post / حذف عميل أو سجل")
-            st.warning("⚠️ ملاحظة أمنية: لا يمكنك حذف الاشتراكات (Abonnemang) أو الفواتير (Fakturor) من هنا للحفاظ على العقود المالية.")
+            st.subheader("🗑️ Radera Post / Delete Record")
+            st.warning("⚠️ Säkerhetsmeddelande: Du kan inte radera abonnemang eller fakturor härifrån. / Security notice: Subscriptions and invoices cannot be deleted.")
             
-            del_id = st.number_input("Ange ID för posten som ska raderas / أدخل رقم الـ ID للحذف", min_value=1, step=1)
-            del_pin = st.text_input("Ange PIN-kod för att radera / كلمة مرور الحذف", type="password", key="del_pin_input")
+            del_id = st.number_input("Ange ID för posten som ska raderas / Enter Record ID to Delete", min_value=1, step=1)
+            del_pin = st.text_input("Ange PIN-kod för radering / Deletion PIN", type="password", key="del_pin_input")
             
-            if st.button("Radera permanent / حذف نهائي", type="primary"):
+            if st.button("Radera permanent / Delete Permanently", type="primary"):
                 if del_pin == st.secrets.get("DELETE_ACTION_PIN", "admin123"):
                     conn_del, dtype_del = get_db_connection()
                     try:
@@ -653,15 +655,15 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
                             cur_del.execute(f"DELETE FROM {current_table} WHERE id = ?", (del_id,))
                             conn_del.commit()
                             conn_del.close()
-                        st.success(f"✅ Posten med ID {del_id} har raderats! / تم حذف السجل بنجاح!")
+                        st.success(f"✅ Posten med ID {del_id} har raderats! / Record deleted successfully!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Fel vid radering: {e}")
+                        st.error(f"❌ Fel vid radering / Error deleting: {e}")
                 else:
-                    st.error("❌ Fel PIN-kod för radering! / كلمة المرور غير صحيحة!")
+                    st.error("❌ Fel PIN-kod för radering! / Incorrect deletion PIN!")
         else:
             st.markdown("---")
-            st.info("🔒 **حماية أمنية:** قسم الاشتراكات والفواتير محمي بالكامل ولا يمكن حذف سجلاته نهائياً من لوحة التحكم.")
+            st.info("🔒 **Skyddat avtal / Protected:** Abonnemang och fakturor är permanent skyddade och kan inte raderas. / Subscriptions and invoices are permanently protected.")
             
     else:
-        st.info("Inga poster hittades i denna kategori. / لا توجد سجلات مطابقة.")
+        st.info("Inga poster hittades i denna kategori. / No records found in this category.")
