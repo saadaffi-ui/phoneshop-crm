@@ -2,11 +2,8 @@ import streamlit as st
 import sqlite3
 import os
 from datetime import datetime, date
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-import io
 
-# --- محاولة الاتصال بقاعدة بيانات Turso السحابية ---
+# --- Turso Cloud Database Connection ---
 import libsql_client
 
 def get_db_connection():
@@ -18,9 +15,9 @@ def get_db_connection():
             conn = libsql_client.connect(url=url, auth_token=token)
             return conn, "turso"
         except Exception as e:
-            st.error(f"⚠️ خطأ في الاتصال بقاعدة البيانات السحابية Turso: {e}")
+            st.error(f"⚠️ Turso DB Connection Error / خطأ في الاتصال بقاعدة البيانات السحابية: {e}")
     
-    # احتياطي محلي في حال عدم توفر الـ Secrets
+    # Fallback to local SQLite if secrets are missing
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     return conn, "sqlite"
 
@@ -80,43 +77,43 @@ def init_db():
 
 init_db()
 
-# إعدادات الصفحة
+# Page Configuration
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
 st.sidebar.title("30 MINUTES FIX AB")
 st.sidebar.markdown("---")
-menu = st.sidebar.radio("Navigation", [
-    "📝 Nytt Ärende", 
-    "💡 Kostnadsförslag", 
-    "📄 Faktura", 
-    "🔍 Sök Ärenden", 
-    "🛒 Förbeställning", 
-    "💳 Abonnemang"
+menu = st.sidebar.radio("Navigation / القائمة", [
+    "📝 Nytt Ärende / New Repair", 
+    "💡 Kostnadsförslag / Quote", 
+    "📄 Faktura / Invoice", 
+    "🔍 Sök Ärenden / Search", 
+    "🛒 Förbeställning / Pre-order", 
+    "💳 Abonnemang / Subscriptions"
 ])
 
-# --- 1. NYTT ÄRENDE ---
-if menu == "📝 Nytt Ärende":
-    st.header("📝 Registrera nytt ärende (Service)")
+# --- 1. NYTT ÄRENDE / NEW REPAIR ---
+if menu == "📝 Nytt Ärende / New Repair":
+    st.header("📝 Registrera nytt ärende / Register New Repair")
     
-    branch = st.selectbox("Välj Butik / فرع", ["Eskilstuna", "Västerås"])
+    branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
     
     col1, col2 = st.columns(2)
     with col1:
-        c_name = st.text_input("Kundens namn (اسم العميل)")
-        c_phone = st.text_input("Telefonnummer (رقم الهاتف)")
-        c_email = st.text_input("E-post (البريد الإلكتروني - اختيارى)")
+        c_name = st.text_input("Kundens namn / Customer Name")
+        c_phone = st.text_input("Telefonnummer / Phone Number")
+        c_email = st.text_input("E-post / Email (Optional)")
     with col2:
-        device = st.text_input("Enhet / Modell (نوع الجهاز)")
-        imei = st.text_input("IMEI / Serienummer (رقم IMEI)")
-        price = st.number_input("Pris (Kr) (السعر)", min_value=0.0, step=50.0)
+        device = st.text_input("Enhet / Modell / Device Model")
+        imei = st.text_input("IMEI / Serienummer / IMEI Number")
+        price = st.number_input("Pris (Kr) / Price", min_value=0.0, step=50.0)
 
-    issue = st.text_area("Beskrivning av fel / Reparation (وصف المشكلة)")
+    issue = st.text_area("Beskrivning av fel / Issue Description")
     
-    if st.button("Spara Ärende (حفظ الطلب سحابياً)", type="primary"):
+    if st.button("Spara Ärende / Save Repair (Cloud)", type="primary"):
         if c_name and c_phone and device:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            status = "Under behandling"
+            status = "Under behandling / In Progress"
             
             try:
                 if db_type == "turso":
@@ -132,39 +129,39 @@ if menu == "📝 Nytt Ärende":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Ärendet har sparats framgångsرياً في السحابة!")
+                st.success("✅ Ärendet har sparats i molndatabasen! / Saved successfully to Cloud!")
             except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
-            st.warning("⚠️ Vänligen fyll في الحقول الإجبارية (الاسم، الهاتف، والجهاز).")
+            st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
 
-# --- 2. KOSTNADSFÖRSLAG ---
-elif menu == "💡 Kostnadsförslag":
-    st.header("💡 Kostnadsförslag (عروض الأسعار)")
-    c_name = st.text_input("Kundens namn")
-    device = st.text_input("Enhet / Modell")
-    repair_type = st.text_input("Typ av reparation (مثلاً: Skärmbyte)")
-    cost = st.number_input("Uppskattad kostnad (Kr)", min_value=0.0, step=50.0)
+# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
+elif menu == "💡 Kostnadsförslag / Quote":
+    st.header("💡 Kostnadsförslag / Price Quotation")
+    c_name = st.text_input("Kundens namn / Customer Name")
+    device = st.text_input("Enhet / Modell / Device")
+    repair_type = st.text_input("Typ av reparation / Repair Type (e.g. Screen replacement)")
+    cost = st.number_input("Uppskattad kostnad (Kr) / Estimated Cost", min_value=0.0, step=50.0)
     
-    if st.button("Generera PDF Kostnadsförslag"):
-        st.success(f"تم إنشاء عرض السعر لـ {c_name} بقيمة {cost} Kr بنجاح!")
+    if st.button("Generera Kostnadsförslag / Generate Quote"):
+        st.success(f"Kostnadsförslag skapat för {c_name} ({cost} Kr)! / Quote generated successfully!")
 
-# --- 3. FAKTURA ---
-elif menu == "📄 Faktura":
-    st.header("📄 Skapa Faktura (الفواتير)")
-    f_name = st.text_input("Företag / Kundens namn")
-    amount = st.number_input("Belopp inkl. moms (Kr)", min_value=0.0, step=100.0)
-    st.info("💡 يتم حساب ضريبة القيمة المضافة (Moms 25%) تلقائياً.")
-    if st.button("Skapa Faktura"):
-        st.success("تم إصدار الفواتير وطريقة الدفع عبر Swish / Bankgiro بنجاح!")
+# --- 3. FAKTURA / INVOICE ---
+elif menu == "📄 Faktura / Invoice":
+    st.header("📄 Skapa Faktura / Create Invoice")
+    f_name = st.text_input("Företag / Kundens namn / Company / Customer Name")
+    amount = st.number_input("Belopp inkl. moms (Kr) / Amount incl. VAT", min_value=0.0, step=100.0)
+    st.info("💡 Moms (25%) beräknas automatiskt. / VAT is calculated automatically.")
+    if st.button("Skapa Faktura / Create Invoice"):
+        st.success("Faktura skapad framgångsrikt! / Invoice created successfully!")
 
-# --- 4. SÖK ÄRENDEN ---
-elif menu == "🔍 Sök Ärenden":
-    st.header("🔍 Sök och Hantera Ärenden")
-    pin = st.text_input("Ange PIN-kod för att söka (كلمة المرور)", type="password")
+# --- 4. SÖK ÄRENDEN / SEARCH ---
+elif menu == "🔍 Sök Ärenden / Search":
+    st.header("🔍 Sök och Hantera Ärenden / Search Repairs")
+    pin = st.text_input("Ange PIN-kod / Enter PIN code", type="password")
     
     if pin == st.secrets.get("DELETE_PIN", "tunapark"):
-        st.success("✅ تم فتح لوحة البحث بنجاح")
+        st.success("✅ Åtkomst beviljad / Access Granted")
         conn, db_type = get_db_connection()
         
         if db_type == "turso":
@@ -178,21 +175,21 @@ elif menu == "🔍 Sök Ärenden":
             
         if rows:
             for r in rows:
-                st.write(f"📌 **رقم الطلب:** {r[0]} | **الفرع:** {r[1]} | **العميل:** {r[2]} | **الهاتف:** {r[3]} | **الجهاز:** {r[5]} | **الحالة:** {r[9]}")
+                st.write(f"📌 **ID:** {r[0]} | **Branch/الفرع:** {r[1]} | **Kund/العميل:** {r[2]} | **Tel/الهاتف:** {r[3]} | **Device/الجهاز:** {r[5]} | **IMEI:** {r[6]} | **Status:** {r[9]}")
         else:
-            st.info("لا توجد طلبات مسجلة بعد.")
+            st.info("Inga ärenden hittades. / No repairs found.")
     elif pin:
-        st.error("❌ كلمة المرور غير صحيحة!")
+        st.error("❌ Fel PIN-kod! / Incorrect PIN code!")
 
-# --- 5. FÖRBESTÄLLNING ---
-elif menu == "🛒 Förbeställning":
-    st.header("🛒 Förbeställning av reservdelar (الطلبات المسبقة)")
-    fb_name = st.text_input("Kundens namn (الاسم)")
-    fb_phone = st.text_input("Telefon (الهاتف)")
-    fb_details = st.text_area("Artikel / Delar detaljer (تفاصيل القطعة المطلوبة)")
-    fb_deposit = st.number_input("Handpenning / Deposit (العربون المدفوع - Kr)", min_value=0.0, step=50.0)
+# --- 5. FÖRBESTÄLLNING / PRE-ORDER ---
+elif menu == "🛒 Förbeställning / Pre-order":
+    st.header("🛒 Förbeställning av reservdelar / Spare Parts Pre-order")
+    fb_name = st.text_input("Kundens namn / Customer Name")
+    fb_phone = st.text_input("Telefon / Phone")
+    fb_details = st.text_area("Artikel / Delar detaljer / Part Details")
+    fb_deposit = st.number_input("Handpenning / Deposit (Kr)", min_value=0.0, step=50.0)
     
-    if st.button("Spara Förbeställning (حفظ الطلب المسبق)", type="primary"):
+    if st.button("Spara Förbeställning / Save Pre-order", type="primary"):
         if fb_name and fb_phone:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -210,24 +207,24 @@ elif menu == "🛒 Förbeställning":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ تم حفظ الطلب المسبق في السحابة بنجاح!")
+                st.success("✅ Förbeställning sparad i molnet! / Pre-order saved to cloud!")
             except Exception as e:
-                st.error(f"❌ خطأ: {e}")
+                st.error(f"❌ Fel / Error: {e}")
         else:
-            st.warning("⚠️ يجدر إدخال الاسم ورقم الهاتف.")
+            st.warning("⚠️ Fyll i namn och telefon. / Fill name and phone.")
 
-# --- 6. ABONNEMANG ---
-elif menu == "💳 Abonnemang":
-    st.header("💳 Hantera Abonnemang (الاشتراكات)")
+# --- 6. ABONNEMANG / SUBSCRIPTIONS ---
+elif menu == "💳 Abonnemang / Subscriptions":
+    st.header("💳 Hantera Abonnemang / Manage Subscriptions")
     
-    sub_name = st.text_input("Kundens namn (الاشتراك)")
-    sub_phone = st.text_input("Telefonnummer")
-    sub_device = st.text_input("Enhet / Modell")
-    sub_imei = st.text_input("IMEI-nummer")
-    plan_type = st.selectbox("Välj Plan (نوع الاشتراك)", ["GlassGuard Pro", "Case Protection", "Teknik Complete"])
-    sub_price = st.number_input("Månadskostnad / Pris (Kr)", min_value=0.0, step=49.0)
+    sub_name = st.text_input("Kundens namn / Customer Name")
+    sub_phone = st.text_input("Telefonnummer / Phone Number")
+    sub_device = st.text_input("Enhet / Modell / Device")
+    sub_imei = st.text_input("IMEI-nummer / IMEI Number")
+    plan_type = st.selectbox("Välj Plan / Select Plan", ["GlassGuard Pro", "Case Protection", "Teknik Complete"])
+    sub_price = st.number_input("Månadskostnad / Pris (Kr) / Monthly Price", min_value=0.0, step=49.0)
     
-    if st.button("Spara Abonnemang (حفظ الاشتراك)", type="primary"):
+    if st.button("Spara Abonnemang / Save Subscription", type="primary"):
         if sub_name and sub_imei:
             conn, db_type = get_db_connection()
             start_date = datetime.now().strftime("%Y-%m-%d")
@@ -247,14 +244,14 @@ elif menu == "💳 Abonnemang":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Abonnemang sparades i molndatabasen (Turso)!")
+                st.success("✅ Abonnemang sparades i Turso molnet! / Subscription saved to Turso Cloud!")
             except Exception as e:
-                st.error(f"❌ خطأ: {e}")
+                st.error(f"❌ Fel / Error: {e}")
         else:
-            st.warning("⚠️ أدخل اسم العميل ورقم الـ IMEI على الأقل.")
+            st.warning("⚠️ Ange namn och IMEI. / Enter customer name and IMEI.")
             
     st.markdown("---")
-    st.subheader("📋 Aktiva Abonnemang (الاشتراكات النشطة سحابياً)")
+    st.subheader("📋 Aktiva Abonnemang / Active Subscriptions")
     try:
         conn, db_type = get_db_connection()
         if db_type == "turso":
@@ -268,8 +265,8 @@ elif menu == "💳 Abonnemang":
             
         if sub_rows:
             for s in sub_rows:
-                st.write(f"💳 **العميل:** {s[2]} | **الجهاز:** {s[4]} | **الـ IMEI:** {s[5]} | **الخطة:** {s[6]} | **السعر:** {s[7]} Kr | **التاريخ:** {s[8]}")
+                st.write(f"💳 **Kund:** {s[2]} | **Device:** {s[4]} | **IMEI:** {s[5]} | **Plan:** {s[6]} | **Pris:** {s[7]} Kr | **Datum:** {s[8]}")
         else:
-            st.info("لا توجد اشتراكات مسجلة حالياً.")
+            st.info("Inga aktiva abonnemang. / No active subscriptions found.")
     except Exception as e:
-        st.warning(f"جارٍ تحديث الجدول...")
+        st.warning(f"Laddar... / Loading...")
