@@ -141,19 +141,34 @@ if menu == "📝 Nytt Ärende / New Repair":
 # --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Kostnadsförslag / Price Quotation")
+    
     c_name = st.text_input("Kundens namn / Customer Name")
     device = st.text_input("Enhet / Modell / Device")
-    repair_type = st.text_input("Typ av reparation / Repair Type")
-    cost = st.number_input("Uppskattad kostnad (Kr) / Estimated Cost", min_value=0.0, step=50.0)
     
-    if st.button("Generera PDF Kostnadsförslag / Generate PDF Quote"):
+    st.markdown("---")
+    st.subheader("🛠️ Reparationsdetaljer & Kostnad / Repair Details & Cost")
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        fault_1 = st.text_input("Beskrivning av fel 1 / Fault 1", value="Skärmbyte / Screen Replacement")
+        price_1 = st.number_input("Pris 1 (Kr)", min_value=0.0, step=50.0, value=0.0)
+    with col_b:
+        fault_2 = st.text_input("Beskrivning av fel 2 / Fault 2 (Valfri)", value="")
+        price_2 = st.number_input("Pris 2 (Kr)", min_value=0.0, step=50.0, value=0.0)
+        
+    total_price = price_1 + price_2
+    st.markdown(f"### 💰 **Summa / Total: {total_price:.2f} Kr**")
+    
+    if st.button("Generera PDF Kostnadsförslag / Generate PDF Quote", type="primary"):
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=A4)
-        p.drawString(100, 800, "30 MINUTES FIX AB - KOSTNADSFÖRSLAG")
-        p.drawString(100, 770, f"Kund / Customer: {c_name}")
-        p.drawString(100, 740, f"Enhet / Device: {device}")
-        p.drawString(100, 710, f"Reparation / Repair: {repair_type}")
-        p.drawString(100, 680, f"Kostnad / Cost: {cost} Kr")
+        p.drawString(50, 800, "30 MINUTES FIX AB - KOSTNADSFÖRSLAG")
+        p.drawString(50, 770, f"Kund / Customer: {c_name}")
+        p.drawString(50, 740, f"Enhet / Device: {device}")
+        p.drawString(50, 700, f"1. {fault_1} - {price_1} Kr")
+        if fault_2:
+            p.drawString(50, 670, f"2. {fault_2} - {price_2} Kr")
+        p.drawString(50, 630, f"Totalt / Total Summa: {total_price} Kr (inkl. moms)")
         p.showPage()
         p.save()
         buffer.seek(0)
@@ -162,25 +177,54 @@ elif menu == "💡 Kostnadsförslag / Quote":
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
-    st.header("📄 Skapa Faktura / Create Invoice")
-    f_name = st.text_input("Företag / Kundens namn / Company / Customer Name")
-    amount = st.number_input("Belopp inkl. moms (Kr) / Amount incl. VAT", min_value=0.0, step=100.0)
-    moms = amount * 0.20
-    netto = amount - moms
-    st.info(f"💡 Moms (25%): {moms:.2f} Kr | Netto: {netto:.2f} Kr")
+    st.header("📄 Skapa Professionell Faktura / Create Professional Invoice")
     
-    if st.button("Skapa Faktura PDF / Create Invoice PDF"):
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        st.subheader("📍 Företags-/Kunduppgifter")
+        f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
+        f_org = st.text_input("Org.nr / Personnummer (Optional)")
+        f_address = st.text_input("Adress / Address")
+    with col_f2:
+        st.subheader("🧾 Fakturadetaljer")
+        invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
+        invoice_date = st.date_input("Fakturadatum / Invoice Date", value=date.today())
+        due_date = st.date_input("Förfallodatum / Due Date", value=date.today())
+
+    st.markdown("---")
+    st.subheader("🛒 Artikel / Tjänst / Item & Price")
+    item_desc = st.text_input("Beskrivning / Description", value="Mobilreparation och reservdelar / Phone Repair")
+    item_qty = st.number_input("Antal / Quantity", min_value=1, value=1)
+    item_price = st.number_input("Pris per enhet inkl. moms (Kr) / Unit Price incl. VAT", min_value=0.0, step=50.0)
+    
+    total_amount = item_qty * item_price
+    moms = total_amount * 0.20
+    netto = total_amount - moms
+    
+    st.markdown(f"""
+    ### 📊 Sammanfattning / Summary:
+    * **Netto (exkl. moms):** {netto:.2f} Kr
+    * **Moms (25%):** {moms:.2f} Kr
+    * **Att betala / Total Summa:** **{total_amount:.2f} Kr**
+    """)
+    
+    st.markdown("💳 **Betalningsmetod / Payment Method:** Swish: `123-XXX XXXX` | Bankgiro: `XXX-XXXX`")
+    
+    if st.button("Skapa Faktura PDF / Create Invoice PDF", type="primary"):
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=A4)
-        p.drawString(100, 800, "30 MINUTES FIX AB - FAKTURA")
-        p.drawString(100, 770, f"Kund / Customer: {f_name}")
-        p.drawString(100, 740, f"Total inkl. moms: {amount} Kr")
-        p.drawString(100, 710, f"Swish: 123-XXX XXXX | Bankgiro: XXX-XXXX")
+        p.drawString(50, 800, "30 MINUTES FIX AB - FAKTURA")
+        p.drawString(50, 770, f"Fakturanr: {invoice_no} | Datum: {invoice_date}")
+        p.drawString(50, 740, f"Kund: {f_name} ({f_address})")
+        p.drawString(50, 700, f"Beskrivning: {item_desc} (Antal: {item_qty})")
+        p.drawString(50, 670, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
+        p.drawString(50, 640, f"Att betala Totalt: {total_amount:.2f} Kr")
+        p.drawString(50, 600, "Betalning via Swish eller Bankgiro.")
         p.showPage()
         p.save()
         buffer.seek(0)
         st.success("✅ Faktura PDF skapad! / Invoice PDF generated!")
-        st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", buffer, file_name="faktura.pdf", mime="application/pdf")
+        st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
 
 # --- 4. SÖK ÄRENDEN / SEARCH ---
 elif menu == "🔍 Sök Ärenden / Search":
@@ -242,17 +286,55 @@ elif menu == "🛒 Förbeställning / Pre-order":
 
 # --- 6. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == "💳 Abonnemang / Subscriptions":
-    st.header("💳 Hantera Abonnemang / Manage Subscriptions")
+    st.header("💳 Hantera Abonnemang & Villkor / Subscriptions & Terms")
     
-    sub_name = st.text_input("Kundens namn / Customer Name")
-    sub_phone = st.text_input("Telefonnummer / Phone Number")
-    sub_device = st.text_input("Enhet / Modell / Device")
-    sub_imei = st.text_input("IMEI-nummer / IMEI Number")
-    plan_type = st.selectbox("Välj Plan / Select Plan", ["GlassGuard Pro", "Case Protection", "Teknik Complete"])
-    sub_price = st.number_input("Månadskostnad / Pris (Kr) / Monthly Price", min_value=0.0, step=49.0)
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        st.subheader("👤 Kunduppgifter / Customer Info")
+        sub_name = st.text_input("Kundens namn / Customer Name")
+        sub_phone = st.text_input("Telefonnummer / Phone Number")
+        sub_email = st.text_input("E-post / Email (Valfritt)")
+    with col_s2:
+        st.subheader("📱 Enhetsuppgifter / Device Info")
+        sub_device = st.text_input("Enhet / Modell / Device Model")
+        sub_imei = st.text_input("IMEI-nummer / IMEI Number")
+        branch = st.selectbox("Butik / Branch", ["Eskilstuna", "Västerås"])
+
+    st.markdown("---")
+    st.subheader("📦 Välj Paket & Månadskostnad / Select Plan & Payment")
     
+    plan_type = st.selectbox("Välj Abonnemangstyp / Select Plan", [
+        "GlassGuard Pro (Skärmskydd + Fria Byte) - 149 Kr/mån",
+        "Case & Screen Protection (Skal + Skärmskydd) - 199 Kr/mån",
+        "Teknik Complete (Fullständigt skydd & service) - 299 Kr/mån"
+    ])
+    
+    sub_price = st.number_input("Månadskostnad / Monthly Payment (Kr)", min_value=0.0, step=10.0, value=149.0)
+    payment_method = st.radio("Betalningsmetod / Payment Method", ["Autogiro / Månadsvis", "Kortbetalning", "Swish Månadsvis"])
+
+    # --- الشروط الرسمية (بما فيها شرط الـ 3 أشهر للإلغاء أو التغيير) ---
+    st.markdown("---")
+    st.subheader("📜 Avtalsvillkor & Regler / Subscription Terms & Rules")
+    
+    st.info("""
+    **Svenska (Villkor):**
+    1. **Bindningstid:** Abonnemanget har en minsta bindningstid på 3 månader.
+    2. **Uppsägning & Byte av enhet:** Om du vill säga upp abonnemanget eller byta registrerad enhet/IMEI måste du meddela oss senast **3 månader i förväg**.
+    3. **Betalning:** Månadsavgiften betalas varje månad i förskott.
+    4. **Giltighet:** Skyddet och servicen gäller endast för den registrerade enheten kopplad till IMEI-numret ovan.
+    
+    ---
+    **English (Terms):**
+    1. **Binding Period:** Minimum contract period is 3 months.
+    2. **Cancellation & Device Change:** To cancel the subscription or replace the registered device/IMEI, you must notify us **3 months in advance**.
+    3. **Payment:** Monthly fee is paid in advance each month.
+    4. **Validity:** Coverage applies strictly to the registered IMEI number listed above.
+    """)
+    
+    agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren / Customer accepts terms & conditions")
+
     if st.button("Spara Abonnemang / Save Subscription", type="primary"):
-        if sub_name and sub_imei:
+        if sub_name and sub_imei and agree_terms:
             conn, db_type = get_db_connection()
             start_date = datetime.now().strftime("%Y-%m-%d")
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -261,24 +343,26 @@ elif menu == "💳 Abonnemang / Subscriptions":
                 if db_type == "turso":
                     conn.execute(
                         "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        ("Eskilstuna", sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, start_date, created_at)
+                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, start_date, created_at)
                     )
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
                         "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        ("Eskilstuna", sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, start_date, created_at)
+                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, start_date, created_at)
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Abonnemang sparades i Turso molnet! / Subscription saved to Turso Cloud!")
+                st.success("✅ Abonnemanget har registrerats och sparats i molnet! / Saved to cloud successfully!")
             except Exception as e:
-                st.error(f"❌ Fel / Error: {e}")
+                st.error(f"❌ Fel vid sparande / Error: {e}")
+        elif not agree_terms:
+            st.warning("⚠️ Du måste bocka i att kunden godkänner villkoren. / Please confirm terms acceptance.")
         else:
-            st.warning("⚠️ Ange namn och IMEI. / Enter customer name and IMEI.")
+            st.warning("⚠️ Fyll i namn och IMEI-nummer. / Enter customer name and IMEI.")
             
     st.markdown("---")
-    st.subheader("📋 Aktiva Abonnemang / Active Subscriptions")
+    st.subheader("📋 Aktiva Abonnemang i Molnet / Active Subscriptions")
     try:
         conn, db_type = get_db_connection()
         if db_type == "turso":
@@ -292,8 +376,8 @@ elif menu == "💳 Abonnemang / Subscriptions":
             
         if sub_rows:
             for s in sub_rows:
-                st.write(f"💳 **Kund:** {s[2]} | **Device:** {s[4]} | **IMEI:** {s[5]} | **Plan:** {s[6]} | **Pris:** {s[7]} Kr | **Datum:** {s[8]}")
+                st.write(f"💳 **Kund:** {s[2]} | **Tel:** {s[3]} | **Device:** {s[4]} | **IMEI:** {s[5]} | **Paket:** {s[6]} | **Pris:** {s[7]} Kr/mån | **Start:** {s[8]}")
         else:
-            st.info("Inga aktiva abonnemang. / No active subscriptions found.")
+            st.info("Inga aktiva abonnemang registrerade ännu. / No active subscriptions found.")
     except Exception as e:
-        st.warning(f"Laddar... / Loading...")
+        st.warning("Laddar abonnemang... / Loading...")
