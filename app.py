@@ -107,7 +107,7 @@ def init_db():
 
 init_db()
 
-# Page Configuration & Mobile Optimization
+# Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
 COMPANY_INFO = {
@@ -129,29 +129,41 @@ st.sidebar.title("30 MINUTES FIX AB")
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
-# Security PIN Login
-sidebar_pin = st.sidebar.text_input("🔑 Login (PIN: tunapark)", type="password")
+# Persistent Session Login State
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
 
-if sidebar_pin != st.secrets.get("DELETE_PIN", "tunapark"):
-    st.sidebar.warning("⚠️ Enter PIN 'tunapark' to unlock.")
+if not st.session_state['authenticated']:
+    sidebar_pin = st.sidebar.text_input("🔑 System Login / Inloggning", type="password")
+    if sidebar_pin == st.secrets.get("DELETE_PIN", "tunapark"):
+        st.session_state['authenticated'] = True
+        st.sidebar.success("✅ System Unlocked / Systemet upplåst")
+        st.rerun()
+    elif sidebar_pin:
+        st.sidebar.error("❌ Fel PIN-kod / Incorrect PIN")
+
+if not st.session_state['authenticated']:
     st.title("🔒 30 Minutes Fix CRM - Locked")
-    st.info("Please enter PIN `tunapark` in the sidebar to access the CRM. / Ange PIN-kod i sidofältet.")
+    st.info("Please enter the system PIN in the sidebar to log in. / Ange PIN-kod i sidofältet för att logga in.")
     st.stop()
 
-st.sidebar.success("✅ System Unlocked")
+st.sidebar.success("✅ Logged In / Inloggad")
+if st.sidebar.button("🔒 Log Out / Logga ut"):
+    st.session_state['authenticated'] = False
+    st.rerun()
 
 menu = st.sidebar.radio("Navigation / Meny", [
     "📝 Nytt Ärende / New Repair", 
     "💡 Kostnadsförslag / Quote", 
     "📄 Faktura / Invoice", 
-    "🔍 Sök Ärenden / Search", 
     "🛒 Förbeställning / Pre-order", 
-    "💳 Abonnemang / Subscriptions"
+    "💳 Abonnemang / Subscriptions",
+    "📊 Data Center & Sök / All Saved Data"
 ])
 
 # --- 1. NYTT ÄRENDE / NEW REPAIR ---
 if menu == "📝 Nytt Ärende / New Repair":
-    st.header("📝 Registrera nytt ärende / Register New Repair")
+    st.header("📝 Registrera nytt ärende / Register Repair")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
     
     c_name = st.text_input("Kundens namn / Customer Name")
@@ -182,7 +194,7 @@ if menu == "📝 Nytt Ärende / New Repair":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Ärendet har sparats i molnet! / Saved successfully to Cloud!")
+                st.success("✅ Ärendet har sparats i molnet! / Saved to cloud!")
             except Exception as e:
                 st.error(f"❌ Fel: {e}")
         else:
@@ -238,7 +250,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
     st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms)**")
     st.info("📜 *Detta kostnadsförslag är endast giltigt i vår verkstad.*")
 
-    if st.button("Spara & Generera PDF Kostnadsförslag / Save & Generate Quote", type="primary"):
+    if st.button("Spara & Generera PDF Kostnadsförslag", type="primary"):
         if c_name and device and issues_list:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -262,7 +274,6 @@ elif menu == "💡 Kostnadsförslag / Quote":
             except Exception as e:
                 st.error(f"❌ Fel: {e}")
 
-            # Generate PDF
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             p.drawString(50, 800, comp["name"])
@@ -289,7 +300,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             buffer.seek(0)
             st.download_button("📥 Ladda ner PDF / Download PDF", buffer, file_name="kostnadsforslag.pdf", mime="application/pdf")
         else:
-            st.warning("⚠️ Fyll i obligatoriska fält och välj fel. / Fill required fields.")
+            st.warning("⚠️ Fyll i obligatoriska fält. / Fill required fields.")
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
@@ -306,7 +317,7 @@ elif menu == "📄 Faktura / Invoice":
 
     item_desc = st.text_input("Beskrivning / Description", value="Mobilreparation och reservdelar / Phone Repair")
     item_qty = st.number_input("Antal / Quantity", min_value=1, value=1)
-    item_price = st.number_input("Pris per enhet inkl. moms (Kr) / Unit Price incl. VAT", min_value=0.0, step=50.0)
+    item_price = st.number_input("Pris per enhet inkl. moms (Kr)", min_value=0.0, step=50.0)
     
     total_amount = item_qty * item_price
     moms = total_amount * 0.20
@@ -320,7 +331,7 @@ elif menu == "📄 Faktura / Invoice":
     """)
     st.markdown("💳 **Betalningsmetod:** Swish: `123-XXX XXXX` | Bankgiro: `XXX-XXXX`")
     
-    if st.button("Spara & Skapa Faktura PDF / Save & Create Invoice", type="primary"):
+    if st.button("Spara & Skapa Faktura PDF", type="primary"):
         if f_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -343,7 +354,6 @@ elif menu == "📄 Faktura / Invoice":
             except Exception as e:
                 st.error(f"❌ Fel: {e}")
 
-            # Generate PDF
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             p.drawString(50, 800, comp["name"])
@@ -362,31 +372,11 @@ elif menu == "📄 Faktura / Invoice":
             p.showPage()
             p.save()
             buffer.seek(0)
-            st.download_button("📥 Ladda ner Faktura PDF / Download PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
+            st.download_button("📥 Ladda ner Faktura PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
         else:
-            st.warning("⚠️ Ange kundens namn / företag. / Enter customer name.")
+            st.warning("⚠️ Ange kundens namn. / Enter customer name.")
 
-# --- 4. SÖK ÄRENDEN / SEARCH ---
-elif menu == "🔍 Sök Ärenden / Search":
-    st.header("🔍 Sök och Hantera Ärenden / Search Repairs")
-    
-    conn, db_type = get_db_connection()
-    if db_type == "turso":
-        res = conn.execute("SELECT * FROM repairs ORDER BY id DESC")
-        rows = res.fetchall()
-    else:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM repairs ORDER BY id DESC")
-        rows = cursor.fetchall()
-        conn.close()
-        
-    if rows:
-        for r in rows:
-            st.write(f"📌 **ID:** {r[0]} | **Branch:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Device:** {r[5]} | **IMEI:** {r[6]} | **Status:** {r[9]}")
-    else:
-        st.info("Inga ärenden hittades. / No repairs found.")
-
-# --- 5. FÖRBESTÄLLNING / PRE-ORDER ---
+# --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
     st.header("🛒 Förbeställning av reservdelar / Pre-order")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
@@ -413,15 +403,15 @@ elif menu == "🛒 Förbeställning / Pre-order":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Förbeställning sparad i molnet! / Pre-order saved to cloud!")
+                st.success("✅ Förbeställning sparad i molnet! / Saved to cloud!")
             except Exception as e:
                 st.error(f"❌ Fel: {e}")
         else:
             st.warning("⚠️ Fyll i namn och telefon. / Fill name and phone.")
 
-# --- 6. ABONNEMANG / SUBSCRIPTIONS ---
+# --- 5. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == "💳 Abonnemang / Subscriptions":
-    st.header("💳 IMEI-kopplade Abonnemang & Villkor / Subscriptions & Terms")
+    st.header("💳 IMEI-kopplade Abonnemang / Subscriptions")
     
     sub_imei = st.text_input("IMEI-nummer (Unikt för enheten) / IMEI Number")
     sub_device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
@@ -439,25 +429,24 @@ elif menu == "💳 Abonnemang / Subscriptions":
     
     if "Glass Protection" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Glass Protection Plan:** 99 Kr/mån | Byt skärmskydd upp till **2 gånger per månad** helt utan självrisk.")
+        st.info("💡 **Glass Protection:** 99 Kr/mån | Byt skärmskydd 2 ggr/mån utan självrisk.")
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån | Byt kفر/غطاء الهاتف **1 gång var 3:e månad** helt utan självrisk.")
+        st.info("💡 **Case / Cover:** 399 Kr start + 99 Kr/mån | Byt كفر/غطاء 1 gång var 3:e månad.")
     else:
         sub_price = 99.0
-        st.info("💡 **Teknik & Mjukvara Plan:** 99 Kr/mån | Fri hjälp med mjukvara, virusrensning och teknisk support.")
+        st.info("💡 **Teknik & Mjukvara:** 99 Kr/mån | Fri support och virusrensning.")
 
     st.markdown("---")
     st.info("""
-    **Svenska (Villkor):**
-    1. **IMEI-koppling:** Abonnemanget är strikt kopplat till enhetens **IMEI-nummer**.
-    2. **Uppsägningstid:** 3 månaders uppsägningstid gäller (meddela senast **3 månader i förväg**).
-    3. **Byte av IMEI:** Kunden kan byta registrerat IMEI-nummer efter 3 månader.
+    **Villkor:**
+    1. Abonnemanget är strikt kopplat till enhetens **IMEI-nummer**.
+    2. 3 månaders uppsägningstid gäller.
     """)
     
     agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren / Customer accepts terms")
 
-    if st.button("Spara Abonnemang i Molnet / Save Subscription", type="primary"):
+    if st.button("Spara Abonnemang / Save Subscription", type="primary"):
         if sub_imei and sub_name and agree_terms:
             conn, db_type = get_db_connection()
             start_date = datetime.now().strftime("%Y-%m-%d")
@@ -477,34 +466,97 @@ elif menu == "💳 Abonnemang / Subscriptions":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Abonnemanget har sparats i molnet! / Saved successfully!")
+                st.success("✅ Abonnemanget har sparats i molnet! / Saved to cloud!")
             except Exception as e:
                 st.error(f"❌ Fel: {e}")
         elif not sub_imei:
-            st.warning("⚠️ IMEI-nummer är obligatoriskt! / IMEI is required.")
+            st.warning("⚠️ IMEI-nummer krävs. / IMEI required.")
         elif not agree_terms:
-            st.warning("⚠️ Godkänn villkoren. / Confirm terms.")
+            st.warning("⚠️ Godkänn villkoren. / Accept terms.")
         else:
             st.warning("⚠️ Fyll i kundens namn. / Enter name.")
-            
-    st.markdown("---")
-    st.subheader("📋 Aktiva Abonnemang / Active Subscriptions")
-    try:
-        conn, db_type = get_db_connection()
-        if db_type == "turso":
-            res = conn.execute("SELECT * FROM subscriptions ORDER BY id DESC")
-            sub_rows = res.fetchall()
+
+# --- 6. DATA CENTER & SEARCH FOR ALL SECTIONS ---
+elif menu == "📊 Data Center & Sök / All Saved Data":
+    st.header("📊 Data Center & Sök i Molnet / Cloud Data Search")
+    st.markdown("Alla sparade poster från alla sektioner i molnet / Search all cloud records:")
+    
+    search_category = st.selectbox("Välj Kategori / Select Category", [
+        "📝 Reparationer / Repairs", 
+        "💳 Abonnemang / Subscriptions", 
+        "🛒 Förbeställningar / Pre-orders", 
+        "💡 Kostnadsförslag / Quotes", 
+        "📄 Fakturor / Invoices"
+    ])
+    
+    search_term = st.text_input("🔎 Sök på Namn, Telefon eller IMEI / Search by Name, Phone, or IMEI", "").lower()
+    
+    conn, db_type = get_db_connection()
+    
+    # Repairs
+    if "Reparationer" in search_category:
+        st.subheader("📝 Registrerade Reparationsärenden")
+        res = conn.execute("SELECT * FROM repairs ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM repairs ORDER BY id DESC")
+        rows = res.fetchall()
+        
+        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
+        if filtered:
+            for r in filtered:
+                st.markdown(f"📌 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Enhet:** {r[5]} | **IMEI:** {r[6]} | **Pris:** {r[8]} Kr | **Status:** {r[9]} | **Datum:** {r[10]}")
         else:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM subscriptions ORDER BY idのデザイン") # wait, let's keep it clean
-            cursor.execute("SELECT * FROM subscriptions ORDER BY id DESC")
-            sub_rows = cursor.fetchall()
-            conn.close()
-            
-        if sub_rows:
-            for s in sub_rows:
-                st.write(f"📱 **IMEI:** {s[5]} | **Kund:** {s[2]} | **Device:** {s[4]} | **Plan:** {s[6]} | **Pris:** {s[7]} Kr/mån")
+            st.info("Inga reparationer hittades. / No records found.")
+
+    # Subscriptions
+    elif "Abonnemang" in search_category:
+        st.subheader("💳 Registrerade IMEI-Abonnemang")
+        res = conn.execute("SELECT * FROM subscriptions ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM subscriptions ORDER BY id DESC")
+        rows = res.fetchall()
+        
+        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
+        if filtered:
+            for r in filtered:
+                st.markdown(f"💳 **ID:** {r[0]} | **IMEI:** {r[5]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Enhet:** {r[4]} | **Plan:** {r[6]} | **Pris:** {r[7]} Kr/mån | **Start:** {r[8]}")
         else:
-            st.info("Inga aktiva abonnemang. / No active subscriptions.")
-    except Exception as e:
-        st.warning("Laddar... / Loading...")
+            st.info("Inga abonnemang hittades. / No records found.")
+
+    # Pre-orders
+    elif "Förbeställningar" in search_category:
+        st.subheader("🛒 Registrerade Förbeställningar")
+        res = conn.execute("SELECT * FROM preorders ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM preorders ORDER BY id DESC")
+        rows = res.fetchall()
+        
+        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
+        if filtered:
+            for r in filtered:
+                st.markdown(f"🛒 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Detaljer:** {r[4]} | **Handpenning:** {r[5]} Kr | **Datum:** {r[6]}")
+        else:
+            st.info("Inga förbeställningar hittades. / No records found.")
+
+    # Price Quotes
+    elif "Kostnadsförslag" in search_category:
+        st.subheader("💡 Registrerade Kostnadsförslag")
+        res = conn.execute("SELECT * FROM quotes ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM quotes ORDER BY id DESC")
+        rows = res.fetchall()
+        
+        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
+        if filtered:
+            for r in filtered:
+                st.markdown(f"💡 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Enhet:** {r[4]} | **Fel:** {r[5]} | **Totalt:** {r[6]} Kr | **Datum:** {r[7]}")
+        else:
+            st.info("Inga kostnadsförslag hittades. / No records found.")
+
+    # Invoices
+    elif "Fakturor" in search_category:
+        st.subheader("📄 Registrerade Fakturor")
+        res = conn.execute("SELECT * FROM invoices ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM invoices ORDER BY id DESC")
+        rows = res.fetchall()
+        
+        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
+        if filtered:
+            for r in filtered:
+                st.markdown(f"📄 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Fakturanr:** {r[3]} | **Belopp:** {r[4]} Kr | **Moms:** {r[5]} Kr | **Datum:** {r[6]}")
+        else:
+            st.info("Inga fakturor hittades. / No records found.")
+
+    if db_type == "sqlite":
+        conn.close()
