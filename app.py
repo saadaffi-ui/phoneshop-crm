@@ -5,6 +5,7 @@ from datetime import datetime, date
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
+import pandas as pd
 
 # --- Turso Cloud Database Connection ---
 import libsql_client
@@ -204,7 +205,7 @@ if menu == "📝 Nytt Ärende / New Repair":
         else:
             st.warning("⚠️ Fyll i obligatoriska fält. / Fill required fields.")
 
-# --- 2. KOSTNADSFÖRSLAG / QUOTE (المحدث بأعطال الهواتف واللابتوب والأجهزة الإلكترونية) ---
+# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Kostnadsförslag / Price Quotation")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
@@ -536,10 +537,10 @@ elif menu == "💳 Abonnemang / Subscriptions":
         else:
             st.warning("⚠️ Fyll i kundens namn. / Enter name.")
 
-# --- 6. DATA CENTER & SEARCH FOR ALL SECTIONS ---
+# --- 6. DATA CENTER, SEARCH, EXPORT & DELETE ---
 elif menu == "📊 Data Center & Sök / All Saved Data":
-    st.header("📊 Data Center & Sök i Molnet / Cloud Data Search")
-    st.markdown("Alla sparade poster från alla sektioner i molnet / Search all cloud records:")
+    st.header("📊 Data Center, Sök, Export & Hantering")
+    st.markdown("Sök, exportera eller radera poster från molnet / Search, export, or delete cloud records:")
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
         "📝 Reparationer / Repairs", 
@@ -553,70 +554,114 @@ elif menu == "📊 Data Center & Sök / All Saved Data":
     
     conn, db_type = get_db_connection()
     
-    # Repairs
-    if "Reparationer" in search_category:
-        st.subheader("📝 Registrerade Reparationsärenden")
-        res = conn.execute("SELECT * FROM repairs ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM repairs ORDER BY id DESC")
+    # تحديد اسم الجدول بناءً على القئة المختارة
+    table_map = {
+        "📝 Reparationer / Repairs": "repairs",
+        "💳 Abonnemang / Subscriptions": "subscriptions",
+        "🛒 Förbeställningar / Pre-orders": "preorders",
+        "💡 Kostnadsförslag / Quotes": "quotes",
+        "📄 Fakturor / Invoices": "invoices"
+    }
+    
+    current_table = table_map[search_category]
+    
+    if db_type == "turso":
+        res = conn.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
         rows = res.fetchall()
-        
-        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
-        if filtered:
-            for r in filtered:
-                st.markdown(f"📌 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Enhet:** {r[5]} | **IMEI:** {r[6]} | **Pris:** {r[8]} Kr | **Status:** {r[9]} | **Datum:** {r[10]}")
-        else:
-            st.info("Inga reparationer hittades. / No records found.")
-
-    # Subscriptions
-    elif "Abonnemang" in search_category:
-        st.subheader("💳 Registrerade IMEI-Abonnemang")
-        res = conn.execute("SELECT * FROM subscriptions ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM subscriptions ORDER BY id DESC")
-        rows = res.fetchall()
-        
-        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
-        if filtered:
-            for r in filtered:
-                st.markdown(f"💳 **ID:** {r[0]} | **IMEI:** {r[5]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Enhet:** {r[4]} | **Plan:** {r[6]} | **Pris:** {r[7]} Kr/mån | **Start:** {r[8]}")
-        else:
-            st.info("Inga abonnemang hittades. / No records found.")
-
-    # Pre-orders
-    elif "Förbeställningar" in search_category:
-        st.subheader("🛒 Registrerade Förbeställningar")
-        res = conn.execute("SELECT * FROM preorders ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM preorders ORDER BY id DESC")
-        rows = res.fetchall()
-        
-        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
-        if filtered:
-            for r in filtered:
-                st.markdown(f"🛒 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Detaljer:** {r[4]} | **Handpenning:** {r[5]} Kr | **Datum:** {r[6]}")
-        else:
-            st.info("Inga förbeställningar hittades. / No records found.")
-
-    # Price Quotes
-    elif "Kostnadsförslag" in search_category:
-        st.subheader("💡 Registrerade Kostnadsförslag")
-        res = conn.execute("SELECT * FROM quotes ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM quotes ORDER BY id DESC")
-        rows = res.fetchall()
-        
-        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
-        if filtered:
-            for r in filtered:
-                st.markdown(f"💡 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Enhet:** {r[4]} | **Fel:** {r[5]} | **Totalt:** {r[6]} Kr | **Datum:** {r[7]}")
-        else:
-            st.info("Inga kostnadsförslag hittades. / No records found.")
-
-    # Invoices
-    elif "Fakturor" in search_category:
-        st.subheader("📄 Registrerade Fakturor")
-        res = conn.execute("SELECT * FROM invoices ORDER BY id DESC") if db_type == "turso" else conn.cursor().execute("SELECT * FROM invoices ORDER BY id DESC")
-        rows = res.fetchall()
-        
-        filtered = [r for r in rows if search_term in str(r).lower()] if search_term else rows
-        if filtered:
-            for r in filtered:
-                st.markdown(f"📄 **ID:** {r[0]} | **Butik:** {r[1]} | **Kund:** {r[2]} | **Fakturanr:** {r[3]} | **Belopp:** {r[4]} Kr | **Moms:** {r[5]} Kr | **Datum:** {r[6]}")
-        else:
-            st.info("Inga fakturor hittades. / No records found.")
-
-    if db_type == "sqlite":
+        # تحويل النتائج إلى DataFrame لسهولة التصدير والعرض
+        columns_res = conn.execute(f"PRAGMA table_info({current_table})").fetchall()
+        col_names = [c[1] for c in columns_res]
+        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+    else:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
+        rows = cursor.fetchall()
+        col_names = [description[0] for description in cursor.description]
+        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
         conn.close()
+        
+    # فلترة النتائج حسب نص البحث
+    if not df.empty and search_term:
+        mask = df.astype(str).apply(lambda x: x.str.lower().str.contains(search_term).any(), axis=1)
+        filtered_df = df[mask]
+    else:
+        filtered_df = df
+        
+    if not filtered_df.empty:
+        st.markdown(f"### النتائج المطابقة ({len(filtered_df)} پستر):")
+        st.dataframe(filtered_df, use_container_width=True)
+        
+        # --- خيارات التصدير (Export options) ---
+        st.markdown("---")
+        st.subheader("📥 Exportera Data / تصدير البيانات")
+        col_ex1, col_ex2 = st.columns(2)
+        
+        with col_ex1:
+            # تصدير كـ Excel (CSV)
+            csv_data = filtered_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Ladda ner som Excel / CSV",
+                data=csv_data,
+                file_name=f"{current_table}_export.csv",
+                mime="text/csv"
+            )
+            
+        with col_ex2:
+            # تصدير كـ PDF بسيط للجدول
+            if st.button("📥 Generera PDF Export"):
+                pdf_buffer = io.BytesIO()
+                p = canvas.Canvas(pdf_buffer, pagesize=A4)
+                p.drawString(50, 800, f"30 MINUTES FIX AB - Export: {search_category}")
+                p.drawString(50, 780, f"Datum: {date.today().strftime('%Y-%m-%d')}")
+                p.drawString(50, 760, "-------------------------------------------------------------------")
+                
+                y = 730
+                for index, row in filtered_df.iterrows():
+                    if y < 50:
+                        p.showPage()
+                        y = 800
+                    row_text = f"ID: {row.iloc[0]} | Kund: {row.iloc[2] if len(row)>2 else ''} | Detalj: {row.iloc[3] if len(row)>3 else ''}"
+                    p.drawString(50, y, str(row_text)[:90])
+                    y -= 20
+                
+                p.save()
+                pdf_buffer.seek(0)
+                st.download_button(
+                    label="📥 Ladda ner PDF Export",
+                    data=pdf_buffer,
+                    file_name=f"{current_table}_export.pdf",
+                    mime="application/pdf"
+                )
+
+        # --- خيار الحذف (Delete option - محمي ولا يسمح بحذف Abonnemang أو Invoices) ---
+        if current_table not in ["subscriptions", "invoices"]:
+            st.markdown("---")
+            st.subheader("🗑️ Radera Post / حذف عميل أو سجل")
+            st.warning("⚠️ ملاحظة أمنية: لا يمكنك حذف الاشتراكات (Abonnemang) أو الفواتير (Fakturor) من هنا للحفاظ على العقود المالية.")
+            
+            del_id = st.number_input("Ange ID för posten som ska raderas / أدخل رقم الـ ID للحذف", min_value=1, step=1)
+            del_pin = st.text_input("Ange PIN-kod för att radera / كلمة مرور الحذف", type="password", key="del_pin_input")
+            
+            if st.button("Radera permanent / حذف نهائي", type="primary"):
+                if del_pin == st.secrets.get("DELETE_ACTION_PIN", "admin123"):
+                    conn_del, dtype_del = get_db_connection()
+                    try:
+                        if dtype_del == "turso":
+                            conn_del.execute(f"DELETE FROM {current_table} WHERE id = ?", (del_id,))
+                        else:
+                            cur_del = conn_del.cursor()
+                            cur_del.execute(f"DELETE FROM {current_table} WHERE id = ?", (del_id,))
+                            conn_del.commit()
+                            conn_del.close()
+                        st.success(f"✅ Posten med ID {del_id} har raderats! / تم حذف السجل بنجاح!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Fel vid radering: {e}")
+                else:
+                    st.error("❌ Fel PIN-kod för radering! / كلمة المرور غير صحيحة!")
+        else:
+            st.markdown("---")
+            st.info("🔒 **حماية أمنية:** قسم الاشتراكات والفواتير محمي بالكامل ولا يمكن حذف سجلاته نهائياً من لوحة التحكم.")
+            
+    else:
+        st.info("Inga poster hittades i denna kategori. / لا توجد سجلات مطابقة.")
