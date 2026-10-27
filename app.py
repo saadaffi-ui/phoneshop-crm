@@ -112,15 +112,15 @@ def init_db():
 
 init_db()
 
-# --- Email Sender Function ---
+# --- Email Sender Function (Configured for One.com mailout.one.com:465) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
-    sender_email = st.secrets.get("EMAIL_SENDER")
+    sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
     sender_password = st.secrets.get("EMAIL_PASSWORD")
-    smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = st.secrets.get("SMTP_PORT", 587)
+    smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
+    smtp_port = int(st.secrets.get("SMTP_PORT", 465))
     
-    if not sender_email or not sender_password:
-        st.error("⚠️ E-postuppgifter saknas i Streamlit Secrets. / Email credentials not configured.")
+    if not sender_password:
+        st.error("⚠️ E-postlösenord saknas i Streamlit Secrets. / Email password is required in Secrets.")
         return False
         
     try:
@@ -136,11 +136,20 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
             msg.attach(attachment)
             
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
-        server.quit()
+        if smtp_port == 465:
+            # One.com SSL Connection
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+        else:
+            # TLS Connection
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+            
         return True
     except Exception as e:
         st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
@@ -389,7 +398,6 @@ elif menu == "💡 Kostnadsförslag / Quote":
             st.session_state['last_quote_pdf'] = buffer
             st.success("✅ PDF skapades framgångsrikt! / PDF generated successfully!")
 
-    # Download and Email Buttons for Quote
     if 'last_quote_pdf' in st.session_state:
         st.download_button("📥 Ladda ner PDF / Download PDF", st.session_state['last_quote_pdf'], file_name="kostnadsforslag.pdf", mime="application/pdf")
         
@@ -493,7 +501,6 @@ elif menu == "📄 Faktura / Invoice":
             st.session_state['last_invoice_pdf'] = buffer
             st.success("✅ Faktura PDF skapades! / Invoice PDF generated!")
 
-    # Download and Email Buttons for Invoice
     if 'last_invoice_pdf' in st.session_state:
         st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", st.session_state['last_invoice_pdf'], file_name=f"{invoice_no}.pdf", mime="application/pdf")
         
