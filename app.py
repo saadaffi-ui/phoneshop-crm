@@ -301,35 +301,42 @@ elif menu == "💳 Abonnemang / Subscriptions":
         branch = st.selectbox("Butik / Branch", ["Eskilstuna", "Västerås"])
 
     st.markdown("---")
-    st.subheader("📦 Välj Paket & Månadskostnad / Select Plan & Payment")
+    st.subheader("📦 Välj Abonnemangsplan / Select Subscription Plan")
     
-    plan_type = st.selectbox("Välj Abonnemangstyp / Select Plan", [
-        "GlassGuard Pro (Skärmskydd + Fria Byte) - 149 Kr/mån",
-        "Case & Screen Protection (Skal + Skärmskydd) - 199 Kr/mån",
-        "Teknik Complete (Fullständigt skydd & service) - 299 Kr/mån"
+    plan_choice = st.selectbox("Välj Plan / Plan Type", [
+        "GlassGuard™ Pro Abonnemang",
+        "Cover / Case Abonnemang"
     ])
     
-    sub_price = st.number_input("Månadskostnad / Monthly Payment (Kr)", min_value=0.0, step=10.0, value=149.0)
+    if plan_choice == "GlassGuard™ Pro Abonnemang":
+        sub_price = 99.0
+        st.info("💡 **GlassGuard™ Pro Plan:** 99 Kr/mån | 2 skärmskyddsbyte per månad (0 SEK självrisk) + 15% rabatt på LCD/OLED skärmar och tillbehör.")
+    else:
+        sub_price = 99.0
+        st.info("💡 **Cover / Case Abonnemang:** 399 Kr första gången (start) + 99 Kr/mån | Möjlighet att byta kفر/غطاء مرة كل 3 أشهر بدون رسوم (0 SEK självrisk).")
+
     payment_method = st.radio("Betalningsmetod / Payment Method", ["Autogiro / Månadsvis", "Kortbetalning", "Swish Månadsvis"])
 
-    # --- الشروط الرسمية (بما فيها شرط الـ 3 أشهر للإلغاء أو التغيير) ---
+    # --- عرض الشروط والأحكام الرسمية (بما فيها شرط الـ 3 أشهر والخطتين) ---
     st.markdown("---")
-    st.subheader("📜 Avtalsvillkor & Regler / Subscription Terms & Rules")
+    st.subheader("📜 Avtalsvillkor & Regler / Terms & Conditions")
     
-    st.info("""
-    **Svenska (Villkor):**
-    1. **Bindningstid:** Abonnemanget har en minsta bindningstid på 3 månader.
-    2. **Uppsägning & Byte av enhet:** Om du vill säga upp abonnemanget eller byta registrerad enhet/IMEI måste du meddela oss senast **3 månader i förväg**.
-    3. **Betalning:** Månadsavgiften betalas varje månad i förskott.
-    4. **Giltighet:** Skyddet och servicen gäller endast för den registrerade enheten kopplad till IMEI-numret ovan.
-    
-    ---
-    **English (Terms):**
-    1. **Binding Period:** Minimum contract period is 3 months.
-    2. **Cancellation & Device Change:** To cancel the subscription or replace the registered device/IMEI, you must notify us **3 months in advance**.
-    3. **Payment:** Monthly fee is paid in advance each month.
-    4. **Validity:** Coverage applies strictly to the registered IMEI number listed above.
-    """)
+    if plan_choice == "GlassGuard™ Pro Abonnemang":
+        st.info("""
+        **GlassGuard™ Pro Villkor:**
+        1. **Månadskostnad:** 99 SEK / månad.
+        2. **Förmåner:** Upp till 2 gratis utbyten av skärmskydd per månad (0 SEK självrisk).
+        3. **Rabatter:** 15% rabatt på original LCD/OLED skärmar samt 15% rabatt på alla tillbehör.
+        4. **Bindningstid & Uppsägning:** Minst 3 månaders bindningstid. Uppsägning eller enhetsbyte kräver **3 månaders förvarning**.
+        """)
+    else:
+        st.info("""
+        **Cover / Case Villkor:**
+        1. **Startavgift:** 399 SEK första gången (399 SEK första gången).
+        2. **Månadskostnad:** 99 SEK / månad (99 SEK / månad).
+        3. **Bytemöjlighet:** Möjlighet att byta ut kَفر/غطاء الهاتف مرة واحدة كل 3 أشهر (1 gång var 3:e månad) helt utan självrisk (0 SEK självrisk).
+        4. **Bindningstid & Uppsägning:** Minst 3 månader. Uppsägning eller enhetsbyte kräver **3 månaders förvarning**.
+        """)
     
     agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren / Customer accepts terms & conditions")
 
@@ -343,13 +350,13 @@ elif menu == "💳 Abonnemang / Subscriptions":
                 if db_type == "turso":
                     conn.execute(
                         "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, start_date, created_at)
+                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
                     )
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
                         "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, start_date, created_at)
+                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
                     )
                     conn.commit()
                     conn.close()
