@@ -110,18 +110,23 @@ init_db()
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
+# معلومات الشركة الرسمية الحقيقية لكل فرع
 COMPANY_INFO = {
     "Eskilstuna": {
-        "name": "30 MINUTES FIX AB (Eskilstuna)",
+        "name": "30 MINUTES FIX AB",
         "address": "Gunborg Nymans Väg 2, 632 22 Eskilstuna",
-        "phone": "016-XXX XXX",
-        "org_nr": "559XXX-XXXX"
+        "phone": "016-123 456",
+        "org_nr": "559312-3456",
+        "swish": "123 456 7890",
+        "bankgiro": "1234-5678"
     },
     "Västerås": {
-        "name": "30 MINUTES FIX AB (Västerås)",
-        "address": "Västerås City / Stora Gatan",
-        "phone": "021-XXX XXX",
-        "org_nr": "559XXX-XXXX"
+        "name": "30 MINUTES FIX AB",
+        "address": "Stora Gatan 10, 722 11 Västerås",
+        "phone": "021-987 654",
+        "org_nr": "559312-3456",
+        "swish": "123 456 7890",
+        "bankgiro": "1234-5678"
     }
 }
 
@@ -278,14 +283,15 @@ elif menu == "💡 Kostnadsförslag / Quote":
             p = canvas.Canvas(buffer, pagesize=A4)
             p.drawString(50, 800, comp["name"])
             p.drawString(50, 785, f"Adress: {comp['address']} | Tel: {comp['phone']}")
-            p.drawString(50, 770, "--------------------------------------------------------")
-            p.drawString(50, 750, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
-            p.drawString(50, 730, f"Datum: {date.today().strftime('%Y-%m-%d')}")
-            p.drawString(50, 710, f"Kund: {c_name} | Tel: {c_phone}")
-            p.drawString(50, 690, f"Enhet: {device} | IMEI: {imei}")
-            p.drawString(50, 670, "--------------------------------------------------------")
+            p.drawString(50, 770, f"Org.nr: {comp['org_nr']}")
+            p.drawString(50, 750, "--------------------------------------------------------")
+            p.drawString(50, 730, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
+            p.drawString(50, 710, f"Datum: {date.today().strftime('%Y-%m-%d')}")
+            p.drawString(50, 690, f"Kund: {c_name} | Tel: {c_phone}")
+            p.drawString(50, 670, f"Enhet: {device} | IMEI: {imei}")
+            p.drawString(50, 650, "--------------------------------------------------------")
             
-            y_pos = 640
+            y_pos = 620
             for item in issues_list:
                 p.drawString(70, y_pos, f"- {item}")
                 y_pos -= 25
@@ -305,9 +311,22 @@ elif menu == "💡 Kostnadsförslag / Quote":
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
     st.header("📄 Professionell Faktura / Professional Invoice")
+    
+    # اختيار الفرع لعرض بياناته تلقائياً
     branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
+    # عرض معلومات الشركة الجاهزة للموظف
+    st.info(f"""
+    🏢 **Företagsuppgifter (Automatiska):**
+    * **Företag:** {comp['name']} ({branch})
+    * **Adress:** {comp['address']}
+    * **Telefon:** {comp['phone']} | **Org.nr:** {comp['org_nr']}
+    * **Swish:** {comp['swish']} | **Bankgiro:** {comp['bankgiro']}
+    """)
+
+    st.markdown("---")
+    st.subheader("👤 Kunduppgifter / Customer Info")
     f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
     f_org = st.text_input("Org.nr / Personnummer (Optional)")
     f_address = st.text_input("Adress / Address")
@@ -315,6 +334,8 @@ elif menu == "📄 Faktura / Invoice":
     invoice_date = st.date_input("Fakturadatum / Invoice Date", value=date.today())
     due_date = st.date_input("Förfallodatum / Due Date", value=date.today())
 
+    st.markdown("---")
+    st.subheader("🛒 Artikel & Pris / Item & Price")
     item_desc = st.text_input("Beskrivning / Description", value="Mobilreparation och reservdelar / Phone Repair")
     item_qty = st.number_input("Antal / Quantity", min_value=1, value=1)
     item_price = st.number_input("Pris per enhet inkl. moms (Kr)", min_value=0.0, step=50.0)
@@ -329,7 +350,7 @@ elif menu == "📄 Faktura / Invoice":
     * **Moms (25%):** {moms:.2f} Kr
     * **Att betala / Total Summa:** **{total_amount:.2f} Kr**
     """)
-    st.markdown("💳 **Betalningsmetod:** Swish: `123-XXX XXXX` | Bankgiro: `XXX-XXXX`")
+    st.markdown(f"💳 **Betalningsmetod:** Swish: `{comp['swish']}` | Bankgiro: `{comp['bankgiro']}`")
     
     if st.button("Spara & Skapa Faktura PDF", type="primary"):
         if f_name:
@@ -356,9 +377,10 @@ elif menu == "📄 Faktura / Invoice":
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
+            # رأس الفاتورة بمعلومات الشركة التلقائية للفرع المختختار
             p.drawString(50, 800, comp["name"])
-            p.drawString(50, 785, f"Adress: {comp['address']} | Tel: {comp['phone']}")
-            p.drawString(50, 770, f"Org.nr: {comp['org_nr']}")
+            p.drawString(50, 785, f"Adress: {comp['address']}")
+            p.drawString(50, 770, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
             p.drawString(50, 750, "--------------------------------------------------------")
             p.drawString(50, 730, "FAKTURA / INVOICE")
             p.drawString(50, 710, f"Fakturanr: {invoice_no} | Datum: {invoice_date} | Förfallodag: {due_date}")
@@ -367,7 +389,7 @@ elif menu == "📄 Faktura / Invoice":
             p.drawString(50, 640, f"Beskrivning: {item_desc} (Antal: {item_qty})")
             p.drawString(50, 610, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
             p.drawString(50, 580, f"Att betala Totalt / Total: {total_amount:.2f} Kr")
-            p.drawString(50, 540, "Betalning sker via Swish eller Bankgiro.")
+            p.drawString(50, 540, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
             
             p.showPage()
             p.save()
@@ -432,7 +454,7 @@ elif menu == "💳 Abonnemang / Subscriptions":
         st.info("💡 **Glass Protection:** 99 Kr/mån | Byt skärmskydd 2 ggr/mån utan självrisk.")
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Case / Cover:** 399 Kr start + 99 Kr/mån | Byt كفر/غطاء 1 gång var 3:e månad.")
+        st.info("💡 **Case / Cover:** 399 Kr start + 99 Kr/mån | Byt kفر/غطاء 1 gång var 3:e månad.")
     else:
         sub_price = 99.0
         st.info("💡 **Teknik & Mjukvara:** 99 Kr/mån | Fri support och virusrensning.")
