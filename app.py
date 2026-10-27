@@ -110,23 +110,23 @@ init_db()
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
-# معلومات الشركة الرسمية الحقيقية لكل فرع
+# معلومات الشركة الرسمية الخاصة بكل فرع بدقة
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 MINUTES FIX AB",
-        "address": "Gunborg Nymans Väg 2, 632 22 Eskilstuna",
-        "phone": "016-123 456",
-        "org_nr": "559312-3456",
-        "swish": "123 456 7890",
-        "bankgiro": "1234-5678"
+        "address": "Gunborg Nymans Väg 2, Eskilstuna",
+        "phone": "0700122444",
+        "org_nr": "5593708034",
+        "swish": "123 407 16 76",
+        "bankgiro": "5837-0354"
     },
     "Västerås": {
         "name": "30 MINUTES FIX AB",
-        "address": "Stora Gatan 10, 722 11 Västerås",
-        "phone": "021-987 654",
-        "org_nr": "559312-3456",
-        "swish": "123 456 7890",
-        "bankgiro": "1234-5678"
+        "address": "Västerås",
+        "phone": "0700122444",
+        "org_nr": "559537-1724",
+        "swish": "123 339 15 47",
+        "bankgiro": "5837-0354"
     }
 }
 
@@ -312,14 +312,12 @@ elif menu == "💡 Kostnadsförslag / Quote":
 elif menu == "📄 Faktura / Invoice":
     st.header("📄 Professionell Faktura / Professional Invoice")
     
-    # اختيار الفرع لعرض بياناته تلقائياً
     branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
-    # عرض معلومات الشركة الجاهزة للموظف
     st.info(f"""
-    🏢 **Företagsuppgifter (Automatiska):**
-    * **Företag:** {comp['name']} ({branch})
+    🏢 **Företagsuppgifter ({branch}):**
+    * **Företag:** {comp['name']}
     * **Adress:** {comp['address']}
     * **Telefon:** {comp['phone']} | **Org.nr:** {comp['org_nr']}
     * **Swish:** {comp['swish']} | **Bankgiro:** {comp['bankgiro']}
@@ -377,7 +375,6 @@ elif menu == "📄 Faktura / Invoice":
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
-            # رأس الفاتورة بمعلومات الشركة التلقائية للفرع المختختار
             p.drawString(50, 800, comp["name"])
             p.drawString(50, 785, f"Adress: {comp['address']}")
             p.drawString(50, 770, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
