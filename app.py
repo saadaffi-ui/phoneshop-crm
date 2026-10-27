@@ -82,10 +82,38 @@ init_db()
 # Page Configuration
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
+# Company Info Details based on branch
+COMPANY_INFO = {
+    "Eskilstuna": {
+        "name": "30 MINUTES FIX AB (Eskilstuna)",
+        "address": "Gunborg Nymans Väg 2, 632 22 Eskilstuna",
+        "phone": "016-XXX XXX",
+        "org_nr": "559XXX-XXXX"
+    },
+    "Västerås": {
+        "name": "30 MINUTES FIX AB (Västerås)",
+        "address": "Västerås City / Stora Gatan",
+        "phone": "021-XXX XXX",
+        "org_nr": "559XXX-XXXX"
+    }
+}
+
 st.sidebar.title("30 MINUTES FIX AB")
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
-menu = st.sidebar.radio("Navigation / القائمة", [
+
+# Global Security Login check via Sidebar PIN
+sidebar_pin = st.sidebar.text_input("🔑 System Login (PIN: tunapark)", type="password")
+
+if sidebar_pin != st.secrets.get("DELETE_PIN", "tunapark"):
+    st.sidebar.warning("⚠️ Enter PIN 'tunapark' to unlock all features.")
+    st.title("🔒 30 Minutes Fix CRM - Locked")
+    st.info("Please enter the correct PIN code (`tunapark`) in the sidebar to access the CRM system. / Angiv PIN-kod i sidofältet för att låsa upp.")
+    st.stop()
+
+st.sidebar.success("✅ System Unlocked / Systemet upplåst")
+
+menu = st.sidebar.radio("Navigation / Meny", [
     "📝 Nytt Ärende / New Repair", 
     "💡 Kostnadsförslag / Quote", 
     "📄 Faktura / Invoice", 
@@ -138,11 +166,12 @@ if menu == "📝 Nytt Ärende / New Repair":
         else:
             st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
 
-# --- 2. KOSTNADSFÖRSLAG / QUOTE (محدث بالكامل مع الأعطال والشروط) ---
+# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Professionellt Kostnadsförslag / Price Quotation")
     
-    branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna (Gunborg Nymans Väg 2)", "Västerås"])
+    branch_choice = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
+    comp = COMPANY_INFO[branch_choice]
     
     col_q1, col_q2 = st.columns(2)
     with col_q1:
@@ -155,7 +184,6 @@ elif menu == "💡 Kostnadsförslag / Quote":
     st.markdown("---")
     st.subheader("🛠️ Välj Fel och Pris / Select Issues & Prices")
     
-    # اختيار الأعطال وتحديد الأسعار
     issues_list = []
     total_price = 0.0
 
@@ -195,11 +223,9 @@ elif menu == "💡 Kostnadsförslag / Quote":
     st.markdown("---")
     st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms)**")
     
-    # الشروط الرسمية لعرض السعر
     st.info("""
-    **📜 Villkor för Kostnadsförslag:**
+    **📜 Villkor för Kostnadsförslag / Terms:**
     * Detta kostnadsförslag är **endast giltigt i vår verkstad** (This quote is valid only in our workshop).
-    * Priset inkluderar reservdelar, arbete och moms (25%).
     """)
 
     if st.button("Generera PDF Kostnadsförslag / Generate PDF Quote", type="primary"):
@@ -207,9 +233,8 @@ elif menu == "💡 Kostnadsförslag / Quote":
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
-            # معلومات الشركة ورأس الصفحة
-            p.drawString(50, 800, "30 MINUTES FIX AB")
-            p.drawString(50, 785, f"Butik: {branch}")
+            p.drawString(50, 800, comp["name"])
+            p.drawString(50, 785, f"Adress: {comp['address']} | Tel: {comp['phone']}")
             p.drawString(50, 770, "--------------------------------------------------------")
             p.drawString(50, 750, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
             p.drawString(50, 730, f"Datum: {date.today().strftime('%Y-%m-%d')}")
@@ -217,7 +242,6 @@ elif menu == "💡 Kostnadsförslag / Quote":
             p.drawString(50, 690, f"Enhet: {device} | IMEI: {imei}")
             p.drawString(50, 670, "--------------------------------------------------------")
             
-            # سرد الأعطال والأسعار
             y_pos = 640
             p.drawString(50, y_pos, "Valda reparationer / Selected Issues:")
             for item in issues_list:
@@ -228,29 +252,32 @@ elif menu == "💡 Kostnadsförslag / Quote":
             p.drawString(50, y_pos, f"TOTAL SUMMA / TOTAL: {total_price:.2f} Kr (inkl. moms)")
             
             y_pos -= 40
-            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad.")
+            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad / Valid only in workshop.")
             
             p.showPage()
             p.save()
             buffer.seek(0)
             
-            st.success("✅ Kostnadsförslag PDF skapats framgångsrikt! / PDF Quote generated!")
-            st.download_button("📥 Ladda ner PDF / Download PDF", buffer, file_name="kostnadsforslag_30minutesfix.pdf", mime="application/pdf")
+            st.success("✅ Kostnadsförslag PDF skapats! / PDF Quote generated!")
+            st.download_button("📥 Ladda ner PDF / Download PDF", buffer, file_name="kostnadsforslag.pdf", mime="application/pdf")
         else:
-            st.warning("⚠️ Fyll i kundens namn, enhet och välj minst ett fel med pris. / Please fill required fields.")
+            st.warning("⚠️ Fyll i kundens namn, enhet och välj minst ett fel. / Please fill required fields.")
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
-    st.header("📄 Skapa Professionell Faktura / Create Professional Invoice")
+    st.header("📄 Professionell Faktura / Professional Invoice")
+    
+    branch_choice = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
+    comp = COMPANY_INFO[branch_choice]
     
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        st.subheader("📍 Företags-/Kunduppgifter")
+        st.subheader("📍 Kunduppgifter / Customer Info")
         f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
         f_org = st.text_input("Org.nr / Personnummer (Optional)")
         f_address = st.text_input("Adress / Address")
     with col_f2:
-        st.subheader("🧾 Fakturadetaljer")
+        st.subheader("🧾 Fakturadetaljer / Invoice Details")
         invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
         invoice_date = st.date_input("Fakturadatum / Invoice Date", value=date.today())
         due_date = st.date_input("Förfallodatum / Due Date", value=date.today())
@@ -274,48 +301,49 @@ elif menu == "📄 Faktura / Invoice":
     
     st.markdown("💳 **Betalningsmetod / Payment Method:** Swish: `123-XXX XXXX` | Bankgiro: `XXX-XXXX`")
     
-    if st.button("Skapa Faktura PDF / Create Invoice PDF", type="primary"):
+    if st.button("Skapa Professionell Faktura PDF / Create Invoice PDF", type="primary"):
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=A4)
-        p.drawString(50, 800, "30 MINUTES FIX AB")
-        p.drawString(50, 785, "Fakturadokument")
-        p.drawString(50, 760, f"Fakturanr: {invoice_no} | Datum: {invoice_date}")
-        p.drawString(50, 730, f"Kund: {f_name} ({f_address})")
-        p.drawString(50, 700, f"Beskrivning: {item_desc} (Antal: {item_qty})")
-        p.drawString(50, 670, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
-        p.drawString(50, 640, f"Att betala Totalt: {total_amount:.2f} Kr")
-        p.drawString(50, 600, "Betalning via Swish eller Bankgiro.")
+        
+        p.drawString(50, 800, comp["name"])
+        p.drawString(50, 785, f"Adress: {comp['address']} | Tel: {comp['phone']}")
+        p.drawString(50, 770, f"Org.nr: {comp['org_nr']}")
+        p.drawString(50, 750, "--------------------------------------------------------")
+        p.drawString(50, 730, "FAKTURA / INVOICE")
+        p.drawString(50, 710, f"Fakturanr: {invoice_no} | Datum: {invoice_date} | Förfallodag: {due_date}")
+        p.drawString(50, 690, f"Kund: {f_name} | Adress: {f_address}")
+        p.drawString(50, 670, "--------------------------------------------------------")
+        p.drawString(50, 640, f"Beskrivning: {item_desc} (Antal: {item_qty})")
+        p.drawString(50, 610, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
+        p.drawString(50, 580, f"Att betala Totalt / Total: {total_amount:.2f} Kr")
+        p.drawString(50, 540, "Betalning sker via Swish eller Bankgiro. Välkommen åter!")
+        
         p.showPage()
         p.save()
         buffer.seek(0)
+        
         st.success("✅ Faktura PDF skapad! / Invoice PDF generated!")
         st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
 
 # --- 4. SÖK ÄRENDEN / SEARCH ---
 elif menu == "🔍 Sök Ärenden / Search":
     st.header("🔍 Sök och Hantera Ärenden / Search Repairs")
-    pin = st.text_input("Ange PIN-kod / Enter PIN code", type="password")
     
-    if pin == st.secrets.get("DELETE_PIN", "tunapark"):
-        st.success("✅ Åtkomst beviljad / Access Granted")
-        conn, db_type = get_db_connection()
+    conn, db_type = get_db_connection()
+    if db_type == "turso":
+        res = conn.execute("SELECT * FROM repairs ORDER BY id DESC")
+        rows = res.fetchall()
+    else:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM repairs ORDER BY id DESC")
+        rows = cursor.fetchall()
+        conn.close()
         
-        if db_type == "turso":
-            res = conn.execute("SELECT * FROM repairs ORDER BY id DESC")
-            rows = res.fetchall()
-        else:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM repairs ORDER BY id DESC")
-            rows = cursor.fetchall()
-            conn.close()
-            
-        if rows:
-            for r in rows:
-                st.write(f"📌 **ID:** {r[0]} | **Branch:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Device:** {r[5]} | **IMEI:** {r[6]} | **Status:** {r[9]}")
-        else:
-            st.info("Inga ärenden hittades. / No repairs found.")
-    elif pin:
-        st.error("❌ Fel PIN-kod! / Incorrect PIN code!")
+    if rows:
+        for r in rows:
+            st.write(f"📌 **ID:** {r[0]} | **Branch:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Device:** {r[5]} | **IMEI:** {r[6]} | **Status:** {r[9]}")
+    else:
+        st.info("Inga ärenden hittades. / No repairs found.")
 
 # --- 5. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
