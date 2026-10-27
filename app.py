@@ -592,7 +592,7 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
         filtered_df = df
         
     if not filtered_df.empty:
-        st.markdown(### `f"Matchande poster / Matching Records ({len(filtered_df)}):"`)
+        st.markdown(f"### Matchande poster / Matching Records ({len(filtered_df)}):")
         st.dataframe(filtered_df, use_container_width=True)
         
         # --- Export Options ---
