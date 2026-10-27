@@ -6,6 +6,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
 import pandas as pd
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 # --- Turso Cloud Database Connection ---
 import libsql_client
@@ -107,6 +111,40 @@ def init_db():
         conn.close()
 
 init_db()
+
+# --- Email Sender Function ---
+def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
+    sender_email = st.secrets.get("EMAIL_SENDER")
+    sender_password = st.secrets.get("EMAIL_PASSWORD")
+    smtp_server = st.secrets.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = st.secrets.get("SMTP_PORT", 587)
+    
+    if not sender_email or not sender_password:
+        st.error("⚠️ E-postuppgifter saknas i Streamlit Secrets. / Email credentials not configured.")
+        return False
+        
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = receiver_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+        
+        if pdf_buffer is not None:
+            pdf_buffer.seek(0)
+            attachment = MIMEApplication(pdf_buffer.read(), Name=filename)
+            attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
+            msg.attach(attachment)
+            
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
+        return False
 
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
@@ -213,6 +251,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
     
     c_name = st.text_input("Kundens namn / Customer Name")
     c_phone = st.text_input("Telefonnummer / Phone Number")
+    c_email_q = st.text_input("E-post för utskick / Customer Email for Sending")
     device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15, MacBook Pro)")
     imei = st.text_input("IMEI / Serienummer (Valfritt / Optional)")
 
@@ -347,9 +386,26 @@ elif menu == "💡 Kostnadsförslag / Quote":
             p.showPage()
             p.save()
             buffer.seek(0)
-            st.download_button("📥 Ladda ner PDF / Download PDF", buffer, file_name="kostnadsforslag.pdf", mime="application/pdf")
-        else:
-            st.warning("⚠️ Fyll i obligatoriska fält och välj minst ett fel. / Fill required fields.")
+            st.session_state['last_quote_pdf'] = buffer
+            st.success("✅ PDF skapades framgångsrikt! / PDF generated successfully!")
+
+    # Download and Email Buttons for Quote
+    if 'last_quote_pdf' in st.session_state:
+        st.download_button("📥 Ladda ner PDF / Download PDF", st.session_state['last_quote_pdf'], file_name="kostnadsforslag.pdf", mime="application/pdf")
+        
+        if st.button("📧 Skicka PDF via E-post / Send PDF via Email"):
+            if c_email_q:
+                success = send_email_with_attachment(
+                    receiver_email=c_email_q,
+                    subject=f"Kostnadsförslag från 30 Minutes Fix AB ({branch})",
+                    body=f"Hej {c_name}!\n\nHär kommer ditt kostnadsförslag för {device}.\nTotalpris: {total_price:.2f} Kr (inkl. moms).\n\nVälkommen åter!\nTel: {comp['phone']}",
+                    pdf_buffer=st.session_state['last_quote_pdf'],
+                    filename="kostnadsforslag.pdf"
+                )
+                if success:
+                    st.success("✅ E-post skickad till kund! / Email sent to customer!")
+            else:
+                st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
@@ -368,6 +424,7 @@ elif menu == "📄 Faktura / Invoice":
     st.markdown("---")
     st.subheader("👤 Kunduppgifter / Customer Info")
     f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
+    f_email_inv = st.text_input("E-post för faktura / Customer Email for Invoice")
     f_org = st.text_input("Org.nr / Personnummer / Org.nr / ID (Valfritt / Optional)")
     f_address = st.text_input("Adress / Address")
     invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
@@ -433,9 +490,26 @@ elif menu == "📄 Faktura / Invoice":
             p.showPage()
             p.save()
             buffer.seek(0)
-            st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", buffer, file_name=f"{invoice_no}.pdf", mime="application/pdf")
-        else:
-            st.warning("⚠️ Ange kundens namn. / Enter customer name.")
+            st.session_state['last_invoice_pdf'] = buffer
+            st.success("✅ Faktura PDF skapades! / Invoice PDF generated!")
+
+    # Download and Email Buttons for Invoice
+    if 'last_invoice_pdf' in st.session_state:
+        st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", st.session_state['last_invoice_pdf'], file_name=f"{invoice_no}.pdf", mime="application/pdf")
+        
+        if st.button("📧 Skicka Faktura via E-post / Send Invoice via Email"):
+            if f_email_inv:
+                success = send_email_with_attachment(
+                    receiver_email=f_email_inv,
+                    subject=f"Faktura {invoice_no} från 30 Minutes Fix AB ({branch})",
+                    body=f"Hej {f_name}!\n\nHär kommer faktura nr {invoice_no}.\nAtt betala: {total_amount:.2f} Kr.\nBetalning sker via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}.\n\nTack för din affär!\nTel: {comp['phone']}",
+                    pdf_buffer=st.session_state['last_invoice_pdf'],
+                    filename=f"{invoice_no}.pdf"
+                )
+                if success:
+                    st.success("✅ Faktura skickad till kund via e-post! / Invoice emailed successfully!")
+            else:
+                st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
 
 # --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
@@ -490,13 +564,13 @@ elif menu == "💳 Abonnemang / Subscriptions":
     
     if "Glass Protection" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Glass Protection Plan:** 99 Kr/mån | Byt skärmskydd upp till 2 ggr/mån utan självrisk (0 SEK självrisk). / Screen protector replacement up to 2 times/month with 0 SEK deductible.")
+        st.info("💡 **Glass Protection Plan:** 99 Kr/mån | Byt skärmskydd upp till 2 ggr/mån utan självrisk (0 SEK självrisk).")
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån | Byt kفر/غطاء 1 gång var 3:e månad utan självrisk. / Replace case 1 time every 3 months with 0 SEK deductible.")
+        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån | Byt kفر/غطاء 1 gång var 3:e månad utan självrisk.")
     else:
         sub_price = 99.0
-        st.info("💡 **Teknik & Mjukvara Plan:** 99 Kr/mån | Fri hjälp med mjukvara och virusrensning. / Free software help and virus removal.")
+        st.info("💡 **Teknik & Mjukvara Plan:** 99 Kr/mån | Fri hjälp med mjukvara och virusrensning.")
 
     st.markdown("---")
     st.info("""
@@ -635,17 +709,17 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
                     mime="application/pdf"
                 )
 
-        # --- Protected Deletion (Abonnemang & Fakturor are locked) ---
+        # --- Protected Deletion (Abonnemang & Fakturor are locked, uses 'tunapark') ---
         if current_table not in ["subscriptions", "invoices"]:
             st.markdown("---")
             st.subheader("🗑️ Radera Post / Delete Record")
             st.warning("⚠️ Säkerhetsmeddelande: Du kan inte radera abonnemang eller fakturor härifrån. / Security notice: Subscriptions and invoices cannot be deleted.")
             
             del_id = st.number_input("Ange ID för posten som ska raderas / Enter Record ID to Delete", min_value=1, step=1)
-            del_pin = st.text_input("Ange PIN-kod för radering / Deletion PIN", type="password", key="del_pin_input")
+            del_pin = st.text_input("Ange PIN-kod för radering (tunapark) / Deletion PIN", type="password", key="del_pin_input")
             
             if st.button("Radera permanent / Delete Permanently", type="primary"):
-                if del_pin == st.secrets.get("DELETE_ACTION_PIN", "admin123"):
+                if del_pin == st.secrets.get("DELETE_PIN", "tunapark"):
                     conn_del, dtype_del = get_db_connection()
                     try:
                         if dtype_del == "turso":
