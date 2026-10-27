@@ -2,6 +2,9 @@ import streamlit as st
 import sqlite3
 import os
 from datetime import datetime, date
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import io
 
 # --- Turso Cloud Database Connection ---
 import libsql_client
@@ -15,9 +18,8 @@ def get_db_connection():
             conn = libsql_client.connect(url=url, auth_token=token)
             return conn, "turso"
         except Exception as e:
-            st.error(f"⚠️ Turso DB Connection Error / خطأ في الاتصال بقاعدة البيانات السحابية: {e}")
+            st.error(f"⚠️ Turso DB Connection Error: {e}")
     
-    # Fallback to local SQLite if secrets are missing
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     return conn, "sqlite"
 
@@ -81,6 +83,7 @@ init_db()
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
 st.sidebar.title("30 MINUTES FIX AB")
+st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 menu = st.sidebar.radio("Navigation / القائمة", [
     "📝 Nytt Ärende / New Repair", 
@@ -140,20 +143,44 @@ elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Kostnadsförslag / Price Quotation")
     c_name = st.text_input("Kundens namn / Customer Name")
     device = st.text_input("Enhet / Modell / Device")
-    repair_type = st.text_input("Typ av reparation / Repair Type (e.g. Screen replacement)")
+    repair_type = st.text_input("Typ av reparation / Repair Type")
     cost = st.number_input("Uppskattad kostnad (Kr) / Estimated Cost", min_value=0.0, step=50.0)
     
-    if st.button("Generera Kostnadsförslag / Generate Quote"):
-        st.success(f"Kostnadsförslag skapat för {c_name} ({cost} Kr)! / Quote generated successfully!")
+    if st.button("Generera PDF Kostnadsförslag / Generate PDF Quote"):
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        p.drawString(100, 800, "30 MINUTES FIX AB - KOSTNADSFÖRSLAG")
+        p.drawString(100, 770, f"Kund / Customer: {c_name}")
+        p.drawString(100, 740, f"Enhet / Device: {device}")
+        p.drawString(100, 710, f"Reparation / Repair: {repair_type}")
+        p.drawString(100, 680, f"Kostnad / Cost: {cost} Kr")
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+        st.success("✅ Kostnadsförslag PDF skapats! / Quote PDF generated!")
+        st.download_button("📥 Ladda ner PDF / Download PDF", buffer, file_name="kostnadsforslag.pdf", mime="application/pdf")
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
     st.header("📄 Skapa Faktura / Create Invoice")
     f_name = st.text_input("Företag / Kundens namn / Company / Customer Name")
     amount = st.number_input("Belopp inkl. moms (Kr) / Amount incl. VAT", min_value=0.0, step=100.0)
-    st.info("💡 Moms (25%) beräknas automatiskt. / VAT is calculated automatically.")
-    if st.button("Skapa Faktura / Create Invoice"):
-        st.success("Faktura skapad framgångsrikt! / Invoice created successfully!")
+    moms = amount * 0.20
+    netto = amount - moms
+    st.info(f"💡 Moms (25%): {moms:.2f} Kr | Netto: {netto:.2f} Kr")
+    
+    if st.button("Skapa Faktura PDF / Create Invoice PDF"):
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        p.drawString(100, 800, "30 MINUTES FIX AB - FAKTURA")
+        p.drawString(100, 770, f"Kund / Customer: {f_name}")
+        p.drawString(100, 740, f"Total inkl. moms: {amount} Kr")
+        p.drawString(100, 710, f"Swish: 123-XXX XXXX | Bankgiro: XXX-XXXX")
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+        st.success("✅ Faktura PDF skapad! / Invoice PDF generated!")
+        st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", buffer, file_name="faktura.pdf", mime="application/pdf")
 
 # --- 4. SÖK ÄRENDEN / SEARCH ---
 elif menu == "🔍 Sök Ärenden / Search":
@@ -175,7 +202,7 @@ elif menu == "🔍 Sök Ärenden / Search":
             
         if rows:
             for r in rows:
-                st.write(f"📌 **ID:** {r[0]} | **Branch/الفرع:** {r[1]} | **Kund/العميل:** {r[2]} | **Tel/الهاتف:** {r[3]} | **Device/الجهاز:** {r[5]} | **IMEI:** {r[6]} | **Status:** {r[9]}")
+                st.write(f"📌 **ID:** {r[0]} | **Branch:** {r[1]} | **Kund:** {r[2]} | **Tel:** {r[3]} | **Device:** {r[5]} | **IMEI:** {r[6]} | **Status:** {r[9]}")
         else:
             st.info("Inga ärenden hittades. / No repairs found.")
     elif pin:
