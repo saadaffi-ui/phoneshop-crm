@@ -110,7 +110,6 @@ init_db()
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
-# معلومات الشركة الرسمية الخاصة بكل فرع بدقة
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 MINUTES FIX AB",
@@ -205,7 +204,7 @@ if menu == "📝 Nytt Ärende / New Repair":
         else:
             st.warning("⚠️ Fyll i obligatoriska fält. / Fill required fields.")
 
-# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
+# --- 2. KOSTNADSFÖRSLAG / QUOTE (المحدث بأعطال الهواتف واللابتوب والأجهزة الإلكترونية) ---
 elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Kostnadsförslag / Price Quotation")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
@@ -213,47 +212,90 @@ elif menu == "💡 Kostnadsförslag / Quote":
     
     c_name = st.text_input("Kundens namn / Customer Name")
     c_phone = st.text_input("Telefonnummer / Phone Number")
-    device = st.text_input("Enhet / Modell / Device Model")
+    device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15, MacBook Pro)")
     imei = st.text_input("IMEI / Serienummer (Valfritt)")
 
     st.markdown("---")
-    st.subheader("🛠️ Välj Fel och Pris / Select Issues & Prices")
+    st.subheader("🛠️ Välj Fel / Reparationer (Mobil, Laptop & Elektronik)")
     
     issues_list = []
     total_price = 0.0
 
-    has_screen = st.checkbox("📱 Skärmbyte / Damaged Screen")
-    if has_screen:
-        p_screen = st.number_input("Pris för Skärmbyte (Kr)", min_value=0.0, step=50.0, value=0.0)
-        issues_list.append(f"Skärmbyte: {p_screen} Kr")
-        total_price += p_screen
+    col_q1, col_q2 = st.columns(2)
+    
+    with col_q1:
+        st.markdown("**📱 Mobil & Plattor / Phones & Tablets**")
+        has_screen = st.checkbox("📱 Skärmbyte / Damaged Screen")
+        if has_screen:
+            p_screen = st.number_input("Pris: Skärmbyte (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_scr")
+            issues_list.append(f"Skärmbyte: {p_screen} Kr")
+            total_price += p_screen
 
-    has_water = st.checkbox("💧 Vattenskada / Damaged with Water")
-    if has_water:
-        p_water = st.number_input("Pris för Vattenskada (Kr)", min_value=0.0, step=50.0, value=0.0)
-        issues_list.append(f"Vattenskada: {p_water} Kr")
-        total_price += p_water
+        has_backglass = st.checkbox("📱 Baksida kraschad / Back Glass Damaged")
+        if has_backglass:
+            p_backglass = st.number_input("Pris: Baksida (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bg")
+            issues_list.append(f"Baksida kraschad: {p_backglass} Kr")
+            total_price += p_backglass
 
-    has_battery = st.checkbox("🔋 Batteriproblem / Battery Problem")
-    if has_battery:
-        p_battery = st.number_input("Pris för Batteribyte (Kr)", min_value=0.0, step=50.0, value=0.0)
-        issues_list.append(f"Batteriproblem: {p_battery} Kr")
-        total_price += p_battery
+        has_water = st.checkbox("💧 Vattenskada / Water Damage")
+        if has_water:
+            p_water = st.number_input("Pris: Vattenskada (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_wat")
+            issues_list.append(f"Vattenskada: {p_water} Kr")
+            total_price += p_water
 
-    has_software = st.checkbox("💻 Mjukvaruproblem / Software Problem")
-    if has_software:
-        p_software = st.number_input("Pris för Mjukvara (Kr)", min_value=0.0, step=50.0, value=0.0)
-        issues_list.append(f"Mjukvaruproblem: {p_software} Kr")
-        total_price += p_software
+        has_battery = st.checkbox("🔋 Batteriproblem / Battery Replacement")
+        if has_battery:
+            p_battery = st.number_input("Pris: Batteri (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bat")
+            issues_list.append(f"Batteribyte: {p_battery} Kr")
+            total_price += p_battery
 
-    custom_issue = st.text_input("Övrigt fel / Annan reparation (Valfritt)")
+        has_charging = st.checkbox("🔌 Laddport / Charging Port Issue")
+        if has_charging:
+            p_charging = st.number_input("Pris: Laddport (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_chg")
+            issues_list.append(f"Laddport reparation: {p_charging} Kr")
+            total_price += p_charging
+
+        has_cam = st.checkbox("📷 Kameraproblem / Camera Repair")
+        if has_cam:
+            p_cam = st.number_input("Pris: Kamera (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cam")
+            issues_list.append(f"Kamerabyte/reparation: {p_cam} Kr")
+            total_price += p_cam
+
+    with col_q2:
+        st.markdown("**💻 Laptop & Övrig Elektronik / Laptop & Electronics**")
+        has_laptopscreen = st.checkbox("💻 Laptop Skärmbyte / Laptop Screen")
+        if has_laptopscreen:
+            p_lapscreen = st.number_input("Pris: Laptop Skärm (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_lscr")
+            issues_list.append(f"Laptop Skärmbyte: {p_lapscreen} Kr")
+            total_price += p_lapscreen
+
+        has_keyboard = st.checkbox("⌨️ Tangentbord / Keyboard Problem")
+        if has_keyboard:
+            p_keyboard = st.number_input("Pris: Tangentbord (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_key")
+            issues_list.append(f"Tangentbordbyte: {p_keyboard} Kr")
+            total_price += p_keyboard
+
+        has_software = st.checkbox("⚙️ Mjukvara & OS / Software & Virus Help")
+        if has_software:
+            p_software = st.number_input("Pris: Mjukvara (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_sof")
+            issues_list.append(f"Mjukvara / OS installation: {p_software} Kr")
+            total_price += p_software
+
+        has_cleaning = st.checkbox("🧹 Rengöring & Fläkt / Cleaning & Fan Service")
+        if has_cleaning:
+            p_cleaning = st.number_input("Pris: Rengöring (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cln")
+            issues_list.append(f"Datorrengöring / Fläkt: {p_cleaning} Kr")
+            total_price += p_cleaning
+
+    custom_issue = st.text_input("Övrigt fel / Annan elektronik (Valfritt / Custom)")
     if custom_issue:
-        p_custom = st.number_input("Pris för övrigt (Kr)", min_value=0.0, step=50.0, value=0.0)
+        p_custom = st.number_input("Pris för övrigt (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cust")
         issues_list.append(f"{custom_issue}: {p_custom} Kr")
         total_price += p_custom
 
+    st.markdown("---")
     st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms)**")
-    st.info("📜 *Detta kostnadsförslag är endast giltigt i vår verkstad.*")
+    st.info("📜 *Detta kostnadsförslag gäller endast i vår verkstad (This quote is valid only in our workshop).*")
 
     if st.button("Spara & Generera PDF Kostnadsförslag", type="primary"):
         if c_name and device and issues_list:
@@ -288,7 +330,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             p.drawString(50, 730, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
             p.drawString(50, 710, f"Datum: {date.today().strftime('%Y-%m-%d')}")
             p.drawString(50, 690, f"Kund: {c_name} | Tel: {c_phone}")
-            p.drawString(50, 670, f"Enhet: {device} | IMEI: {imei}")
+            p.drawString(50, 670, f"Enhet: {device} | IMEI/Serienr: {imei}")
             p.drawString(50, 650, "--------------------------------------------------------")
             
             y_pos = 620
@@ -306,12 +348,11 @@ elif menu == "💡 Kostnadsförslag / Quote":
             buffer.seek(0)
             st.download_button("📥 Ladda ner PDF / Download PDF", buffer, file_name="kostnadsforslag.pdf", mime="application/pdf")
         else:
-            st.warning("⚠️ Fyll i obligatoriska fält. / Fill required fields.")
+            st.warning("⚠️ Fyll i obligatoriska fält och välj minst ett fel. / Fill required fields.")
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
     st.header("📄 Professionell Faktura / Professional Invoice")
-    
     branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
@@ -334,7 +375,7 @@ elif menu == "📄 Faktura / Invoice":
 
     st.markdown("---")
     st.subheader("🛒 Artikel & Pris / Item & Price")
-    item_desc = st.text_input("Beskrivning / Description", value="Mobilreparation och reservdelar / Phone Repair")
+    item_desc = st.text_input("Beskrivning / Description", value="Reparation och reservdelar / Repair & Parts")
     item_qty = st.number_input("Antal / Quantity", min_value=1, value=1)
     item_price = st.number_input("Pris per enhet inkl. moms (Kr)", min_value=0.0, step=50.0)
     
