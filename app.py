@@ -139,11 +139,10 @@ def init_db():
 
 init_db()
 
-# --- Direct Email Sender via Resend API (Using tested onboarding sender) ---
+# --- Final Fixed Direct Email Sender via Resend API ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     api_key = "re_CHdLhv2m_8qHi1DVV5vfgPZ5NABb4BbXv"
-    sender_name = "info"
-    # استخدام بريد الاختبار الخاص بـ Resend لضمان نجاح الإرسال الفوري بدون أخطاء نطاق
+    # استخدام بريد الاختبار المعتمد من Resend لمنع أخطاء 401 الناتجة عن عدم توثيق النطاق
     sender_email = "onboarding@resend.dev"
     
     try:
@@ -154,7 +153,7 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         }
         
         payload = {
-            "from": f"{sender_name} <{sender_email}>",
+            "from": f"30 Minutes Phone Fix <{sender_email}>",
             "to": [receiver_email],
             "subject": subject,
             "text": body
@@ -858,7 +857,7 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
         
         st.markdown("---")
         st.subheader("🗑️ Radera post / Delete Record")
-        delete_id = st.number_input("Ange ID för post som ska raderas / Enter ID to delete", min_value=0, step=1)
+        delete_ID = st.number_input("Ange ID för post som ska raderas / Enter ID to delete", min_value=0, step=1)
         
         if st.button("Radera permanent / Delete Permanently", type="secondary"):
             if delete_id > 0:
