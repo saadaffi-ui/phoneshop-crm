@@ -154,7 +154,7 @@ COMPANY_INFO = {
     }
 }
 
-# --- Translations Dictionary ---
+# --- Translations Dictionary (App UI supports 3 languages) ---
 TRANSLATIONS = {
     "Svenska": {
         "title": "30 MINUTES PHONE FIX",
@@ -197,7 +197,7 @@ TRANSLATIONS = {
 # --- Sidebar Branding & Language Selector ---
 st.sidebar.title("30 MINUTES PHONE FIX")
 if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True) # type: ignore[cite: 1]
+    st.sidebar.image("logo.png", use_container_width=True) # type: ignore
 
 lang_choice = st.sidebar.selectbox("🌐 Välj Språk / Language / اللغة", ["Svenska", "English", "العربية (Arabic)"])
 t = TRANSLATIONS[lang_choice]
@@ -272,14 +272,14 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Generera PDF på nytt för sparade objekt vid visning/utskrift
+# Generera PDF på nytt för sparade objekt (Alltid på Svenska & English)
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
     
     if os.path.exists("logo.png"):
         try:
-            p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore[cite: 1]
+            p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore
         except Exception:
             pass
             
@@ -288,7 +288,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
 
     if record_type == "quote":
         p.drawString(140, 780, comp["name"])
-        p.drawString(140, 765, f"Adress: {comp['address']} | Tel: {comp['phone']}")
+        p.drawString(140, 765, f"Adress / Address: {comp['address']} | Tel: {comp['phone']}")
         p.drawString(140, 750, f"Org.nr: {comp['org_nr']}")
         p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
         p.drawString(50, 715, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
@@ -298,21 +298,21 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 635, "------------------------------------------------------------------------------------------------")
         
         p.drawString(70, 605, f"- {data.get('issues', '')}")
-        p.drawString(50, 570, f"TOTAL SUMMA / TOTAL: {data.get('total', 0):.2f} Kr (inkl. moms)")
-        p.drawString(50, 540, "* Detta kostnadsförslag gäller endast i vår verkstad.")
+        p.drawString(50, 570, f"TOTAL SUMMA / TOTAL: {data.get('total', 0):.2f} Kr (inkl. moms / incl. VAT)")
+        p.drawString(50, 540, "* Detta kostnadsförslag gäller endast i vår verkstad / Valid only in our workshop.")
 
     elif record_type == "invoice":
         p.drawString(140, 780, comp["name"])
-        p.drawString(140, 765, f"Adress: {comp['address']}")
+        p.drawString(140, 765, f"Adress / Address: {comp['address']}")
         p.drawString(140, 750, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
         p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
         p.drawString(50, 715, "FAKTURA / INVOICE")
         p.drawString(50, 695, f"Fakturanr / Invoice No: {data.get('invoice_no', '')} | Datum / Date: {data.get('created_at', '')}")
         p.drawString(50, 675, f"Kund / Customer: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
         p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
-        p.drawString(50, 625, f"Att betala Totalt / Total: {data.get('amount', 0):.2f} Kr (inkl. moms)")
-        p.drawString(50, 595, f"Moms (25%): {data.get('moms', 0):.2f} Kr")
-        p.drawString(50, 555, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 625, f"Att betala Totalt / Total Amount: {data.get('amount', 0):.2f} Kr (inkl. moms / incl. VAT)")
+        p.drawString(50, 595, f"Moms / VAT (25%): {data.get('moms', 0):.2f} Kr")
+        p.drawString(50, 555, f"Betalning via Swish: {comp['swish']} eller Bankgiro / Payment via Bankgiro: {comp['bankgiro']}")
 
     p.showPage()
     p.save()
@@ -385,7 +385,7 @@ if menu == t["menu_dashboard"]:
     except Exception as e:
         st.error(f"خطأ في تحميل الإصلاحات: {e}")
 
-# --- 1. NYTT ÄRENDE / NEW REPAIR (With Smart Auto-Fill & Quick Templates) ---
+# --- 1. NYTT ÄRENDE / NEW REPAIR ---
 elif menu == t["menu_repair"]:
     st.header("📝 تسجيل إصلاح جديد / Register New Repair")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
@@ -413,7 +413,6 @@ elif menu == t["menu_repair"]:
     device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
     imei = st.text_input("IMEI / Serienummer / IMEI / Serial Number")
     
-    # Quick Issue Templates
     st.markdown("⚡ **قوالب الأعطال السريعة / Quick Issue Templates:**")
     q_cols = st.columns(4)
     template_issue = ""
@@ -465,7 +464,7 @@ elif menu == t["menu_repair"]:
         else:
             st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
 
-# --- 2. KOSTNADSFÖRSLAG / QUOTE (With Profit Calculator) ---
+# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == t["menu_quote"]:
     st.header("💡 عرض سعر وحاسبة الأرباح / Price Quotation & Profit")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
@@ -521,8 +520,8 @@ elif menu == t["menu_quote"]:
     net_profit = total_price - total_cost
 
     st.markdown("---")
-    st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms)**")
-    st.markdown(f"📈 **Beräknad Vinst / Estimated Profit: {net_profit:.2f} Kr** *(Inköpskostnad: {total_cost:.2f} Kr)*")
+    st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms / incl. VAT)**")
+    st.markdown(f"📈 **Beräknad Vinst / Estimated Profit: {net_profit:.2f} Kr** *(Inköpskostnad / Cost: {total_cost:.2f} Kr)*")
 
     if st.button("Spara & Generera Kostnadsförslag PDF / Save Quote PDF", type="primary"):
         if c_name and device and issues_list:
@@ -558,17 +557,18 @@ elif menu == t["menu_quote"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
+            # Generera tvåspråkig PDF (Svenska & English)
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
             if os.path.exists("logo.png"):
                 try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore[cite: 1]
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore
                 except Exception:
                     pass
             
             p.drawString(140, 780, comp["name"])
-            p.drawString(140, 765, f"Adress: {comp['address']} | Tel: {comp['phone']}")
+            p.drawString(140, 765, f"Adress / Address: {comp['address']} | Tel: {comp['phone']}")
             p.drawString(140, 750, f"Org.nr: {comp['org_nr']}")
             p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
             p.drawString(50, 715, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
@@ -583,15 +583,15 @@ elif menu == t["menu_quote"]:
                 y_pos -= 25
             
             y_pos -= 20
-            p.drawString(50, y_pos, f"TOTAL SUMMA / TOTAL: {total_price:.2f} Kr (inkl. moms)")
+            p.drawString(50, y_pos, f"TOTAL SUMMA / TOTAL: {total_price:.2f} Kr (inkl. moms / incl. VAT)")
             y_pos -= 30
-            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad.")
+            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad / Valid only in our workshop.")
             
             p.showPage()
             p.save()
             buffer.seek(0)
             st.session_state['last_quote_pdf'] = buffer
-            st.success("✅ PDF skapades framgångsrikt!")
+            st.success("✅ PDF skapades framgångsrikt! / PDF generated successfully!")
 
     if 'last_quote_pdf' in st.session_state:
         st.markdown("---")
@@ -672,27 +672,28 @@ elif menu == t["menu_invoice"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
+            # Generera tvåspråkig Faktura PDF (Svenska & English)
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
             if os.path.exists("logo.png"):
                 try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore[cite: 1]
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore
                 except Exception:
                     pass
             
             p.drawString(140, 780, comp["name"])
-            p.drawString(140, 765, f"Adress: {comp['address']}")
+            p.drawString(140, 765, f"Adress / Address: {comp['address']}")
             p.drawString(140, 750, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
             p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
             p.drawString(50, 715, "FAKTURA / INVOICE")
             p.drawString(50, 695, f"Fakturanr / Invoice No: {invoice_no} | Datum / Date: {invoice_date} | Förfallodag / Due: {due_date}")
-            p.drawString(50, 675, f"Kund / Customer: {f_name} | Adress: {f_address}")
+            p.drawString(50, 675, f"Kund / Customer: {f_name} | Adress / Address: {f_address}")
             p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
             p.drawString(50, 625, f"Beskrivning / Description: {item_desc} (Antal / Qty: {item_qty})")
-            p.drawString(50, 595, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
-            p.drawString(50, 565, f"Att betala Totalt / Total: {total_amount:.2f} Kr")
-            p.drawString(50, 525, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
+            p.drawString(50, 595, f"Netto / Net: {netto:.2f} Kr | Moms / VAT (25%): {moms:.2f} Kr")
+            p.drawString(50, 565, f"Att betala Totalt / Total Amount: {total_amount:.2f} Kr")
+            p.drawString(50, 525, f"Betalning via Swish: {comp['swish']} eller Bankgiro / Bankgiro: {comp['bankgiro']}")
             
             p.showPage()
             p.save()
@@ -705,7 +706,7 @@ elif menu == t["menu_invoice"]:
         st.subheader("👀 Förhandsgranska och Skriv ut / Preview & Print")
         display_pdf_preview(st.session_state['last_invoice_pdf'], file_name=f"{invoice_no}.pdf")
 
-# --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
+# --- 4. FÖRBÄLLNING / PRE-ORDER ---
 elif menu == t["menu_preorder"]:
     st.header("🛒 طلب مسبق لقطع الغيار / Spare Parts Pre-order")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
