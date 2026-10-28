@@ -78,7 +78,6 @@ def init_db():
                     part_name TEXT, stock_qty INTEGER, min_limit INTEGER, branch TEXT
                 )
             """)
-            # Safe column additions for Turso if they don't exist
             for col_sql in [
                 "ALTER TABLE quotes ADD COLUMN profit REAL",
                 "ALTER TABLE quotes ADD COLUMN employee TEXT",
@@ -141,7 +140,6 @@ def init_db():
         )
     """)
     
-    # Safe column migration check for SQLite
     for col in ["profit", "employee"]:
         try:
             cursor.execute(f"ALTER TABLE quotes ADD COLUMN {col} TEXT")
@@ -210,7 +208,6 @@ try:
 except Exception:
     pass
 
-# Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
 COMPANY_INFO = {
@@ -232,7 +229,6 @@ COMPANY_INFO = {
     }
 }
 
-# --- Translations Dictionary ---
 TRANSLATIONS = {
     "Svenska": {
         "title": "30 MINUTES PHONE FIX",
@@ -329,7 +325,6 @@ TRANSLATIONS = {
     }
 }
 
-# --- Sidebar Branding & Language Selector ---
 st.sidebar.title("30 MINUTES PHONE FIX")
 if os.path.exists("logo.png"):
     st.sidebar.image("logo.png", use_container_width=True)
@@ -340,7 +335,6 @@ t = TRANSLATIONS[lang_choice]
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
-# Persistent Session Login State
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -1220,7 +1214,7 @@ elif menu == t["menu_inventory"]:
 # --- 7. DOKUMENT & HISTORIK / PRINT & HISTORY HUB ---
 elif menu == t["menu_history"]:
     st.header(t["history_header"])
-    st.markdown("Välj kategori och ange ID för att visa eller skriva ut ett sparat dokument från databasen:")
+    st.markdown("اختر نوع المستند، ثم اضغط على زر الطباعة بجانب أي عميل لطباعة ملفه فوراً:")
     
     category = st.selectbox("Välj Kategori / Category", [
         "💡 Kostnadsförslag / Quotes", 
@@ -1252,28 +1246,31 @@ elif menu == t["menu_history"]:
         df = pd.DataFrame()
         
     if not df.empty:
-        st.dataframe(df, use_container_width=True)
+        st.markdown("### 📋 قائمة المستندات المحفوظة / Saved Documents")
         
-        st.markdown("### 🔍 Välj post via ID för att Visa / Skriva ut")
-        selected_id = st.number_input("Ange Post-ID (första kolumnen) / Enter Record ID", min_value=1, step=1)
-        
-        target_row = df[df['id'] == selected_id]
-        
-        if not target_row.empty:
-            row_data = target_row.iloc[0].to_dict()
-            st.success(f"✅ Vald post hittad: {row_data.get('customer_name', '')}")
+        # عرض تفاعلي مع أزرار طباعة مباشرة لكل صف
+        for idx, row in df.iterrows():
+            r_id = row['id']
+            c_name = row.get('customer_name', 'Okänd')
+            c_phone = row.get('phone', '-')
+            date_str = row.get('created_at', '')
+            total_val = row.get('total') if 'total' in row else row.get('amount', 0)
             
-            if st.button("👁️ Generera & Förhandsgranska PDF / View PDF", type="primary"):
-                pdf_buf = generate_pdf_from_record(record_type, row_data, COMPANY_INFO)
-                st.session_state['hub_pdf'] = pdf_buf
-                st.session_state['hub_pdf_name'] = f"dokument_{selected_id}.pdf"
-                st.rerun()
-                
-            if 'hub_pdf' in st.session_state:
-                st.markdown("---")
-                display_pdf_preview(st.session_state['hub_pdf'], file_name=st.session_state.get('hub_pdf_name', 'dokument.pdf'))
-        else:
-            st.info("ℹ️ Ange ett giltigt ID från tabellen ovan.")
+            col_info, col_btn = st.columns([5, 2])
+            with col_info:
+                st.markdown(f"**ID: #{r_id}** | 👤 **{c_name}** ({c_phone}) | 💰 **{total_val} SEK** | 📅 `{date_str}`")
+            with col_btn:
+                if st.button(f"🖨️ Skriv ut #{r_id}", key=f"print_hist_{record_type}_{r_id}", type="primary"):
+                    row_data = row.to_dict()
+                    pdf_buf = generate_pdf_from_record(record_type, row_data, COMPANY_INFO)
+                    st.session_state['hub_pdf'] = pdf_buf
+                    st.session_state['hub_pdf_name'] = f"dokument_{r_id}.pdf"
+                    st.rerun()
+            st.markdown("---")
+            
+        if 'hub_pdf' in st.session_state:
+            st.subheader("👁️ معاينة المستند المختار / Selected Document Preview")
+            display_pdf_preview(st.session_state['hub_pdf'], file_name=st.session_state.get('hub_pdf_name', 'dokument.pdf'))
     else:
         st.info("ℹ️ Inga dokument hittades.")
 
@@ -1338,19 +1335,23 @@ elif menu == t["menu_datacenter"]:
         
         if current_table in ["quotes", "invoices"]:
             st.markdown("---")
-            st.subheader("👁️ Visa och Skriv ut sparad post direkt / View & Print Record")
-            doc_id = st.number_input("Ange ID för dokument som ska visas/skrivas ut", min_value=0, step=1, key="doc_view_id")
+            st.subheader("🖨️ طباعة أو معاينة مباشرة للمستندات / Direct Print & Preview")
             
-            if doc_id > 0:
-                match_row = df[df['id'] == doc_id]
-                if not match_row.empty:
-                    row_dict = match_row.iloc[0].to_dict()
-                    rec_type = "quote" if current_table == "quotes" else "invoice"
-                    
-                    if st.button("🖨️ Generera förhandsgranskning för ID", type="primary"):
-                        buf = generate_pdf_from_record(rec_type, row_dict, COMPANY_INFO)
+            rec_type = "quote" if current_table == "quotes" else "invoice"
+            for _, dc_row in filtered_df.iterrows():
+                dc_id = dc_row['id']
+                dc_name = dc_row.get('customer_name', 'Okänd')
+                dc_total = dc_row.get('total') if 'total' in dc_row else dc_row.get('amount', 0)
+                
+                c_a, c_b = st.columns([5, 2])
+                with c_a:
+                    st.write(f"ID: #{dc_id} | 👤 {dc_name} | 💰 {dc_total} SEK")
+                with c_b:
+                    if st.button(f"🖨️ طباعة #{dc_id}", key=f"print_dc_{rec_type}_{dc_id}", type="primary"):
+                        buf = generate_pdf_from_record(rec_type, dc_row.to_dict(), COMPANY_INFO)
                         st.session_state['datacenter_pdf'] = buf
                         st.rerun()
+                st.markdown("---")
 
             if 'datacenter_pdf' in st.session_state:
                 st.markdown("---")
@@ -1358,10 +1359,21 @@ elif menu == t["menu_datacenter"]:
 
         st.markdown("---")
         st.subheader("🗑️ Radera post / Delete Record")
-        delete_id = st.number_input("Ange ID för post som ska raderas / Enter ID to delete", min_value=0, step=1, key="del_id_input")
+        
+        del_options = []
+        del_dict_map = {}
+        for _, d_row in df.iterrows():
+            x_id = d_row['id']
+            x_name = d_row.get('customer_name', 'Okänd')
+            x_label = f"ID: {x_id} | 👤 {x_name}"
+            del_options.append(x_label)
+            del_dict_map[x_label] = x_id
+            
+        selected_del_label = st.selectbox("اختر البند المراد حذفه / Select to delete", del_options, key="del_select_box")
         
         if st.button("Radera permanent / Delete Permanently", type="secondary"):
-            if delete_id > 0:
+            if selected_del_label:
+                delete_id = del_dict_map[selected_del_label]
                 try:
                     if db_type == "turso":
                         try:
@@ -1381,7 +1393,5 @@ elif menu == t["menu_datacenter"]:
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Fel vid radering / Delete error: {e}")
-            else:
-                st.warning("⚠️ Ange ett giltigt ID att radera.")
     else:
         st.info("ℹ️ Inga poster hittades i databasen.")
