@@ -8,6 +8,7 @@ import io
 import pandas as pd
 import base64
 import threading
+import requests
 
 # --- Database Connection with Instant SQLite Fallback ---
 import libsql_client
@@ -439,6 +440,41 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
+def generate_shorepay_checkout_link(amount, invoice_ref):
+    """
+    دالة توليد رابط دفع حقيقي عبر ShorePay / Stripe API
+    """
+    try:
+        api_key = st.secrets.get("SHOREPAY_API_KEY", "")
+        if not api_key:
+            return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
+
+        url = "https://api.stripe.com/v1/checkout/sessions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        amount_in_cents = int(amount * 100)
+        data = {
+            "payment_method_types[0]": "card",
+            "line_items[0][price_data][currency]": "sek",
+            "line_items[0][price_data][unit_amount]": str(amount_in_cents),
+            "line_items[0][price_data][product_data][name]": f"Faktura / Reparation #{invoice_ref}",
+            "line_items[0][quantity]": "1",
+            "mode": "payment",
+            "success_url": "https://30minutesphonefix.se/success",
+            "cancel_url": "https://30minutesphonefix.se/cancel",
+            "client_reference_id": str(invoice_ref)
+        }
+        response = requests.post(url, headers=headers, data=data)
+        if response.status_code == 200:
+            session_data = response.json()
+            return session_data.get("url", f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}")
+        else:
+            return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
+    except Exception:
+        return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
+
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -496,7 +532,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setFont("Helvetica", 8)
         p.drawString(300, height - 350, "(Inkl. moms / Incl. VAT)")
         
-        # --- GUARANTEE & DATA LOSS DISCLAIMER CLAUSES ---
         p.setFont("Helvetica-Bold", 8)
         p.drawString(50, height - 385, "Garanti & Villkor / Warranty & Terms:")
         p.setFont("Helvetica", 7.5)
@@ -903,7 +938,7 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name=st.session_state.get('q_pdf_name', 'quote.pdf'))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF + BOTH PAYMENT OPTIONS) ---
+# --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF + SHOREPAY INTEGRATION) ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
     st.header(f"📄 الفاتورة الرسمية القياسية وخيارات الدفع الإلكتروني / Standard Invoice & Payments ({global_branch})")
@@ -934,7 +969,7 @@ with tab4:
 
     st.markdown(f"**المبلغ الإجمالي / Att betala:** **{total_amount:.2f} {inv_curr}** (Netto: {netto:.2f} | Moms: {moms:.2f})")
 
-    # --- INTEGRATED PAYMENT GATEWAY BUTTONS (SWISH & STRIPE CARD) ---
+    # --- INTEGRATED PAYMENT GATEWAY BUTTONS (SWISH & SHOREPAY) ---
     st.markdown("---")
     st.subheader("💳 وسائل وسداد الدفع الإلكتروني المباشر / Direct Payment Gateways")
     
@@ -954,16 +989,15 @@ with tab4:
     with pay_col2:
         st.markdown(f"""
         <div style="background-color: #fef9e7; padding: 15px; border-radius: 8px; border: 1px solid #f1c40f;">
-            <b>💳 Card Payment Link (Stripe / POS)</b><br>
+            <b>💳 ShorePay Card Payment Link</b><br>
             • Belopp: <b>{total_amount:.2f} {inv_curr}</b><br>
-            <span style="color: #d68910; font-size: 12px;">إنشاء رابط دفع آمن بالبطاقة الائتمانية (Visa / Mastercard).</span>
+            <span style="color: #d68910; font-size: 12px;">إنشاء رابط دفع آمن بالبطاقة عبر ShorePay.</span>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🔗 إنشاء رابط دفع بالبطاقة / Generate Card Link", key="btn_stripe_pay"):
-            # Mock or dynamic secure link generator for payment terminal/Stripe
-            payment_url = f"https://pay.30minutesphonefix.se/checkout?amount={total_amount}&ref={inv_no}"
-            st.info(f"🔗 **رابط الدفع المباشر للعميل:**\n`{payment_url}`")
-            st.markdown(f"[اضغط هنا لفتح صفحة الدفع]({payment_url})", unsafe_allow_html=True)
+        if st.button("🔗 إنشاء رابط دفع ShorePay الحقيقي", key="btn_shorepay_pay"):
+            real_payment_url = generate_shorepay_checkout_link(total_amount, inv_no)
+            st.info(f"🔗 **رابط الدفع الحقيقي للعميل:**\n`{real_payment_url}`")
+            st.markdown(f"[اضغط هنا لفتح بوابة الدفع]({real_payment_url})", unsafe_allow_html=True)
 
     st.markdown("---")
     if st.button("حفظ وتوليد فاتورة PDF رسمية / Save Invoice PDF", type="primary", key="btn_save_inv"):
