@@ -7,6 +7,7 @@ from reportlab.pdfgen import canvas
 import io
 import pandas as pd
 import base64
+import threading
 
 # --- Database Connection with Instant SQLite Fallback ---
 import libsql_client
@@ -127,7 +128,6 @@ def init_db():
         )
     """)
     
-    # Safe column migration check if tables already exist without employee column
     try:
         cursor.execute("ALTER TABLE subscriptions ADD COLUMN employee TEXT")
     except Exception:
@@ -153,6 +153,58 @@ def init_db():
     conn.close()
 
 init_db()
+
+# --- FastAPI Webhook Server for Website Integration ---
+try:
+    from fastapi import FastAPI, HTTPException
+    from pydantic import BaseModel
+    import uvicorn
+
+    app = FastAPI(title="30 Minutes Phone Fix - Website Webhook API")
+
+    class WebhookSubscription(BaseModel):
+        branch: str
+        customer_name: str
+        phone: str
+        device: str
+        imei: str
+        plan_type: str
+        price: float
+        employee: str = "Website Online"
+
+    @app.post("/api/webhook/subscription")
+    def api_save_subscription(data: WebhookSubscription):
+        try:
+            conn, db_type = get_db_connection()
+            start_date = date.today().strftime('%Y-%m-%d')
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            if db_type == "turso":
+                conn.execute(
+                    "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (data.branch, data.customer_name, data.phone, data.device, data.imei, data.plan_type, data.price, data.employee, start_date, created_at)
+                )
+            else:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (data.branch, data.customer_name, data.phone, data.device, data.imei, data.plan_type, data.price, data.employee, start_date, created_at)
+                )
+                conn.commit()
+                conn.close()
+            return {"status": "success", "message": "Subscription successfully saved from website!"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def run_fastapi():
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+
+    # Start FastAPI in a background thread if not already running
+    if 'fastapi_started' not in st.session_state:
+        st.session_state['fastapi_started'] = True
+        threading.Thread(target=run_fastapi, daemon=True).start()
+except Exception:
+    pass
 
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
@@ -332,7 +384,6 @@ menu = st.sidebar.radio("Navigation / القائمة الرئيسية", [
     t["menu_datacenter"]
 ])
 
-# Stabil hjälpfunktion för nedladdning och förhandsgranskning utan blanka sidor
 def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
@@ -359,7 +410,6 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- Professional PDF Generation Engine (Multi-Currency & Moms Support) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -1011,7 +1061,6 @@ elif menu == t["menu_sub"]:
         else:
             st.warning("⚠️ Fyll i kundens namn.")
 
-    # --- Feature to Generate Invoice from Subscriptions ---
     st.markdown("---")
     st.subheader("📄 توليد فاتورة من الاشتراكات المسجلة / Generate Invoice from Subscription")
     
@@ -1267,7 +1316,7 @@ elif menu == t["menu_datacenter"]:
                 local_conn.close()
         else:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {current_table} ORDER BY id` DESC")
+            cursor.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
             rows = cursor.fetchall()
             col_names = [description[0] for description in cursor.description]
             df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
