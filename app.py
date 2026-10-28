@@ -465,7 +465,53 @@ def generate_pdf_from_record(record_type, data, comp_info):
     p.setLineWidth(1)
     p.line(50, height - 85, width - 50, height - 85)
 
-    if record_type == "quote":
+    if record_type == "repair_receipt":
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(50, height - 110, "INLÄMNINGSKVITTO / REPAIR RECEIPT (إيصال استلام جهاز)")
+        p.setFont("Helvetica", 10)
+        p.drawString(50, height - 135, f"Ärende ID: #{data.get('repair_id', '1')}")
+        p.drawString(300, height - 135, f"Datum: {data.get('created_at', '')}")
+        p.drawString(50, height - 155, f"Kund: {data.get('customer_name', '')}")
+        p.drawString(300, height - 155, f"Handläggare: {employee_name}")
+        p.drawString(50, height - 175, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 175, f"Enhet: {data.get('device', '')}")
+        p.drawString(50, height - 195, f"IMEI / Serienr: {data.get('imei', 'Ej angivet')}")
+        
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(50, height - 235, width - 100, 20, fill=1, stroke=0)
+        p.setFillColorRGB(0, 0, 0)
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(60, height - 228, "Beskrivning av fel / Reparation")
+        p.drawString(400, height - 228, f"Pris ({currency})")
+        
+        p.setFont("Helvetica", 10)
+        y_pos = height - 265
+        p.drawString(60, y_pos, f"- {data.get('issue', '')}")
+        price_val = data.get('price', 0)
+        p.drawString(400, y_pos, f"{price_val:.2f} {currency}")
+        
+        p.line(50, height - 320, width - 50, height - 320)
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(300, height - 345, f"Att betala / Total: {price_val:.2f} {currency}")
+        p.setFont("Helvetica", 8)
+        p.drawString(300, height - 360, "(Inkl. moms)")
+        
+        p.setFont("Helvetica-Oblique", 8)
+        p.drawString(50, height - 420, "* Detta kvitto måste uppvisas vid uthämtning av enheten.")
+        p.drawString(50, height - 435, "* Vi ansvarar ej för icke säkerhetskopierad data.")
+        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik: {branch}")
+
+    elif record_type == "label_sticker":
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(30, height - 30, f"30 MINUTES PHONE FIX - {branch}")
+        p.setFont("Helvetica", 9)
+        p.drawString(30, height - 48, f"ID: #{data.get('repair_id')} | Kund: {data.get('customer_name')}")
+        p.drawString(30, height - 63, f"Enhet: {data.get('device')}")
+        p.drawString(30, height - 78, f"IMEI: {data.get('imei', '---')}")
+        p.drawString(30, height - 93, f"Tel: {data.get('phone')} | Pris: {data.get('price')} SEK")
+
+    elif record_type == "quote":
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
         p.setFont("Helvetica", 10)
@@ -624,10 +670,10 @@ with tab1:
         st.error(f"خطأ: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR WITH COMPREHENSIVE ISSUE OPTIONS ---
+# --- TAB 2: NEW REPAIR WITH RECEIPT & LABEL GENERATION ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
-    st.header(f"🛠️ تسجيل إصلاح جديد ({global_branch})")
+    st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام ({global_branch})")
     employee_name = st.text_input(t["employee"], key="rep_emp")
     c_phone = st.text_input(t["phone"], key="rep_phone")
     
@@ -653,7 +699,6 @@ with tab2:
     imei = st.text_input(t["imei"], key="rep_imei")
     
     st.markdown("⚡ **اختر الأعطال الشاملة (أو اختر متعدد وتلقائي):**")
-    
     repair_issues_options = [
         "Skärmbyte (Original) / شاشة أصلية",
         "Skärmbyte (OLED / Kopia) / شاشة كوبي",
@@ -669,7 +714,6 @@ with tab2:
     ]
     
     selected_rep_issues = st.multiselect("قائمة الأعطال المتاحة للجهاز:", repair_issues_options, key="multi_rep_issues")
-    
     price = st.number_input(t["price"], min_value=0.0, step=50.0, key="rep_price")
     
     auto_issues_str = ", ".join(selected_rep_issues)
@@ -683,7 +727,7 @@ with tab2:
             try:
                 if db_type == "turso":
                     try:
-                        conn.execute(
+                        cursor_res = conn.execute(
                             "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                             (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                         )
@@ -705,10 +749,37 @@ with tab2:
                     conn.commit()
                     conn.close()
                 st.success(t["success_repair"])
+                
+                # Generate Inlämningskvitto PDF data
+                rec_data = {
+                    "branch": global_branch,
+                    "repair_id": "99",
+                    "customer_name": c_name,
+                    "phone": c_phone,
+                    "device": device,
+                    "imei": imei,
+                    "issue": issue,
+                    "price": price,
+                    "employee": employee_name,
+                    "created_at": date.today().strftime('%Y-%m-%d')
+                }
+                st.session_state['rep_receipt_pdf'] = generate_pdf_from_record("repair_receipt", rec_data, COMPANY_INFO)
+                st.session_state['rep_label_pdf'] = generate_pdf_from_record("label_sticker", rec_data, COMPANY_INFO)
             except Exception as e:
                 st.error(f"❌ خطأ: {e}")
         else:
             st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
+
+    if 'rep_receipt_pdf' in st.session_state:
+        st.markdown("---")
+        st.subheader("📄 إيصال استلام العميل (Inlämningskvitto)")
+        display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto.pdf")
+        
+    if 'rep_label_pdf' in st.session_state:
+        st.markdown("---")
+        st.subheader("🏷️ ملصق الجهاز والـ IMEI (Label Sticker)")
+        display_pdf_preview(st.session_state['rep_label_pdf'], file_name="IMEI_Label.pdf")
+        
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 3: QUOTE / PRICE QUOTATION WITH FULL OPTIONS ---
