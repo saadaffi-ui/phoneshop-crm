@@ -78,6 +78,19 @@ def init_db():
                     part_name TEXT, stock_qty INTEGER, min_limit INTEGER, branch TEXT
                 )
             """)
+            # Safe column additions for Turso if they don't exist
+            for col_sql in [
+                "ALTER TABLE quotes ADD COLUMN profit REAL",
+                "ALTER TABLE quotes ADD COLUMN employee TEXT",
+                "ALTER TABLE subscriptions ADD COLUMN employee TEXT",
+                "ALTER TABLE repairs ADD COLUMN employee TEXT",
+                "ALTER TABLE preorders ADD COLUMN employee TEXT",
+                "ALTER TABLE invoices ADD COLUMN employee TEXT"
+            ]:
+                try:
+                    conn.execute(col_sql)
+                except Exception:
+                    pass
             return
         except Exception:
             pass
@@ -128,26 +141,18 @@ def init_db():
         )
     """)
     
-    try:
-        cursor.execute("ALTER TABLE subscriptions ADD COLUMN employee TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE repairs ADD COLUMN employee TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE preorders ADD COLUMN employee TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE quotes ADD COLUMN employee TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE invoices ADD COLUMN employee TEXT")
-    except Exception:
-        pass
+    # Safe column migration check for SQLite
+    for col in ["profit", "employee"]:
+        try:
+            cursor.execute(f"ALTER TABLE quotes ADD COLUMN {col} TEXT")
+        except Exception:
+            pass
+            
+    for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices"]:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN employee TEXT")
+        except Exception:
+            pass
 
     conn.commit()
     conn.close()
@@ -199,7 +204,6 @@ try:
     def run_fastapi():
         uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
 
-    # Start FastAPI in a background thread if not already running
     if 'fastapi_started' not in st.session_state:
         st.session_state['fastapi_started'] = True
         threading.Thread(target=run_fastapi, daemon=True).start()
