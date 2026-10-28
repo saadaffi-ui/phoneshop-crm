@@ -127,7 +127,6 @@ def init_db():
         )
     """)
     
-    # إضافة الأوردة المفقودة إن لم تكن موجودة
     try:
         cursor.execute("ALTER TABLE quotes ADD COLUMN email TEXT")
     except Exception:
@@ -142,7 +141,7 @@ def init_db():
 
 init_db()
 
-# --- Email Sender Function ---
+# --- Robust Email Sender Function (One.com SMTP) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
@@ -156,7 +155,7 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         smtp_port = 465
     
     if not sender_password:
-        st.error("⚠️ E-postlösenord saknas. / Email password is required.")
+        st.error("⚠️ E-postlösenord saknas i Streamlit Secrets. / Email password is required.")
         return False
         
     try:
@@ -172,13 +171,14 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
             msg.attach(attachment)
             
+        # الاتصال بخادم البريد (يدعم المنفذ 465 أو البديل 587)
         if smtp_port == 465:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10)
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
             server.quit()
         else:
-            server = smtplib.SMTP(smtp_server, smtp_port)
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
             server.starttls()
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
@@ -187,32 +187,6 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         return True
     except Exception as e:
         st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
-        return False
-
-# --- SMS Sender Function (Twilio) ---
-def send_sms_message(receiver_phone, message_body):
-    try:
-        account_sid = st.secrets.get("TWILIO_ACCOUNT_SID", "")
-        auth_token = st.secrets.get("TWILIO_AUTH_TOKEN", "")
-        sender_phone = st.secrets.get("TWILIO_PHONE_NUMBER", "")
-    except Exception:
-        account_sid, auth_token, sender_phone = "", "", ""
-    
-    if not account_sid or not auth_token or not sender_phone:
-        st.warning("⚠️ Twilio SMS credentials missing in Secrets.")
-        return False
-        
-    try:
-        from twilio.rest import Client
-        client = Client(account_sid, auth_token)
-        message = client.messages.create(
-            body=message_body,
-            from_=sender_phone,
-            to=receiver_phone
-        )
-        return True
-    except Exception as e:
-        st.error(f"❌ Fel vid SMS-utskick / SMS error: {e}")
         return False
 
 # Page Configuration & Mobile UI Setup
@@ -275,7 +249,7 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📄 Faktura / Invoice", 
     "🛒 Förbeställning / Pre-order", 
     "💳 Abonnemang / Subscriptions",
-    "📤 Utskick & Historik / Send & History",
+    "📤 E-post Utskick & Historik / Email Hub & History",
     "📊 Data Center & Sök / All Data & Search"
 ])
 
@@ -742,10 +716,10 @@ elif menu == "💳 Abonnemang / Subscriptions":
         else:
             st.warning("⚠️ Fyll i kundens namn. / Enter customer name.")
 
-# --- 6. UTSKICK & HISTORIK / SEND & HISTORY HUB ---
-elif menu == "📤 Utskick & Historik / Send & History":
-    st.header("📤 Skicka tidigare sparade dokument eller SMS")
-    st.markdown("Välj kategori nedan för att hämta tidigare sparade poster från databasen och skicka till kund via e-post eller SMS:")
+# --- 6. E-POST UTSKICK & HISTORIK / EMAIL HUB & HISTORY ---
+elif menu == "📤 E-post Utskick & Historik / Email Hub & History":
+    st.header("📤 Skicka tidigare sparade dokument via E-post")
+    st.markdown("Välj kategori nedan för att hämta tidigare sparade poster från databasen och skicka till kund via e-post:")
     
     category = st.selectbox("Välj Kategori / Category", [
         "💡 Kostnadsförslag / Quotes", 
@@ -779,7 +753,7 @@ elif menu == "📤 Utskick & Historik / Send & History":
     if not df.empty:
         st.dataframe(df, use_container_width=True)
         
-        st.markdown("### ✉️ Välj post via ID för utskick")
+        st.markdown("### ✉️ Välj post via ID för e-postutskick")
         selected_id = st.number_input("Ange Post-ID (första kolumnen i tabellen) / Enter Record ID", min_value=1, step=1)
         
         target_row = df[df['id'] == selected_id]
@@ -787,39 +761,24 @@ elif menu == "📤 Utskick & Historik / Send & History":
         if not target_row.empty:
             row_data = target_row.iloc[0]
             c_name = row_data.get('customer_name', 'Kund')
-            c_phone = row_data.get('phone', '')
             c_email = row_data.get('email', '') 
             
             input_email = st.text_input("Mottagare E-post / Receiver Email", value=c_email if c_email else "")
-            input_phone = st.text_input("Mottagare Mobil / Receiver Phone (t.ex. +46700122444)", value=c_phone if c_phone else "")
             
-            col_s1, col_s2 = st.columns(2)
-            
-            with col_s1:
-                if st.button("📧 Skicka via E-post"):
-                    if input_email:
-                        pdf_buf = st.session_state.get('last_quote_pdf', None) if "Quotes" in category else st.session_state.get('last_invoice_pdf', None)
-                        success = send_email_with_attachment(
-                            receiver_email=input_email,
-                            subject=f"Dokument från 30 Minutes Fix AB",
-                            body=f"Hej {c_name}!\n\nHär kommer information gällande ditt ärende hos oss.\nVälkommen åter!\nTel: 0700122444",
-                            pdf_buffer=pdf_buf,
-                            filename="dokument.pdf"
-                        )
-                        if success:
-                            st.success(f"✅ E-post skickad till {input_email}!")
-                    else:
-                        st.warning("⚠️ Ange en giltig e-postadress.")
-                        
-            with col_s2:
-                if st.button("📱 Skicka via SMS"):
-                    if input_phone:
-                        sms_text = f"Hej {c_name}! Tack för ditt besök hos 30 Minutes Fix AB. Har du frågor? Ring oss på 0700122444."
-                        success = send_sms_message(input_phone, sms_text)
-                        if success:
-                            st.success(f"✅ SMS skickat till {input_phone}!")
-                    else:
-                        st.warning("⚠️ Ange ett giltigt telefonnummer.")
+            if st.button("📧 Skicka Dokument via E-post", type="primary"):
+                if input_email:
+                    pdf_buf = st.session_state.get('last_quote_pdf', None) if "Quotes" in category else st.session_state.get('last_invoice_pdf', None)
+                    success = send_email_with_attachment(
+                        receiver_email=input_email,
+                        subject=f"Dokument från 30 Minutes Fix AB",
+                        body=f"Hej {c_name}!\n\nHär kommer information och dokument gällande ditt ärende hos oss.\nVälkommen åter!\nTel: 0700122444",
+                        pdf_buffer=pdf_buf,
+                        filename="dokument.pdf"
+                    )
+                    if success:
+                        st.success(f"✅ E-post skickad till {input_email}!")
+                else:
+                    st.warning("⚠️ Ange en giltig e-postadress.")
         else:
             st.info("ℹ️ Ange ett giltigt ID från tabellen ovan för att välja kund.")
     else:
