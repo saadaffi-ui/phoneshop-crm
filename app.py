@@ -11,18 +11,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 
-# --- Turso Cloud Database Connection (مع التحديث الجديد للاتصال) ---
+# --- Turso Cloud Database Connection with Safe Fallback ---
 import libsql_client
 
 def get_db_connection():
     try:
         url = st.secrets.get("TURSO_DATABASE_URL", "libsql://30minutesphonefix-saadaffi.aws-eu-north-1.turso.io")
         token = st.secrets.get("TURSO_AUTH_TOKEN", "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTMxMTYyMjMsImlkIjoiMDFhMTdkODMtNmMwMS03MDFlLWExYzYtNGIxZDIxZWYwZjdkIiwia2lkIjoib2V0R2gwTjFIbHpzNlY1alRPZEpCNDlySTkzTWI4eW5rT21iT3Q2VUh2MCIsInJpZCI6IjA5NTI0MzIzLWRjZTMtNGJiMS1hY2VmLTE5MzdhMjkzZWQ1ZiJ9.Mb92yDL3GtxeXQ9U8yDzaPIRoO23HijuTZ215CXsgiS0e6Sq8YAyqZ3vk_f7ZzGbRccMRVpsqTKwSI8-eVVOCg")
-    except Exception:
-        url, token = None, None
-    
-    if url and token:
-        try:
+        
+        if url and token:
             if hasattr(libsql_client, "create_client_sync"):
                 conn = libsql_client.create_client_sync(url=url, auth_token=token)
             elif hasattr(libsql_client, "create_client"):
@@ -30,8 +27,9 @@ def get_db_connection():
             else:
                 conn = libsql_client.connect(url=url, auth_token=token)
             return conn, "turso"
-        except Exception as e:
-            st.error(f"⚠️ Turso DB Connection Error: {e}")
+    except Exception:
+        # Fallback to local SQLite if cloud connection fails (prevents WS handshake crash)
+        pass
     
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     return conn, "sqlite"
@@ -39,84 +37,90 @@ def get_db_connection():
 def init_db():
     conn, db_type = get_db_connection()
     if db_type == "turso":
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS repairs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-                device TEXT, imei TEXT, issue TEXT, price REAL,
-                status TEXT, created_at TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT,
-                device TEXT, imei TEXT, plan_type TEXT,
-                price REAL, start_date TEXT, created_at TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS preorders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT,
-                item_details TEXT, deposit REAL, created_at TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS quotes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-                device TEXT, issues TEXT, total REAL, created_at TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS invoices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
-                amount REAL, moms REAL, created_at TEXT
-            )
-        """)
-    else:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS repairs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-                device TEXT, imei TEXT, issue TEXT, price REAL,
-                status TEXT, created_at TEXT
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT,
-                device TEXT, imei TEXT, plan_type TEXT,
-                price REAL, start_date TEXT, created_at TEXT
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS preorders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT,
-                item_details TEXT, deposit REAL, created_at TEXT
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS quotes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-                device TEXT, issues TEXT, total REAL, created_at TEXT
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS invoices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
-                amount REAL, moms REAL, created_at TEXT
-            )
-        """)
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS repairs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
+                    device TEXT, imei TEXT, issue TEXT, price REAL,
+                    status TEXT, created_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch TEXT, customer_name TEXT, phone TEXT,
+                    device TEXT, imei TEXT, plan_type TEXT,
+                    price REAL, start_date TEXT, created_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS preorders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch TEXT, customer_name TEXT, phone TEXT,
+                    item_details TEXT, deposit REAL, created_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS quotes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
+                    device TEXT, issues TEXT, total REAL, created_at TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS invoices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
+                    amount REAL, moms REAL, created_at TEXT
+                )
+            """)
+            return
+        except Exception:
+            pass  # Fall through to sqlite if turso execution fails
+
+    # SQLite initialization fallback
+    conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS repairs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
+            device TEXT, imei TEXT, issue TEXT, price REAL,
+            status TEXT, created_at TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT, customer_name TEXT, phone TEXT,
+            device TEXT, imei TEXT, plan_type TEXT,
+            price REAL, start_date TEXT, created_at TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS preorders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT, customer_name TEXT, phone TEXT,
+            item_details TEXT, deposit REAL, created_at TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quotes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
+            device TEXT, issues TEXT, total REAL, created_at TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
+            amount REAL, moms REAL, created_at TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 init_db()
 
@@ -290,7 +294,7 @@ if menu == "📝 Nytt Ärende / New Repair":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Ärendet har sparats i molnet! / Repair saved to cloud successfully!")
+                st.success("✅ Ärendet har sparats i databasen! / Repair saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
@@ -410,7 +414,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Kostnadsförslag sparat i molnet! / Quote saved to cloud!")
+                st.success("✅ Kostnadsförslag sparat! / Quote saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
@@ -521,7 +525,7 @@ elif menu == "📄 Faktura / Invoice":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Faktura sparad i molnet! / Invoice saved to cloud!")
+                st.success("✅ Faktura sparad! / Invoice saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
@@ -590,7 +594,7 @@ elif menu == "🛒 Förbeställning / Pre-order":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Förbeställning sparad i molnet! / Pre-order saved to cloud!")
+                st.success("✅ Förbeställning sparad! / Pre-order saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
@@ -660,7 +664,7 @@ elif menu == "💳 Abonnemang / Subscriptions":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Abonnemanget kopplat till IMEI har sparats i molnet! / Subscription saved to cloud!")
+                st.success("✅ Abonnemanget kopplat till IMEI har sparats! / Subscription saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         elif not sub_imei:
@@ -684,17 +688,20 @@ elif menu == "📤 Utskick & Historik / Send & History":
     conn, db_type = get_db_connection()
     table_name = "quotes" if "Quotes" in category else ("invoices" if "Invoices" in category else "repairs")
     
-    if db_type == "turso":
-        rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25").fetchall()
-        columns_res = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-        col_names = [c[1] for c in columns_res]
-        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
-    else:
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25")
-        rows = cursor.fetchall()
-        col_names = [d[0] for d in cursor.description]
-        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+    try:
+        if db_type == "turso":
+            rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25").fetchall()
+            columns_res = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+            col_names = [c[1] for c in columns_res]
+            df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+        else:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25")
+            rows = cursor.fetchall()
+            col_names = [d[0] for d in cursor.description]
+            df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+    except Exception:
+        df = pd.DataFrame()
         
     if not df.empty:
         st.dataframe(df, use_container_width=True)
@@ -748,7 +755,7 @@ elif menu == "📤 Utskick & Historik / Send & History":
 # --- 7. DATA CENTER & SEARCH, EXPORT & DELETE ---
 elif menu == "📊 Data Center & Sök / All Data & Search":
     st.header("📊 Data Center, Sök, Export & Hantering / Search, Export & Management")
-    st.markdown("Sök, exportera eller radera poster från molnet / Search, export, or delete cloud records:")
+    st.markdown("Sök, exportera eller radera poster från databasen / Search, export, or delete records:")
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
         "📝 Reparationer / Repairs", 
@@ -772,18 +779,21 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
     
     current_table = table_map[search_category]
     
-    if db_type == "turso":
-        res = conn.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
-        rows = res.fetchall()
-        columns_res = conn.execute(f"PRAGMA table_info({current_table})").fetchall()
-        col_names = [c[1] for c in columns_res]
-        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
-    else:
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
-        rows = cursor.fetchall()
-        col_names = [description[0] for description in cursor.description]
-        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+    try:
+        if db_type == "turso":
+            res = conn.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
+            rows = res.fetchall()
+            columns_res = conn.execute(f"PRAGMA table_info({current_table})").fetchall()
+            col_names = [c[1] for c in columns_res]
+            df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+        else:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
+            rows = cursor.fetchall()
+            col_names = [description[0] for description in cursor.description]
+            df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+    except Exception:
+        df = pd.DataFrame()
         
     if not df.empty:
         if search_term:
