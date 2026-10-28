@@ -11,12 +11,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 
-# --- Turso Cloud Database Connection ---
+# --- Turso Cloud Database Connection (مع قيم احتياطية مباشرة) ---
 import libsql_client
 
 def get_db_connection():
-    url = st.secrets.get("TURSO_DATABASE_URL")
-    token = st.secrets.get("TURSO_AUTH_TOKEN")
+    try:
+        url = st.secrets.get("TURSO_DATABASE_URL", "libsql://30minutesphonefix-saadaffi.aws-eu-north-1.turso.io")
+        token = st.secrets.get("TURSO_AUTH_TOKEN", "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTMxMTYyMjMsImlkIjoiMDFhMTdkODMtNmMwMS03MDFlLWExYzYtNGIxZDIxZWYwZjdkIiwia2lkIjoib2V0R2gwTjFIbHpzNlY1alRPZEpCNDlySTkzTWI4eW5rT21iT3Q2VUh2MCIsInJpZCI6IjA5NTI0MzIzLWRjZTMtNGJiMS1hY2VmLTE5MzdhMjkzZWQ1ZiJ9.Mb92yDL3GtxeXQ9U8yDzaPIRoO23HijuTZ215CXsgiS0e6Sq8YAyqZ3vk_f7ZzGbRccMRVpsqTKwSI8-eVVOCg")
+    except Exception:
+        url, token = None, None
     
     if url and token:
         try:
@@ -112,21 +115,21 @@ def init_db():
 
 init_db()
 
-# --- Email Sender Function (Configured for One.com mailout.one.com:465) ---
+# --- Email Sender Function (مع قيم احتياطية مباشرة لتعمل فوراً) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
-        sender_password = st.secrets.get("EMAIL_PASSWORD", "")
+        sender_password = st.secrets.get("EMAIL_PASSWORD", "Amaryj223355") # قيمة احتياطية مباشرة
         smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
         smtp_port = int(st.secrets.get("SMTP_PORT", 465))
     except Exception:
         sender_email = "info@30minutesphonefix.se"
-        sender_password = ""
+        sender_password = "Amaryj223355"
         smtp_server = "mailout.one.com"
         smtp_port = 465
     
     if not sender_password:
-        st.error("⚠️ E-postlösenord saknas i Streamlit Secrets. / Email password is required in Secrets.")
+        st.error("⚠️ E-postlösenord saknas. / Email password is required.")
         return False
         
     try:
@@ -159,7 +162,7 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
         return False
 
-# --- SMS Sender Function (Using Twilio API) ---
+# --- SMS Sender Function (Twilio) ---
 def send_sms_message(receiver_phone, message_body):
     try:
         account_sid = st.secrets.get("TWILIO_ACCOUNT_SID", "")
@@ -169,7 +172,7 @@ def send_sms_message(receiver_phone, message_body):
         account_sid, auth_token, sender_phone = "", "", ""
     
     if not account_sid or not auth_token or not sender_phone:
-        st.error("⚠️ Twilio SMS credentials missing in Streamlit Secrets.")
+        st.warning("⚠️ Twilio SMS credentials missing in Secrets.")
         return False
         
     try:
@@ -187,12 +190,7 @@ def send_sms_message(receiver_phone, message_body):
 
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
-# كود تشخيصي مؤقت لمعرفة محتويات الـ Secrets
-try:
-    st.write("Current Secrets Keys:", list(st.secrets.keys()))
-    st.write("EMAIL_PASSWORD exists?:", "EMAIL_PASSWORD" in st.secrets)
-except Exception as e:
-    st.error(f"Secrets Error: {e}")
+
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 MINUTES FIX AB",
