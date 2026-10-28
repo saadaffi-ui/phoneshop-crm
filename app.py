@@ -1214,7 +1214,7 @@ elif menu == t["menu_inventory"]:
 # --- 7. DOKUMENT & HISTORIK / PRINT & HISTORY HUB ---
 elif menu == t["menu_history"]:
     st.header(t["history_header"])
-    st.markdown("اختر نوع المستند، ثم اضغط على زر الطباعة بجانب أي عميل لطباعة ملفه فوراً:")
+    st.markdown("ضع علامة صح (✔) بجانب الملف الذي تريد طباعته، ثم اضغط على زر طباعة الملفات المحددة أدناه:")
     
     category = st.selectbox("Välj Kategori / Category", [
         "💡 Kostnadsförslag / Quotes", 
@@ -1246,33 +1246,40 @@ elif menu == t["menu_history"]:
         df = pd.DataFrame()
         
     if not df.empty:
-        st.markdown("### 📋 قائمة المستندات المحفوظة / Saved Documents")
+        st.markdown("### 🗂️ حدد الملفات للطباعة / Check files to print")
         
-        # عرض تفاعلي مع أزرار طباعة مباشرة لكل صف
+        selected_rows_to_print = []
+        
         for idx, row in df.iterrows():
             r_id = row['id']
-            c_name = row.get('customer_name', 'Okänd')
-            c_phone = row.get('phone', '-')
+            c_name = row.get('customer_name', 'عميل غير معروف')
+            c_phone = row.get('phone', 'بدون هاتف')
             date_str = row.get('created_at', '')
             total_val = row.get('total') if 'total' in row else row.get('amount', 0)
+            doc_label = f"📄 #{r_id} | العميل: {c_name} | هاتف: {c_phone} | المبلغ: {total_val} SEK | التاريخ: {date_str}"
             
-            col_info, col_btn = st.columns([5, 2])
-            with col_info:
-                st.markdown(f"**ID: #{r_id}** | 👤 **{c_name}** ({c_phone}) | 💰 **{total_val} SEK** | 📅 `{date_str}`")
-            with col_btn:
-                if st.button(f"🖨️ Skriv ut #{r_id}", key=f"print_hist_{record_type}_{r_id}", type="primary"):
-                    row_data = row.to_dict()
-                    pdf_buf = generate_pdf_from_record(record_type, row_data, COMPANY_INFO)
-                    st.session_state['hub_pdf'] = pdf_buf
-                    st.session_state['hub_pdf_name'] = f"dokument_{r_id}.pdf"
-                    st.rerun()
-            st.markdown("---")
-            
+            # مربع اختيار (Check) بجانب كل ملف
+            if st.checkbox(doc_label, key=f"chk_print_{record_type}_{r_id}"):
+                selected_rows_to_print.append(row.to_dict())
+
+        st.markdown("---")
+        if st.button("🖨️ طباعة الملفات المحددة / Print Selected Files", type="primary"):
+            if selected_rows_to_print:
+                # سنقوم بطباعة أول ملف تم تحديده (أو يمكنك معاينته مباشرة)
+                target_data = selected_rows_to_print[0]
+                pdf_buf = generate_pdf_from_record(record_type, target_data, COMPANY_INFO)
+                st.session_state['hub_pdf'] = pdf_buf
+                st.session_state['hub_pdf_name'] = f"{record_type}_{target_data.get('id')}.pdf"
+                st.success(f"✅ تم تجهيز ملف العميل: {target_data.get('customer_name')} للطباعة!")
+            else:
+                st.warning("⚠️ الرجاء وضع علامة صح (✔) على ملف واحد على الأقل من القائمة أعلاه.")
+
         if 'hub_pdf' in st.session_state:
+            st.markdown("---")
             st.subheader("👁️ معاينة المستند المختار / Selected Document Preview")
             display_pdf_preview(st.session_state['hub_pdf'], file_name=st.session_state.get('hub_pdf_name', 'dokument.pdf'))
     else:
-        st.info("ℹ️ Inga dokument hittades.")
+        st.info("ℹ️ لا توجد ملفات مسجلة في هذه الفئة بعد.")
 
 # --- 8. DATA CENTER & SÖK / ALL DATA & SEARCH ---
 elif menu == t["menu_datacenter"]:
@@ -1335,23 +1342,27 @@ elif menu == t["menu_datacenter"]:
         
         if current_table in ["quotes", "invoices"]:
             st.markdown("---")
-            st.subheader("🖨️ طباعة أو معاينة مباشرة للمستندات / Direct Print & Preview")
+            st.subheader("🖨️ طباعة عبر تحديد المربعات / Print via Checkboxes")
             
             rec_type = "quote" if current_table == "quotes" else "invoice"
+            dc_selected_list = []
+            
             for _, dc_row in filtered_df.iterrows():
                 dc_id = dc_row['id']
-                dc_name = dc_row.get('customer_name', 'Okänd')
+                dc_name = dc_row.get('customer_name', 'عميل غير معروف')
                 dc_total = dc_row.get('total') if 'total' in dc_row else dc_row.get('amount', 0)
+                dc_label = f"📄 مستند #{dc_id} | 👤 {dc_name} | 💰 {dc_total} SEK"
                 
-                c_a, c_b = st.columns([5, 2])
-                with c_a:
-                    st.write(f"ID: #{dc_id} | 👤 {dc_name} | 💰 {dc_total} SEK")
-                with c_b:
-                    if st.button(f"🖨️ طباعة #{dc_id}", key=f"print_dc_{rec_type}_{dc_id}", type="primary"):
-                        buf = generate_pdf_from_record(rec_type, dc_row.to_dict(), COMPANY_INFO)
-                        st.session_state['datacenter_pdf'] = buf
-                        st.rerun()
-                st.markdown("---")
+                if st.checkbox(dc_label, key=f"chk_dc_{rec_type}_{dc_id}"):
+                    dc_selected_list.append(dc_row.to_dict())
+            
+            if st.button("🖨️ طباعة المحدد من مركز البيانات / Print Selected", type="primary", key="btn_dc_print_selected"):
+                if dc_selected_list:
+                    buf = generate_pdf_from_record(rec_type, dc_selected_list[0], COMPANY_INFO)
+                    st.session_state['datacenter_pdf'] = buf
+                    st.rerun()
+                else:
+                    st.warning("⚠️ يرجى تحديد ملف واحد على الأقل.")
 
             if 'datacenter_pdf' in st.session_state:
                 st.markdown("---")
