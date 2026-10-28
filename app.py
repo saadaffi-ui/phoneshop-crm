@@ -210,6 +210,44 @@ except Exception:
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
+# --- Custom CSS Styling for Eye-Friendly Modern Interface ---
+st.markdown("""
+<style>
+    /* Global Background & Font Tuning */
+    .stApp {
+        background-color: #f7f9fa;
+        color: #2c3e50;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e1e8ed;
+    }
+    
+    /* Headers Customization */
+    h1, h2, h3 {
+        color: #1a252f;
+        font-weight: 700;
+    }
+    
+    /* Cards and Containers Styling */
+    div.stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    /* Success / Info Box Soft Styling */
+    div.stAlert {
+        border-radius: 8px;
+        border: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 MINUTES PHONE FIX",
@@ -232,15 +270,15 @@ COMPANY_INFO = {
 TRANSLATIONS = {
     "Svenska": {
         "title": "30 MINUTES PHONE FIX",
-        "menu_dashboard": "📈 Dashboard & Statistik",
-        "menu_repair": "📝 Nytt Ärende / New Repair",
+        "menu_dashboard": "📊 Dashboard & Statistik",
+        "menu_repair": "🛠️ Nytt Ärende / New Repair",
         "menu_quote": "💡 Kostnadsförslag / Quote",
         "menu_invoice": "📄 Faktura / Invoice",
         "menu_preorder": "🛒 Förbeställning / Pre-order",
         "menu_sub": "💳 Abonnemang / Subscriptions",
         "menu_inventory": "📦 Lager & Reservdelar / Inventory",
         "menu_history": "🖨️ Dokument & Historik / Print Hub",
-        "menu_datacenter": "📊 Data Center & Sök / Search & Data",
+        "menu_datacenter": "🔍 Data Center & Sök / Search & Data",
         "branch_select": "Välj Butik / Select Branch",
         "phone": "Telefonnummer / Phone Number",
         "customer_name": "Kundens namn / Customer Name",
@@ -252,26 +290,26 @@ TRANSLATIONS = {
         "issue": "Beskrivning av fel / Issue Description",
         "save_repair": "Spara Ärende / Save Repair",
         "success_repair": "✅ Ärendet har sparats! / Repair saved successfully!",
-        "dash_header": "📈 Dashboard & Statistik",
+        "dash_header": "📊 Dashboard & Statistik",
         "quote_header": "💡 Kostnadsförslag & Vinstberäkning",
         "invoice_header": "📄 Professionell Faktura",
         "preorder_header": "🛒 Förbeställning av reservdelar",
         "sub_header": "💳 IMEI-kopplade Abonnemang & Villkor",
         "inv_header": "📦 Lager & Reservdelar",
         "history_header": "🖨️ Visa och Skriv ut tidigare sparade dokument",
-        "datacenter_header": "📊 Data Center, Sök, Export & Hantering"
+        "datacenter_header": "🔍 Data Center, Sök, Export & Hantering"
     },
     "English": {
         "title": "30 MINUTES PHONE FIX",
-        "menu_dashboard": "📈 Dashboard & Analytics",
-        "menu_repair": "📝 New Repair",
+        "menu_dashboard": "📊 Dashboard & Analytics",
+        "menu_repair": "🛠️ New Repair",
         "menu_quote": "💡 Quote",
         "menu_invoice": "📄 Invoice",
         "menu_preorder": "🛒 Pre-order",
         "menu_sub": "💳 Subscriptions",
         "menu_inventory": "📦 Inventory & Parts",
         "menu_history": "🖨️ Print Hub",
-        "menu_datacenter": "📊 Data Center & Search",
+        "menu_datacenter": "🔍 Data Center & Search",
         "branch_select": "Select Branch",
         "phone": "Phone Number",
         "customer_name": "Customer Name",
@@ -283,26 +321,26 @@ TRANSLATIONS = {
         "issue": "Issue Description",
         "save_repair": "Save Repair",
         "success_repair": "✅ Repair saved successfully!",
-        "dash_header": "📈 Dashboard & Analytics",
+        "dash_header": "📊 Dashboard & Analytics",
         "quote_header": "💡 Price Quotation & Profit",
         "invoice_header": "📄 Professional Invoice",
         "preorder_header": "🛒 Spare Parts Pre-order",
         "sub_header": "💳 IMEI Subscriptions & Terms",
         "inv_header": "📦 Inventory Management",
         "history_header": "🖨️ Print & History Hub",
-        "datacenter_header": "📊 Search & Management"
+        "datacenter_header": "🔍 Search & Management"
     },
     "العربية (Arabic)": {
         "title": "صيانة الهواتف 30 دقيقة",
-        "menu_dashboard": "📈 لوحة المؤشرات والإحصاءات العامة",
-        "menu_repair": "📝 تسجيل إصلاح جديد",
+        "menu_dashboard": "📊 لوحة المؤشرات والإحصاءات العامة",
+        "menu_repair": "🛠️ تسجيل إصلاح جديد",
         "menu_quote": "💡 عرض سعر وحساب الأرباح",
         "menu_invoice": "📄 فاتورة رسمية",
         "menu_preorder": "🛒 طلب مسبق لقطع الغيار",
         "menu_sub": "💳 الاشتراكات وضمان IMEI",
         "menu_inventory": "📦 إدارة المخزون وقطع الغيار",
         "menu_history": "🖨️ مركز الطباعة والأرشيف",
-        "menu_datacenter": "📊 إدارة البيانات والبحث الشامل",
+        "menu_datacenter": "🔍 إدارة البيانات والبحث الشامل",
         "branch_select": "اختر الفرع",
         "phone": "رقم الهاتف",
         "customer_name": "اسم العميل",
@@ -314,18 +352,18 @@ TRANSLATIONS = {
         "issue": "وصف العطل أو الإصلاح المطلوب",
         "save_repair": "حفظ بيانات الإصلاح",
         "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!",
-        "dash_header": "📈 لوحة المؤشرات والإحصاءات العامة",
+        "dash_header": "📊 لوحة المؤشرات والإحصاءات العامة",
         "quote_header": "💡 عرض سعر وحاسبة الأرباح",
         "invoice_header": "📄 الفاتورة الرسمية للمحل",
         "preorder_header": "🛒 طلب مسبق لقطع الغيار",
         "sub_header": "💳 الاشتراكات وضمان IMEI",
         "inv_header": "📦 إدارة المخزون وقطع الغيار",
         "history_header": "🖨️ مركز الطباعة والأرشيف",
-        "datacenter_header": "📊 إدارة البيانات والبحث الشامل"
+        "datacenter_header": "🔍 إدارة البيانات والبحث الشامل"
     }
 }
 
-st.sidebar.title("30 MINUTES PHONE FIX")
+st.sidebar.title("📱 30 Minutes Phone Fix")
 if os.path.exists("logo.png"):
     st.sidebar.image("logo.png", use_container_width=True)
 
@@ -401,7 +439,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     st.markdown("### 👁️ Förhandsgranskning & Utskrift / Preview")
     
     pdf_display = f"""
-    <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="700px" style="border: 1px solid #ccc; border-radius: 5px;">
+    <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="700px" style="border: 1px solid #ccc; border-radius: 8px;">
         <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="700px" />
         <p style="padding: 20px; text-align: center;">Din webbläsare stöder inte direkt inbäddad PDF-visning. Använd knappen ovan för att ladda ner filen.</p>
     </object>
@@ -1398,7 +1436,7 @@ elif menu == t["menu_datacenter"]:
             
         selected_del_label = st.selectbox("اختر البند المراد حذفه / Select to delete", del_options, key="del_select_box")
         
-        if st.button("Radera permanent / Delete Permanently", type="secondary"):
+        .button("Radera permanent / Delete Permanently", type="secondary"):
             if selected_del_label:
                 delete_id = del_dict_map[selected_del_label]
                 try:
