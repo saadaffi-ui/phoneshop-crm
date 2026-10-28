@@ -513,22 +513,23 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "label_sticker":
-        p.setLineWidth(0.5)
-        p.rect(30, height - 140, 250, 110)
+        # --- FIXED & CLEAR LABEL STICKER LAYOUT ---
+        p.setLineWidth(1)
+        p.rect(35, height - 165, 270, 140)
         
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(40, height - 48, f"{comp['name']} - {branch}")
+        p.drawString(45, height - 50, f"{comp['name']}")
         
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(40, height - 65, f"Arende ID: #{data.get('repair_id')}   |   Datum: {data.get('created_at')}")
+        p.drawString(45, height - 70, f"Arende ID: #{data.get('repair_id')}   |   Datum: {data.get('created_at')}")
         
         p.setFont("Helvetica", 9)
-        p.drawString(40, height - 80, f"Kund / Customer: {data.get('customer_name')}")
-        p.drawString(40, height - 95, f"Enhet / Device: {data.get('device')}")
-        p.drawString(40, height - 110, f"IMEI: {data.get('imei', '---')}")
+        p.drawString(45, height - 90, f"Kund / Customer: {data.get('customer_name')}")
+        p.drawString(45, height - 108, f"Enhet / Device: {data.get('device')}")
+        p.drawString(45, height - 126, f"IMEI: {data.get('imei', '---')}")
         
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(40, height - 125, f"Tel: {data.get('phone')}   |   Pris: {data.get('price')} SEK")
+        p.drawString(45, height - 146, f"Tel: {data.get('phone')}   |   Pris: {data.get('price')} SEK")
 
     elif record_type == "quote":
         p.setFont("Helvetica-Bold", 12)
