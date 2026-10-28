@@ -11,7 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 
-# --- الاتصال بقاعدة البيانات السحابية Turso / Turso Cloud Database Connection ---
+# --- Turso Cloud Database Connection ---
 import libsql_client
 
 def get_db_connection():
@@ -112,12 +112,18 @@ def init_db():
 
 init_db()
 
-# --- دالة إرسال البريد الإلكتروني / Email Sender Function (mailout.one.com:465) ---
+# --- Email Sender Function (Configured for One.com mailout.one.com:465) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
-    sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
-    sender_password = st.secrets.get("EMAIL_PASSWORD")
-    smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
-    smtp_port = int(st.secrets.get("SMTP_PORT", 465))
+    try:
+        sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
+        sender_password = st.secrets.get("EMAIL_PASSWORD", "")
+        smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
+        smtp_port = int(st.secrets.get("SMTP_PORT", 465))
+    except Exception:
+        sender_email = "info@30minutesphonefix.se"
+        sender_password = ""
+        smtp_server = "mailout.one.com"
+        smtp_port = 465
     
     if not sender_password:
         st.error("⚠️ E-postlösenord saknas i Streamlit Secrets. / Email password is required in Secrets.")
@@ -153,11 +159,14 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
         return False
 
-# --- دالة إرسال الرسائل النصية القصيرة / SMS Sender Function (Twilio) ---
+# --- SMS Sender Function (Using Twilio API) ---
 def send_sms_message(receiver_phone, message_body):
-    account_sid = st.secrets.get("TWILIO_ACCOUNT_SID")
-    auth_token = st.secrets.get("TWILIO_AUTH_TOKEN")
-    sender_phone = st.secrets.get("TWILIO_PHONE_NUMBER")
+    try:
+        account_sid = st.secrets.get("TWILIO_ACCOUNT_SID", "")
+        auth_token = st.secrets.get("TWILIO_AUTH_TOKEN", "")
+        sender_phone = st.secrets.get("TWILIO_PHONE_NUMBER", "")
+    except Exception:
+        account_sid, auth_token, sender_phone = "", "", ""
     
     if not account_sid or not auth_token or not sender_phone:
         st.error("⚠️ Twilio SMS credentials missing in Streamlit Secrets.")
@@ -176,7 +185,7 @@ def send_sms_message(receiver_phone, message_body):
         st.error(f"❌ Fel vid SMS-utskick / SMS error: {e}")
         return False
 
-# إعدادات الصفحة وواجهة الجوال / Page Configuration & Mobile UI Setup
+# Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
 COMPANY_INFO = {
@@ -202,13 +211,18 @@ st.sidebar.title("30 MINUTES FIX AB")
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
-# حالة تسجيل الدخول / Persistent Session Login State
+# Persistent Session Login State
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
 if not st.session_state['authenticated']:
+    try:
+        default_pin = st.secrets.get("DELETE_PIN", "tunapark")
+    except Exception:
+        default_pin = "tunapark"
+        
     sidebar_pin = st.sidebar.text_input("🔑 System Login / Inloggning", type="password")
-    if sidebar_pin == st.secrets.get("DELETE_PIN", "tunapark"):
+    if sidebar_pin == default_pin:
         st.session_state['authenticated'] = True
         st.sidebar.success("✅ System Unlocked / Systemet upplåst")
         st.rerun()
@@ -235,7 +249,7 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📊 Data Center & Sök / All Data & Search"
 ])
 
-# --- 1. تسجيل طلب إصلاح جديد / NYTT ÄRENDE / NEW REPAIR ---
+# --- 1. NYTT ÄRENDE / NEW REPAIR ---
 if menu == "📝 Nytt Ärende / New Repair":
     st.header("📝 Registrera nytt ärende / Register New Repair")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
@@ -274,7 +288,7 @@ if menu == "📝 Nytt Ärende / New Repair":
         else:
             st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
 
-# --- 2. عرض السعر / KOSTNADSFÖRSLAG / QUOTE ---
+# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Kostnadsförslag / Price Quotation")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
@@ -437,7 +451,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             else:
                 st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
 
-# --- 3. الفاتورة / FAKTURA / INVOICE ---
+# --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
     st.header("📄 Professionell Faktura / Professional Invoice")
     branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
@@ -541,7 +555,7 @@ elif menu == "📄 Faktura / Invoice":
             else:
                 st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
 
-# --- 4. الطلب المسبق / FÖRBESTÄLLNING / PRE-ORDER ---
+# --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
     st.header("🛒 Förbeställning av reservdelar / Spare Parts Pre-order")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
@@ -574,7 +588,7 @@ elif menu == "🛒 Förbeställning / Pre-order":
         else:
             st.warning("⚠️ Fyll i namn och telefonnummer. / Fill name and phone number.")
 
-# --- 5. الاشتراكات / ABONNEMANG / SUBSCRIPTIONS ---
+# --- 5. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == "💳 Abonnemang / Subscriptions":
     st.header("💳 IMEI-kopplade Abonnemang & Villkor / IMEI Subscriptions & Terms")
     
@@ -648,7 +662,7 @@ elif menu == "💳 Abonnemang / Subscriptions":
         else:
             st.warning("⚠️ Fyll i kundens namn. / Enter customer name.")
 
-# --- 6. الإرسال والمتابعة / UTSKICK & HISTORIK / SEND & HISTORY HUB ---
+# --- 6. UTSKICK & HISTORIK / SEND & HISTORY HUB ---
 elif menu == "📤 Utskick & Historik / Send & History":
     st.header("📤 Skicka tidigare sparade dokument eller SMS")
     st.markdown("Välj kategori nedan för att hämta tidigare sparade poster från databasen och skicka till kund via e-post eller SMS:")
@@ -712,7 +726,7 @@ elif menu == "📤 Utskick & Historik / Send & History":
             with col_s2:
                 if st.button("📱 Skicka via SMS"):
                     if input_phone:
-                        sms_text = f"Hej {c_name}! Tack for ditt besök hos 30 Minutes Fix AB. Har du frågor? Ring oss på 0700122444."
+                        sms_text = f"Hej {c_name}! Tack för ditt besök hos 30 Minutes Fix AB. Har du frågor? Ring oss på 0700122444."
                         success = send_sms_message(input_phone, sms_text)
                         if success:
                             st.success(f"✅ SMS skickat till {input_phone}!")
@@ -723,7 +737,7 @@ elif menu == "📤 Utskick & Historik / Send & History":
     else:
         st.info("ℹ️ Ingen data hittades i denna tabell.")
 
-# --- 7. مركز البيانات والبحث / DATA CENTER & SEARCH, EXPORT & DELETE ---
+# --- 7. DATA CENTER & SEARCH, EXPORT & DELETE ---
 elif menu == "📊 Data Center & Sök / All Data & Search":
     st.header("📊 Data Center, Sök, Export & Hantering / Search, Export & Management")
     st.markdown("Sök, exportera eller radera poster från molnet / Search, export, or delete cloud records:")
