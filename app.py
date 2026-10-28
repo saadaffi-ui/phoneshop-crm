@@ -187,17 +187,20 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📊 Data Center & Sök / All Data & Search"
 ])
 
-# Hjälpfunktion för att visa PDF direkt i webbläsaren (Förhandsgranskning & Utskrift)
+# Robust hjälpfunktion för förhandsgranskning och utskrift via object/embed
 def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     base64_pdf = base64.b64encode(pdf_buffer.read()).decode('utf-8')
     
     pdf_display = f"""
-    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-        <a href="data:application/pdf;base64,{base64_pdf}" download="{file_name}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold;">📥 Ladda ner PDF / Save PDF</a>
-        <button onclick="var iframe = document.getElementById('pdf-frame'); iframe.contentWindow.print();" style="background-color: #008CBA; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🖨️ Skriv ut / Print PDF</button>
+    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+        <a href="data:application/pdf;base64,{base64_pdf}" download="{file_name}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 16px;">📥 Ladda ner PDF / Save PDF</a>
+        <a href="data:application/pdf;base64,{base64_pdf}" target="_blank" style="background-color: #008CBA; color: white; padding: 12px 24px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 16px;">🖨️ Öppna & Skriv ut / Print PDF</a>
     </div>
-    <iframe id="pdf-frame" src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700px" style="border: 1px solid #ccc; border-radius: 5px;"></iframe>
+    <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="750px" style="border: 1px solid #ccc; border-radius: 6px;">
+        <embed src="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="750px" />
+        <p>Din webbläsare stöder inte inbäddad PDF-visning. Använd knappen ovan för att ladda ner eller skriva ut dokumentet.</p>
+    </object>
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
