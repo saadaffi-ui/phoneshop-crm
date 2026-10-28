@@ -145,7 +145,7 @@ COMPANY_INFO = {
 # --- Sidebar Branding with Logo ---
 st.sidebar.title("30 MINUTES PHONE FIX")
 if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True)
+    st.sidebar.image("logo.png", use_container_width=True)[cite: 1]
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
@@ -208,7 +208,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
     
     if os.path.exists("logo.png"):
         try:
-            p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
+            p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')[cite: 1]
         except Exception:
             pass
             
@@ -429,7 +429,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             
             if os.path.exists("logo.png"):
                 try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')[cite: 1]
                 except Exception:
                     pass
             
@@ -543,7 +543,7 @@ elif menu == "📄 Faktura / Invoice":
             
             if os.path.exists("logo.png"):
                 try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')[cite: 1]
                 except Exception:
                     pass
             
@@ -747,6 +747,7 @@ elif menu == "🖨️ Dokument & Historik / Print & History Hub":
                 pdf_buf = generate_pdf_from_record(record_type, row_data, COMPANY_INFO)
                 st.session_state['hub_pdf'] = pdf_buf
                 st.session_state['hub_pdf_name'] = f"dokument_{selected_id}.pdf"
+                st.rerun()
                 
             if 'hub_pdf' in st.session_state:
                 st.markdown("---")
@@ -763,7 +764,7 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
         "📝 Reparationer / Repairs", 
-        "💳 Abonnemang / subscriptions", 
+        "💳 Abonnemang / Subscriptions", 
         "🛒 Förbeställningar / Pre-orders", 
         "💡 Kostnadsförslag / Quotes", 
         "📄 Fakturor / Invoices"
@@ -775,7 +776,7 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
     
     table_map = {
         "📝 Reparationer / Repairs": "repairs",
-        "💳 Abonnemang / subscriptions": "subscriptions",
+        "💳 Abonnemang / Subscriptions": "subscriptions",
         "🛒 Förbeställningar / Pre-orders": "preorders",
         "💡 Kostnadsförslag / Quotes": "quotes",
         "📄 Fakturor / Invoices": "invoices"
@@ -813,21 +814,25 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
             
         st.dataframe(filtered_df, use_container_width=True)
         
-        # Om det är Kostnadsförslag eller Fakturor ger vi möjlighet att direkt förhandsgranska/skriva ut direkt härifrån också!
+        # Om det är Kostnadsförslag eller Fakturor kan man förhandsgranska/skriva ut direkt härifrån
         if current_table in ["quotes", "invoices"]:
             st.markdown("---")
             st.subheader("👁️ Visa och Skriv ut sparad post direkt / View & Print Record")
             doc_id = st.number_input("Ange ID för dokument som ska visas/skrivas ut", min_value=0, step=1, key="doc_view_id")
+            
             if doc_id > 0:
                 match_row = df[df['id'] == doc_id]
                 if not match_row.empty:
                     row_dict = match_row.iloc[0].to_dict()
                     rec_type = "quote" if current_table == "quotes" else "invoice"
+                    
                     if st.button("🖨️ Generera förhandsgranskning för ID", type="primary"):
                         buf = generate_pdf_from_record(rec_type, row_dict, COMPANY_INFO)
                         st.session_state['datacenter_pdf'] = buf
-                        
+                        st.rerun()
+
             if 'datacenter_pdf' in st.session_state:
+                st.markdown("---")
                 display_pdf_preview(st.session_state['datacenter_pdf'], file_name="arkiv_dokument.pdf")
 
         st.markdown("---")
