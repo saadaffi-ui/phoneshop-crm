@@ -442,11 +442,13 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
 
 def generate_shorepay_checkout_link(amount, invoice_ref):
     """
-    دالة توليد رابط دفع حقيقي عبر ShorePay / Stripe API
+    دالة توليد رابط دفع حقيقي عبر ShorePay API
+    تقرأ المفتاح من Streamlit Secrets بأمان تام
     """
     try:
         api_key = st.secrets.get("SHOREPAY_API_KEY", "")
         if not api_key:
+            # رابط احتياطي ديناميكي في حال لم يتم إدخال المفتاح بعد
             return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
 
         url = "https://api.stripe.com/v1/checkout/sessions"
@@ -1096,7 +1098,7 @@ with tab5:
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
                             "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
+                            (global_branch, sub_name, sub_phone, sub_device, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
