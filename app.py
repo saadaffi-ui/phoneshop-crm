@@ -39,7 +39,7 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
                     device TEXT, imei TEXT, issue TEXT, price REAL,
-                    status TEXT, created_at TEXT
+                    status TEXT, employee TEXT, created_at TEXT
                 )
             """)
             conn.execute("""
@@ -47,28 +47,28 @@ def init_db():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     branch TEXT, customer_name TEXT, phone TEXT,
                     device TEXT, imei TEXT, plan_type TEXT,
-                    price REAL, start_date TEXT, created_at TEXT
+                    price REAL, employee TEXT, start_date TEXT, created_at TEXT
                 )
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS preorders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     branch TEXT, customer_name TEXT, phone TEXT,
-                    item_details TEXT, deposit REAL, created_at TEXT
+                    item_details TEXT, deposit REAL, employee TEXT, created_at TEXT
                 )
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS quotes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-                    device TEXT, issues TEXT, total REAL, profit REAL, created_at TEXT
+                    device TEXT, issues TEXT, total REAL, profit REAL, employee TEXT, created_at TEXT
                 )
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     branch TEXT, customer_name TEXT, phone TEXT, invoice_no TEXT,
-                    amount REAL, moms REAL, created_at TEXT
+                    amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
                 )
             """)
             conn.execute("""
@@ -81,7 +81,6 @@ def init_db():
         except Exception:
             pass
 
-    # SQLite initialization fallback & migration
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("""
@@ -89,7 +88,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
             device TEXT, imei TEXT, issue TEXT, price REAL,
-            status TEXT, created_at TEXT
+            status TEXT, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
@@ -97,28 +96,28 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT,
             device TEXT, imei TEXT, plan_type TEXT,
-            price REAL, start_date TEXT, created_at TEXT
+            price REAL, employee TEXT, start_date TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS preorders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT,
-            item_details TEXT, deposit REAL, created_at TEXT
+            item_details TEXT, deposit REAL, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS quotes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-            device TEXT, issues TEXT, total REAL, profit REAL, created_at TEXT
+            device TEXT, issues TEXT, total REAL, profit REAL, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, invoice_no TEXT,
-            amount REAL, moms REAL, created_at TEXT
+            amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
@@ -170,10 +169,11 @@ TRANSLATIONS = {
         "branch_select": "Välj Butik / Select Branch",
         "phone": "Telefonnummer / Phone Number",
         "customer_name": "Kundens namn / Customer Name",
+        "employee": "Handläggare / Säljare (Employee Name)",
         "email": "E-post / Email (Valfritt / Optional)",
         "device": "Enhet / Modell / Device Model",
         "imei": "IMEI / Serienummer / IMEI / Serial Number",
-        "price": "Pris (Kr) / Price",
+        "price": "Pris / Price",
         "issue": "Beskrivning av fel / Issue Description",
         "save_repair": "Spara Ärende / Save Repair",
         "success_repair": "✅ Ärendet har sparats! / Repair saved successfully!",
@@ -200,10 +200,11 @@ TRANSLATIONS = {
         "branch_select": "Select Branch",
         "phone": "Phone Number",
         "customer_name": "Customer Name",
+        "employee": "Employee Name",
         "email": "Email (Optional)",
         "device": "Device Model",
         "imei": "IMEI / Serial Number",
-        "price": "Price (SEK)",
+        "price": "Price",
         "issue": "Issue Description",
         "save_repair": "Save Repair",
         "success_repair": "✅ Repair saved successfully!",
@@ -230,10 +231,11 @@ TRANSLATIONS = {
         "branch_select": "اختر الفرع",
         "phone": "رقم الهاتف",
         "customer_name": "اسم العميل",
+        "employee": "اسم الموظف المسؤول (Employee Name)",
         "email": "البريد الإلكتروني (اختياري)",
         "device": "نوع وطراز الجهاز",
         "imei": "رقم الـ IMEI أو الرقم التسلسلي",
-        "price": "السعر (كرونا سويدية)",
+        "price": "السعر",
         "issue": "وصف العطل أو الإصلاح المطلوب",
         "save_repair": "حفظ بيانات الإصلاح",
         "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!",
@@ -259,7 +261,7 @@ t = TRANSLATIONS[lang_choice]
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
-# Persistent Session Login State with "Remember Me" Support
+# Persistent Session Login State
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -281,7 +283,6 @@ if not st.session_state['authenticated']:
     elif sidebar_pin:
         st.sidebar.error("❌ Fel PIN-kod / Incorrect PIN")
 
-# Check persistent session memory
 if not st.session_state.get('authenticated') and st.session_state.get('remember_me'):
     st.session_state['authenticated'] = True
 
@@ -335,47 +336,114 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Generera PDF på nytt för sparade objekt (Alltid tvåspråkig på Svenska & English)
+# --- Professional PDF Generation Engine (Multi-Currency & Moms Support) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
     
+    branch = data.get('branch', 'Eskilstuna')
+    comp = comp_info.get(branch, comp_info['Eskilstuna'])
+    employee_name = data.get('employee', 'Ej angiven / Not specified')
+    currency = data.get('currency', 'SEK')
+    moms_rate_str = data.get('moms_rate', '25%')
+
+    # Professional Header & Logo
     if os.path.exists("logo.png"):
         try:
-            p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore
+            p.drawImage("logo.png", 50, height - 70, width=90, height=45, preserveAspectRatio=True, mask='auto') # type: ignore
         except Exception:
             pass
             
-    branch = data.get('branch', 'Eskilstuna')
-    comp = comp_info.get(branch, comp_info['Eskilstuna'])
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(150, height - 40, comp["name"])
+    
+    p.setFont("Helvetica", 9)
+    p.drawString(150, height - 55, f"Adress / Address: {comp['address']}")
+    p.drawString(150, height - 70, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+    
+    # Divider Line
+    p.setLineWidth(1)
+    p.line(50, height - 85, width - 50, height - 85)
 
     if record_type == "quote":
-        p.drawString(140, 780, comp["name"])
-        p.drawString(140, 765, f"Adress / Address: {comp['address']} | Tel: {comp['phone']}")
-        p.drawString(140, 750, f"Org.nr: {comp['org_nr']}")
-        p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
-        p.drawString(50, 715, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
-        p.drawString(50, 695, f"Datum / Date: {data.get('created_at', '')}")
-        p.drawString(50, 675, f"Kund / Customer: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
-        p.drawString(50, 655, f"Enhet / Device: {data.get('device', '')}")
-        p.drawString(50, 635, "------------------------------------------------------------------------------------------------")
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(50, height - 110, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
         
-        p.drawString(70, 605, f"- {data.get('issues', '')}")
-        p.drawString(50, 570, f"TOTAL SUMMA / TOTAL: {data.get('total', 0):.2f} Kr (inkl. moms / incl. VAT)")
-        p.drawString(50, 540, "* Detta kostnadsförslag gäller endast i vår verkstad / Valid only in our workshop.")
+        p.setFont("Helvetica", 10)
+        p.drawString(50, height - 135, f"Datum / Date: {data.get('created_at', '')}")
+        p.drawString(300, height - 135, f"Handläggare / Employee: {employee_name}")
+        p.drawString(50, height - 155, f"Kund / Customer: {data.get('customer_name', '')}")
+        p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
+        p.drawString(300, height - 155, f"Enhet / Device: {data.get('device', '')}")
+        
+        # Table Header Box
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(50, height - 215, width - 100, 20, fill=1, stroke=0)
+        p.setFillColorRGB(0, 0, 0)
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(60, height - 208, "Beskrivning av reparation / Repair Description")
+        p.drawString(400, height - 208, f"Belopp / Amount ({currency})")
+        
+        # Items Row
+        p.setFont("Helvetica", 10)
+        y_pos = height - 245
+        issues_text = data.get('issues', '')
+        p.drawString(60, y_pos, f"- {issues_text}")
+        
+        total_val = data.get('total', 0)
+        p.drawString(400, y_pos, f"{total_val:.2f} {currency}")
+        
+        # Totals Section
+        p.line(50, height - 320, width - 50, height - 320)
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(300, height - 345, f"Att betala / Total: {total_val:.2f} {currency}")
+        p.setFont("Helvetica", 8)
+        p.drawString(300, height - 360, f"(Inkl. moms / Incl. VAT)")
+        
+        p.setFont("Helvetica-Oblique", 8)
+        p.drawString(50, height - 420, "* Detta kostnadsförslag är giltigt i 30 dagar från utfärdandedatumet.")
+        p.drawString(50, 40, f"Betalning via Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     elif record_type == "invoice":
-        p.drawString(140, 780, comp["name"])
-        p.drawString(140, 765, f"Adress / Address: {comp['address']}")
-        p.drawString(140, 750, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
-        p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
-        p.drawString(50, 715, "FAKTURA / INVOICE")
-        p.drawString(50, 695, f"Fakturanr / Invoice No: {data.get('invoice_no', '')} | Datum / Date: {data.get('created_at', '')}")
-        p.drawString(50, 675, f"Kund / Customer: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
-        p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
-        p.drawString(50, 625, f"Att betala Totalt / Total Amount: {data.get('amount', 0):.2f} Kr (inkl. moms / incl. VAT)")
-        p.drawString(50, 595, f"Moms / VAT (25%): {data.get('moms', 0):.2f} Kr")
-        p.drawString(50, 555, f"Betalning via Swish: {comp['swish']} eller Bankgiro / Bankgiro: {comp['bankgiro']}")
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(50, height - 110, "FAKTURA / INVOICE")
+        
+        p.setFont("Helvetica", 10)
+        p.drawString(50, height - 135, f"Fakturanr / Invoice No: {data.get('invoice_no', '')}")
+        p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
+        p.drawString(50, height - 155, f"Kund / Customer: {data.get('customer_name', '')}")
+        p.drawString(300, height - 155, f"Handläggare / Employee: {employee_name}")
+        p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
+        
+        # Table Header Box
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(50, height - 215, width - 100, 20, fill=1, stroke=0)
+        p.setFillColorRGB(0, 0, 0)
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(60, height - 208, "Beskrivning / Description")
+        p.drawString(400, height - 208, f"Belopp / Amount ({currency})")
+        
+        y_pos = height - 245
+        amount_val = data.get('amount', 0)
+        moms_val = data.get('moms', 0)
+        netto_val = amount_val - moms_val
+        
+        p.setFont("Helvetica", 10)
+        p.drawString(60, y_pos, "Reparation och reservdelar / Repair & Spare Parts")
+        p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
+        
+        # Totals Section
+        p.line(50, height - 320, width - 50, height - 320)
+        p.setFont("Helvetica", 9)
+        p.drawString(300, height - 340, f"Netto / Net: {netto_val:.2f} {currency}")
+        p.drawString(300, height - 360, f"Moms / VAT ({moms_rate_str}): {moms_val:.2f} {currency}")
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(300, height - 385, f"Att betala / Total: {amount_val:.2f} {currency}")
+        
+        p.setFont("Helvetica", 9)
+        p.drawString(50, 60, f"Betalning sker via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 40, f"Företaget är godkänt för F-skatt | Org.nr: {comp['org_nr']}")
 
     p.showPage()
     p.save()
@@ -393,7 +461,6 @@ if menu == t["menu_dashboard"]:
             rep_count = conn.execute("SELECT COUNT(*) FROM repairs").fetchone()[0]
             quote_count = conn.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
             inv_count = conn.execute("SELECT COUNT(*) FROM invoices").fetchone()[0]
-            total_rev = conn.execute("SELECT SUM(amount) FROM invoices").fetchone()[0] or 0.0
             total_prof = conn.execute("SELECT SUM(profit) FROM quotes").fetchone()[0] or 0.0
         else:
             cursor = conn.cursor()
@@ -403,12 +470,10 @@ if menu == t["menu_dashboard"]:
             quote_count = cursor.fetchone()[0]
             cursor.execute("SELECT COUNT(*) FROM invoices")
             inv_count = cursor.fetchone()[0]
-            cursor.execute("SELECT SUM(amount) FROM invoices")
-            total_rev = cursor.fetchone()[0] or 0.0
             cursor.execute("SELECT SUM(profit) FROM quotes")
             total_prof = cursor.fetchone()[0] or 0.0
     except Exception:
-        rep_count, quote_count, inv_count, total_rev, total_prof = 0, 0, 0, 0.0, 0.0
+        rep_count, quote_count, inv_count, total_prof = 0, 0, 0, 0.0
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("📝 إجمالي الإصلاحات / Repairs", rep_count)
@@ -421,17 +486,17 @@ if menu == t["menu_dashboard"]:
     
     try:
         if db_type == "turso":
-            active_repairs = conn.execute("SELECT id, customer_name, device, status FROM repairs ORDER BY id DESC LIMIT 10").fetchall()
+            active_repairs = conn.execute("SELECT id, customer_name, device, status, employee FROM repairs ORDER BY id DESC LIMIT 10").fetchall()
         else:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, customer_name, device, status FROM repairs ORDER BY id DESC LIMIT 10")
+            cursor.execute("SELECT id, customer_name, device, status, employee FROM repairs ORDER BY id DESC LIMIT 10")
             active_repairs = cursor.fetchall()
             
         if active_repairs:
             for rep in active_repairs:
-                r_id, r_cust, r_dev, r_status = rep
+                r_id, r_cust, r_dev, r_status, r_emp = rep
                 col_a, col_b, col_c = st.columns([3, 3, 2])
-                col_a.write(f"**ID: {r_id}** | {r_cust} ({r_dev})")
+                col_a.write(f"**ID: {r_id}** | {r_cust} ({r_dev}) [الموظف: {r_emp or '-'}]")
                 col_b.write(f"الحالة الحالية: `{r_status}`")
                 new_st = col_c.selectbox(f"تحديث #{r_id}", ["Under behandling / In Progress", "Väntar på reservdel / Waiting Part", "Klar att hämta / Ready", "Avslutad / Completed"], key=f"st_{r_id}")
                 if col_c.button("تحديث / Save", key=f"btn_st_{r_id}"):
@@ -453,6 +518,7 @@ elif menu == t["menu_repair"]:
     st.header(t["menu_repair"])
     branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
     
+    employee_name = st.text_input(t["employee"])
     c_phone = st.text_input(t["phone"])
     
     auto_name, auto_email = "", ""
@@ -507,7 +573,7 @@ elif menu == t["menu_repair"]:
     issue = st.text_area(t["issue"], value=combined_template_str)
     
     if st.button(t["save_repair"], type="primary"):
-        if c_name and c_phone and device:
+        if c_name and c_phone and device and employee_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             status = "Under behandling / In Progress"
@@ -516,23 +582,23 @@ elif menu == t["menu_repair"]:
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
+                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
+                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
+                        "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -540,7 +606,7 @@ elif menu == t["menu_repair"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
-            st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / يرجى تعبئة الحقول الأساسية.")
+            st.warning("⚠️ يرجى تعبئة الحقول الأساسية بما فيها اسم الموظف. / Please fill required fields including Employee name.")
 
 # --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == t["menu_quote"]:
@@ -548,6 +614,7 @@ elif menu == t["menu_quote"]:
     branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
+    employee_name = st.text_input(t["employee"])
     c_name = st.text_input(t["customer_name"])
     c_phone = st.text_input(t["phone"])
     device = st.text_input(t["device"])
@@ -564,69 +631,69 @@ elif menu == t["menu_quote"]:
     with col_q1:
         has_screen = st.checkbox("📱 Skärmbyte / Damaged Screen", key="chk_scr")
         if has_screen:
-            p_screen = st.number_input("Pris: Skärmbyte (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_scr")
-            c_screen = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_scr")
-            issues_list.append(f"Skärmbyte / Screen: {p_screen} Kr")
+            p_screen = st.number_input("Pris: Skärmbyte", min_value=0.0, step=50.0, value=0.0, key="p_scr")
+            c_screen = st.number_input("Inköpskostnad del / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_scr")
+            issues_list.append(f"Skärmbyte / Screen: {p_screen}")
             total_price += p_screen
             total_cost += c_screen
 
         has_battery = st.checkbox("🔋 Batteribyte / Battery Replacement", key="chk_bat")
         if has_battery:
-            p_bat = st.number_input("Pris: Batteri (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bat")
-            c_bat = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_bat")
-            issues_list.append(f"Batteribyte / Battery: {p_bat} Kr")
+            p_bat = st.number_input("Pris: Batteri", min_value=0.0, step=50.0, value=0.0, key="p_bat")
+            c_bat = st.number_input("Inköpskostnad del / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_bat")
+            issues_list.append(f"Batteribyte / Battery: {p_bat}")
             total_price += p_bat
             total_cost += c_bat
 
         has_backglass = st.checkbox("🪟 Baksida kraschad / Back Glass Damaged", key="chk_bg")
         if has_backglass:
-            p_bg = st.number_input("Pris: Baksida (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bg")
-            c_bg = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_bg")
-            issues_list.append(f"Baksida kraschad / Back Glass: {p_bg} Kr")
+            p_bg = st.number_input("Pris: Baksida", min_value=0.0, step=50.0, value=0.0, key="p_bg")
+            c_bg = st.number_input("Inköpskostnad del / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_bg")
+            issues_list.append(f"Baksida kraschad / Back Glass: {p_bg}")
             total_price += p_bg
             total_cost += c_bg
 
     with col_q2:
         has_charging = st.checkbox("🔌 Laddport / Charging Port", key="chk_chg")
         if has_charging:
-            p_chg = st.number_input("Pris: Laddport (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_chg")
-            c_chg = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_chg")
-            issues_list.append(f"Laddport / Charging Port: {p_chg} Kr")
+            p_chg = st.number_input("Pris: Laddport", min_value=0.0, step=50.0, value=0.0, key="p_chg")
+            c_chg = st.number_input("Inköpskostnad del / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_chg")
+            issues_list.append(f"Laddport / Charging Port: {p_chg}")
             total_price += p_chg
             total_cost += c_chg
 
         has_water = st.checkbox("💧 Vattenskada / Water Damage", key="chk_wat")
         if has_water:
-            p_wat = st.number_input("Pris: Vattenskada (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_wat")
-            c_wat = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_wat")
-            issues_list.append(f"Vattenskada / Water Damage: {p_wat} Kr")
+            p_wat = st.number_input("Pris: Vattenskada", min_value=0.0, step=50.0, value=0.0, key="p_wat")
+            c_wat = st.number_input("Inköpskostnad del / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_wat")
+            issues_list.append(f"Vattenskada / Water Damage: {p_wat}")
             total_price += p_wat
             total_cost += c_wat
 
         has_cam = st.checkbox("📷 Kamera / Camera Repair", key="chk_cam")
         if has_cam:
-            p_cam = st.number_input("Pris: Kamera (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cam")
-            c_cam = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_cam")
-            issues_list.append(f"Kamera / Camera: {p_cam} Kr")
+            p_cam = st.number_input("Pris: Kamera", min_value=0.0, step=50.0, value=0.0, key="p_cam")
+            c_cam = st.number_input("Inköpskostnad del / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_cam")
+            issues_list.append(f"Kamera / Camera: {p_cam}")
             total_price += p_cam
             total_cost += c_cam
 
     custom_issue = st.text_input("Övrigt fel / Custom Issue (إضافات أخرى مخصصة)")
     if custom_issue:
-        p_cust = st.number_input("Pris för övrigt (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cust")
-        c_cust = st.number_input("Inköpskostnad del (Kr)", min_value=0.0, step=10.0, value=0.0, key="c_cust")
-        issues_list.append(f"{custom_issue}: {p_cust} Kr")
+        p_cust = st.number_input("Pris för övrigt", min_value=0.0, step=50.0, value=0.0, key="p_cust")
+        c_cust = st.number_input("Inköpskostnad del", min_value=0.0, step=10.0, value=0.0, key="c_cust")
+        issues_list.append(f"{custom_issue}: {p_cust}")
         total_price += p_cust
         total_cost += c_cust
 
     net_profit = total_price - total_cost
 
     st.markdown("---")
-    st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms / incl. VAT)**")
-    st.markdown(f"📈 **Beräknad Vinst / Estimated Profit: {net_profit:.2f} Kr** *(Inköpskostnad / Cost: {total_cost:.2f} Kr)*")
+    st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} SEK (inkl. moms / incl. VAT)**")
+    st.markdown(f"📈 **Beräknad Vinst / Estimated Profit: {net_profit:.2f} SEK** *(Inköpskostnad / Cost: {total_cost:.2f} SEK)*")
 
     if st.button("Spara & Generera Kostnadsförslag PDF / Save Quote PDF", type="primary"):
-        if c_name and device and issues_list:
+        if c_name and device and issues_list and employee_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             issues_str = ", ".join(issues_list)
@@ -635,23 +702,23 @@ elif menu == t["menu_quote"]:
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, "", device, issues_str, total_price, net_profit, created_at)
+                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, "", device, issues_str, total_price, net_profit, employee_name, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, "", device, issues_str, total_price, net_profit, created_at)
+                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, "", device, issues_str, total_price, net_profit, employee_name, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, "", device, issues_str, total_price, net_profit, created_at)
+                        "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, c_name, c_phone, "", device, issues_str, total_price, net_profit, employee_name, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -659,39 +726,19 @@ elif menu == t["menu_quote"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
-            buffer = io.BytesIO()
-            p = canvas.Canvas(buffer, pagesize=A4)
-            
-            if os.path.exists("logo.png"):
-                try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore
-                except Exception:
-                    pass
-            
-            p.drawString(140, 780, comp["name"])
-            p.drawString(140, 765, f"Adress / Address: {comp['address']} | Tel: {comp['phone']}")
-            p.drawString(140, 750, f"Org.nr: {comp['org_nr']}")
-            p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
-            p.drawString(50, 715, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
-            p.drawString(50, 695, f"Datum / Date: {date.today().strftime('%Y-%m-%d')}")
-            p.drawString(50, 675, f"Kund / Customer: {c_name} | Tel: {c_phone}")
-            p.drawString(50, 655, f"Enhet / Device: {device} | IMEI/Serial: {imei}")
-            p.drawString(50, 635, "------------------------------------------------------------------------------------------------")
-            
-            y_pos = 605
-            for item in issues_list:
-                p.drawString(70, y_pos, f"- {item}")
-                y_pos -= 25
-            
-            y_pos -= 20
-            p.drawString(50, y_pos, f"TOTAL SUMMA / TOTAL: {total_price:.2f} Kr (inkl. moms / incl. VAT)")
-            y_pos -= 30
-            p.drawString(50, y_pos, "* Detta kostnadsförslag gäller endast i vår verkstad / Valid only in our workshop.")
-            
-            p.showPage()
-            p.save()
-            buffer.seek(0)
-            st.session_state['last_quote_pdf'] = buffer
+            record_data = {
+                "branch": branch,
+                "customer_name": c_name,
+                "phone": c_phone,
+                "device": device,
+                "issues": issues_str,
+                "total": total_price,
+                "currency": "SEK",
+                "employee": employee_name,
+                "created_at": date.today().strftime('%Y-%m-%d')
+            }
+            pdf_buf = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
+            st.session_state['last_quote_pdf'] = pdf_buf
             st.success("✅ PDF skapades framgångsrikt! / PDF generated successfully!")
 
     if 'last_quote_pdf' in st.session_state:
@@ -714,11 +761,19 @@ elif menu == t["menu_invoice"]:
     """)
 
     st.markdown("---")
-    st.subheader("👤 Kunduppgifter / Customer Info")
+    st.subheader("👤 Kunduppgifter & Inställningar / Customer & Settings")
+    
+    col_inv1, col_inv2 = st.columns(2)
+    with col_inv1:
+        currency_choice = st.selectbox("💱 Välj Valuta / Currency", ["SEK", "EUR"])
+        moms_choice = st.selectbox("📊 Välj Moms / VAT Rate", ["25%", "12%", "6%", "0% (Exemp / No VAT)"])
+    with col_inv2:
+        employee_name = st.text_input(t["employee"])
+        invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
+
     f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
     f_phone_inv = st.text_input("Telefonnummer / Phone Number")
     f_address = st.text_input("Adress / Address")
-    invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
     invoice_date = st.date_input("Fakturadatum / Invoice Date", value=date.today())
     due_date = st.date_input("Förfallodatum / Due Date", value=date.today())
 
@@ -726,22 +781,41 @@ elif menu == t["menu_invoice"]:
     st.subheader("🛒 Artikel & Pris / Item & Price")
     item_desc = st.text_input("Beskrivning / Description", value="Reparation och reservdelar / Repair & Parts")
     item_qty = st.number_input("Antal / Quantity", min_value=1, value=1)
-    item_price = st.number_input("Pris per enhet inkl. moms (Kr) / Unit Price incl. VAT", min_value=0.0, step=50.0)
+    item_price = st.number_input(f"Pris per enhet inkl. moms ({currency_choice}) / Unit Price incl. VAT", min_value=0.0, step=50.0)
     
     total_amount = item_qty * item_price
-    moms = total_amount * 0.20
-    netto = total_amount - moms
     
+    # Calculate Moms based on user selection
+    if "25%" in moms_choice:
+        moms_rate_val = 0.25
+        moms_calc_divisor = 1.25
+    elif "12%" in moms_choice:
+        moms_rate_val = 0.12
+        moms_calc_divisor = 1.12
+    elif "6%" in moms_choice:
+        moms_rate_val = 0.06
+        moms_calc_divisor = 1.06
+    else:
+        moms_rate_val = 0.0
+        moms_calc_divisor = 1.0
+
+    if moms_rate_val > 0:
+        netto = total_amount / moms_calc_divisor
+        moms = total_amount - netto
+    else:
+        netto = total_amount
+        moms = 0.0
+
     st.markdown(f"""
     ### 📊 Sammanfattning / Summary:
-    * **Netto (exkl. moms) / Net (excl. VAT):** {netto:.2f} Kr
-    * **Moms (25%) / VAT (25%):** {moms:.2f} Kr
-    * **Att betala / Total Summa / Total:** **{total_amount:.2f} Kr**
+    * **Netto (exkl. moms) / Net (excl. VAT):** {netto:.2f} {currency_choice}
+    * **Moms ({moms_choice}) / VAT:** {moms:.2f} {currency_choice}
+    * **Att betala / Total Summa / Total:** **{total_amount:.2f} {currency_choice}**
     """)
     st.markdown(f"💳 **Betalningsmetod / Payment Method:** Swish: `{comp['swish']}` | Bankgiro: `{comp['bankgiro']}`")
     
     if st.button("Spara & Skapa Faktura PDF / Save & Create Invoice PDF", type="primary"):
-        if f_name:
+        if f_name and employee_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
@@ -749,23 +823,23 @@ elif menu == t["menu_invoice"]:
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, created_at)
+                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, currency_choice, moms_choice, employee_name, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, created_at)
+                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, currency_choice, moms_choice, employee_name, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, created_at)
+                        "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, currency_choice, moms_choice, employee_name, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -773,32 +847,20 @@ elif menu == t["menu_invoice"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
-            buffer = io.BytesIO()
-            p = canvas.Canvas(buffer, pagesize=A4)
-            
-            if os.path.exists("logo.png"):
-                try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') # type: ignore
-                except Exception:
-                    pass
-            
-            p.drawString(140, 780, comp["name"])
-            p.drawString(140, 765, f"Adress / Address: {comp['address']}")
-            p.drawString(140, 750, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
-            p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
-            p.drawString(50, 715, "FAKTURA / INVOICE")
-            p.drawString(50, 695, f"Fakturanr / Invoice No: {invoice_no} | Datum / Date: {invoice_date} | Förfallodag / Due: {due_date}")
-            p.drawString(50, 675, f"Kund / Customer: {f_name} | Adress / Address: {f_address}")
-            p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
-            p.drawString(50, 625, f"Beskrivning / Description: {item_desc} (Antal / Qty: {item_qty})")
-            p.drawString(50, 595, f"Netto / Net: {netto:.2f} Kr | Moms / VAT (25%): {moms:.2f} Kr")
-            p.drawString(50, 565, f"Att betala Totalt / Total Amount: {total_amount:.2f} Kr")
-            p.drawString(50, 525, f"Betalning via Swish: {comp['swish']} eller Bankgiro / Bankgiro: {comp['bankgiro']}")
-            
-            p.showPage()
-            p.save()
-            buffer.seek(0)
-            st.session_state['last_invoice_pdf'] = buffer
+            record_data = {
+                "branch": branch,
+                "customer_name": f_name,
+                "phone": f_phone_inv,
+                "invoice_no": invoice_no,
+                "amount": total_amount,
+                "moms": moms,
+                "currency": currency_choice,
+                "moms_rate": moms_choice,
+                "employee": employee_name,
+                "created_at": invoice_date.strftime('%Y-%m-%d')
+            }
+            pdf_buf = generate_pdf_from_record("invoice", record_data, COMPANY_INFO)
+            st.session_state['last_invoice_pdf'] = pdf_buf
             st.success("✅ Faktura PDF skapades! / Invoice PDF generated!")
 
     if 'last_invoice_pdf' in st.session_state:
@@ -810,36 +872,37 @@ elif menu == t["menu_invoice"]:
 elif menu == t["menu_preorder"]:
     st.header(t["preorder_header"])
     branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
+    employee_name = st.text_input(t["employee"])
     fb_name = st.text_input(t["customer_name"])
     fb_phone = st.text_input(t["phone"])
     fb_details = st.text_area("Artikel / Delar detaljer / Part Details")
-    fb_deposit = st.number_input("Handpenning / Deposit (Kr)", min_value=0.0, step=50.0)
+    fb_deposit = st.number_input("Handpenning / Deposit", min_value=0.0, step=50.0)
     
     if st.button("Spara Förbeställning / Save Pre-order", type="primary"):
-        if fb_name and fb_phone:
+        if fb_name and fb_phone and employee_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                            (branch, fb_name, fb_phone, fb_details, fb_deposit, created_at)
+                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (branch, fb_name, fb_phone, fb_details, fb_deposit, employee_name, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                            (branch, fb_name, fb_phone, fb_details, fb_deposit, created_at)
+                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (branch, fb_name, fb_phone, fb_details, fb_deposit, employee_name, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (branch, fb_name, fb_phone, fb_details, fb_deposit, created_at)
+                        "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (branch, fb_name, fb_phone, fb_details, fb_deposit, employee_name, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -847,12 +910,13 @@ elif menu == t["menu_preorder"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
-            st.warning("⚠️ Fyll i namn och telefonnummer. / Fill name and phone number.")
+            st.warning("⚠️ Fyll i namn, telefonnummer och ansvarig medarbetare.")
 
 # --- 5. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == t["menu_sub"]:
     st.header(t["sub_header"])
     
+    employee_name = st.text_input(t["employee"])
     sub_imei = st.text_input(t["imei"])
     sub_device = st.text_input(t["device"])
     branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
@@ -868,13 +932,13 @@ elif menu == t["menu_sub"]:
     
     if "Glass Protection" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Glass Protection Plan:** 99 Kr/mån | Byt skärmskydd upp till 2 ggr/mån utan självrisk.")
+        st.info("💡 **Glass Protection Plan:** 99 SEK/mån | Byt skärmskydd upp till 2 ggr/mån utan självrisk.")
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån.")
+        st.info("💡 **Case / Cover Plan:** 399 SEK startavgift + 99 SEK/mån.")
     else:
         sub_price = 99.0
-        st.info("💡 **Teknik & Mjukvara Plan:** 99 Kr/mån.")
+        st.info("💡 **Teknik & Mjukvara Plan:** 99 SEK/mån.")
 
     st.markdown("---")
     st.info("""
@@ -886,7 +950,7 @@ elif menu == t["menu_sub"]:
     agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren & IMEI-regler / Customer accepts terms")
 
     if st.button("Spara Abonnemang i Molnet / Save Subscription", type="primary"):
-        if sub_imei and sub_name and agree_terms:
+        if sub_imei and sub_name and agree_terms and employee_name:
             conn, db_type = get_db_connection()
             start_date = datetime.now().strftime("%Y-%m-%d")
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -895,23 +959,23 @@ elif menu == t["menu_sub"]:
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
+                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, employee_name, start_date, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
+                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, employee_name, start_date, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
+                        "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, employee_name, start_date, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -920,6 +984,8 @@ elif menu == t["menu_sub"]:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         elif not sub_imei:
             st.warning("⚠️ IMEI-nummer är obligatoriskt!")
+        elif not employee_name:
+            st.warning("⚠️ يرجى إدخال اسم الموظف المسؤول.")
         elif not agree_terms:
             st.warning("⚠️ Du måste bocka i att kunden godkänner villkoren.")
         else:
