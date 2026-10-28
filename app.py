@@ -213,34 +213,25 @@ st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_ic
 # --- Custom CSS Styling for Eye-Friendly Modern Interface ---
 st.markdown("""
 <style>
-    /* Global Background & Font Tuning */
     .stApp {
         background-color: #f7f9fa;
         color: #2c3e50;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-    
-    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #ffffff;
         border-right: 1px solid #e1e8ed;
     }
-    
-    /* Headers Customization */
     h1, h2, h3 {
         color: #1a252f;
         font-weight: 700;
     }
-    
-    /* Cards and Containers Styling */
     div.stButton > button {
         border-radius: 8px;
         font-weight: 600;
         padding: 0.5rem 1rem;
         transition: all 0.3s ease;
     }
-    
-    /* Success / Info Box Soft Styling */
     div.stAlert {
         border-radius: 8px;
         border: none;
@@ -1436,7 +1427,7 @@ elif menu == t["menu_datacenter"]:
             
         selected_del_label = st.selectbox("اختر البند المراد حذفه / Select to delete", del_options, key="del_select_box")
         
-        .button("Radera permanent / Delete Permanently", type="secondary"):
+        if st.button("Radera permanent / Delete Permanently", type="secondary"):
             if selected_del_label:
                 delete_id = del_dict_map[selected_del_label]
                 try:
