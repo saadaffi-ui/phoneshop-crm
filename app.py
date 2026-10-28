@@ -187,7 +187,12 @@ def send_sms_message(receiver_phone, message_body):
 
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
-
+# كود تشخيصي مؤقت لمعرفة محتويات الـ Secrets
+try:
+    st.write("Current Secrets Keys:", list(st.secrets.keys()))
+    st.write("EMAIL_PASSWORD exists?:", "EMAIL_PASSWORD" in st.secrets)
+except Exception as e:
+    st.error(f"Secrets Error: {e}")
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 MINUTES FIX AB",
