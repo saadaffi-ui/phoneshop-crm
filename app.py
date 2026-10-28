@@ -68,7 +68,7 @@ def init_db():
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    branch TEXT, customer_name TEXT, phone TEXT, invoice_no TEXT,
+                    branch TEXT, customer_name TEXT, phone TEXT, address TEXT, ref_no TEXT, invoice_no TEXT,
                     amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
                 )
             """)
@@ -84,7 +84,9 @@ def init_db():
                 "ALTER TABLE subscriptions ADD COLUMN employee TEXT",
                 "ALTER TABLE repairs ADD COLUMN employee TEXT",
                 "ALTER TABLE preorders ADD COLUMN employee TEXT",
-                "ALTER TABLE invoices ADD COLUMN employee TEXT"
+                "ALTER TABLE invoices ADD COLUMN employee TEXT",
+                "ALTER TABLE invoices ADD COLUMN address TEXT",
+                "ALTER TABLE invoices ADD COLUMN ref_no TEXT"
             ]:
                 try:
                     conn.execute(col_sql)
@@ -129,7 +131,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch TEXT, customer_name TEXT, phone TEXT, invoice_no TEXT,
+            branch TEXT, customer_name TEXT, phone TEXT, address TEXT, ref_no TEXT, invoice_no TEXT,
             amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
         )
     """)
@@ -149,6 +151,12 @@ def init_db():
     for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices"]:
         try:
             cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN employee TEXT")
+        except Exception:
+            pass
+
+    for col in ["address", "ref_no"]:
+        try:
+            cursor.execute(f"ALTER TABLE invoices ADD COLUMN {col} TEXT")
         except Exception:
             pass
 
@@ -257,7 +265,7 @@ st.markdown("""
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 MINUTES PHONE FIX",
-        "address": "Gunborg Nymans Väg 2, Eskilstuna",
+        "address": "Gunborg Nymans Väg 2, 632 32 Eskilstuna",
         "phone": "0700122444",
         "org_nr": "5593708034",
         "swish": "123 407 16 76",
@@ -348,6 +356,13 @@ with head_c3:
 
 t = TRANSLATIONS[lang_choice]
 comp = COMPANY_INFO[global_branch]
+
+st.markdown(f"""
+<div style="background-color: #ffffff; padding: 10px 15px; border-radius: 8px; border: 1px solid #dcdde1; margin-bottom: 15px; font-size: 13px;">
+    <b>🏢 معلومات الفرع النشط:</b> {comp['name']} - {comp['address']} | <b>Tel:</b> {comp['phone']} | <b>Org.nr:</b> {comp['org_nr']} | <b>Swish:</b> {comp['swish']}
+</div>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
 
 # --- AUTHENTICATION / LOGIN SCREEN ---
@@ -389,7 +404,6 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     
     st.success("✅ Dokumentet är redo!")
     
-    # Buttons row for Download and Print
     b_col1, b_col2 = st.columns(2)
     with b_col1:
         st.download_button(
@@ -482,44 +496,57 @@ def generate_pdf_from_record(record_type, data, comp_info):
         
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(50, height - 420, "* Detta kostnadsförslag är giltigt i 30 dagar.")
-        p.drawString(50, 40, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik: {branch}")
 
     elif record_type == "invoice":
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "FAKTURA / INVOICE")
+        
+        # Swedish Standard Invoice Header Details block
         p.setFont("Helvetica", 10)
         p.drawString(50, height - 135, f"Fakturanr: {data.get('invoice_no', '')}")
-        p.drawString(300, height - 135, f"Datum: {data.get('created_at', '')}")
-        p.drawString(50, height - 155, f"Kund: {data.get('customer_name', '')}")
-        p.drawString(300, height - 155, f"Handläggare: {employee_name}")
-        p.drawString(50, height - 175, f"Telefon: {data.get('phone', '')}")
+        p.drawString(50, height - 150, f"Fakturadatum: {data.get('created_at', '')}")
+        p.drawString(50, height - 165, f"Vår referens: {employee_name}")
+        
+        # Customer address box (Fakturamottagare)
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(300, height - 135, "Köpare / Kund:")
+        p.setFont("Helvetica", 10)
+        p.drawString(300, height - 150, f"{data.get('customer_name', '')}")
+        p.drawString(300, height - 165, f"{data.get('address', 'Ej angiven adress')}")
+        p.drawString(300, height - 180, f"Tel: {data.get('phone', '')}")
         
         p.setFillColorRGB(0.9, 0.9, 0.9)
-        p.rect(50, height - 215, width - 100, 20, fill=1, stroke=0)
+        p.rect(50, height - 225, width - 100, 20, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(60, height - 208, "Beskrivning")
-        p.drawString(400, height - 208, f"Belopp ({currency})")
+        p.drawString(60, height - 218, "Beskrivning av tjänst / vara")
+        p.drawString(400, height - 218, f"Belopp ({currency})")
         
-        y_pos = height - 245
+        y_pos = height - 255
         amount_val = data.get('amount', 0)
         moms_val = data.get('moms', 0)
         netto_val = amount_val - moms_val
         
         p.setFont("Helvetica", 10)
         p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation')}")
+        if data.get('ref_no'):
+            p.drawString(60, y_pos - 15, f"Referensnr / Order: {data.get('ref_no')}")
+            
         p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
         
-        p.line(50, height - 320, width - 50, height - 320)
+        p.line(50, height - 330, width - 50, height - 330)
         p.setFont("Helvetica", 9)
-        p.drawString(300, height - 340, f"Netto: {netto_val:.2f} {currency}")
-        p.drawString(300, height - 360, f"Moms ({moms_rate_str}): {moms_val:.2f} {currency}")
+        p.drawString(300, height - 350, f"Netto: {netto_val:.2f} {currency}")
+        p.drawString(300, height - 368, f"Moms ({moms_rate_str}): {moms_val:.2f} {currency}")
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 385, f"Att betala: {amount_val:.2f} {currency}")
+        p.drawString(300, height - 395, f"Att betala / Total: {amount_val:.2f} {currency}")
         
         p.setFont("Helvetica", 9)
-        p.drawString(50, 60, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
-        p.drawString(50, 40, f"Org.nr: {comp['org_nr']}")
+        p.drawString(50, 65, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 50, f"Org.nr: {comp['org_nr']} | Adress: {comp['address']}")
+        p.drawString(50, 35, f"Butik: {branch} | Tel: {comp['phone']}")
 
     p.showPage()
     p.save()
@@ -541,23 +568,23 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 # --- TAB 1: DASHBOARD ---
 with tab1:
     st.markdown("<div class='dashboard-box'>", unsafe_allow_html=True)
-    st.header("📊 لوحة المؤشرات والإحصاءات العامة")
+    st.header(f"📊 لوحة المؤشرات والإحصاءات العامة ({global_branch})")
     conn, db_type = get_db_connection()
     try:
         if db_type == "turso":
-            rep_count = conn.execute("SELECT COUNT(*) FROM repairs").fetchone()[0]
-            quote_count = conn.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
-            inv_count = conn.execute("SELECT COUNT(*) FROM invoices").fetchone()[0]
-            total_prof = conn.execute("SELECT SUM(profit) FROM quotes").fetchone()[0] or 0.0
+            rep_count = conn.execute("SELECT COUNT(*) FROM repairs WHERE branch = ?", (global_branch,)).fetchone()[0]
+            quote_count = conn.execute("SELECT COUNT(*) FROM quotes WHERE branch = ?", (global_branch,)).fetchone()[0]
+            inv_count = conn.execute("SELECT COUNT(*) FROM invoices WHERE branch = ?", (global_branch,)).fetchone()[0]
+            total_prof = conn.execute("SELECT SUM(profit) FROM quotes WHERE branch = ?", (global_branch,)).fetchone()[0] or 0.0
         else:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM repairs")
+            cursor.execute("SELECT COUNT(*) FROM repairs WHERE branch = ?", (global_branch,))
             rep_count = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM quotes")
+            cursor.execute("SELECT COUNT(*) FROM quotes WHERE branch = ?", (global_branch,))
             quote_count = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM invoices")
+            cursor.execute("SELECT COUNT(*) FROM invoices WHERE branch = ?", (global_branch,))
             inv_count = cursor.fetchone()[0]
-            cursor.execute("SELECT SUM(profit) FROM quotes")
+            cursor.execute("SELECT SUM(profit) FROM quotes WHERE branch = ?", (global_branch,))
             total_prof = cursor.fetchone()[0] or 0.0
     except Exception:
         rep_count, quote_count, inv_count, total_prof = 0, 0, 0, 0.0
@@ -572,10 +599,10 @@ with tab1:
     st.subheader("⚡ تحديث حالة الأجهزة السريعة")
     try:
         if db_type == "turso":
-            active_repairs = conn.execute("SELECT id, customer_name, device, status, employee FROM repairs ORDER BY id DESC LIMIT 5").fetchall()
+            active_repairs = conn.execute("SELECT id, customer_name, device, status, employee FROM repairs WHERE branch = ? ORDER BY id DESC LIMIT 5", (global_branch,)).fetchall()
         else:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, customer_name, device, status, employee FROM repairs ORDER BY id DESC LIMIT 5")
+            cursor.execute("SELECT id, customer_name, device, status, employee FROM repairs WHERE branch = ? ORDER BY id DESC LIMIT 5", (global_branch,))
             active_repairs = cursor.fetchall()
             
         if active_repairs:
@@ -594,7 +621,7 @@ with tab1:
                     st.rerun()
                 st.markdown("---")
         else:
-            st.info("لا توجد إصلاحات مسجلة حالياً.")
+            st.info("لا توجد إصلاحات مسجلة لهذا الفرع حالياً.")
     except Exception as e:
         st.error(f"خطأ: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -602,12 +629,12 @@ with tab1:
 # --- TAB 2: NEW REPAIR WITH COMPREHENSIVE ISSUE OPTIONS ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
-    st.header("🛠️ تسجيل إصلاح جديد")
+    st.header(f"🛠️ تسجيل إصلاح جديد ({global_branch})")
     employee_name = st.text_input(t["employee"], key="rep_emp")
     c_phone = st.text_input(t["phone"], key="rep_phone")
     
     auto_name, auto_email = "", ""
-    if c_phone and len(c_phone > 5 if isinstance(c_phone, str) else 5):
+    if c_phone and len(c_phone) > 5:
         conn, db_type = get_db_connection()
         try:
             if db_type == "turso":
@@ -647,7 +674,6 @@ with tab2:
     
     price = st.number_input(t["price"], min_value=0.0, step=50.0, key="rep_price")
     
-    # Auto assemble description from multiselect + custom text
     auto_issues_str = ", ".join(selected_rep_issues)
     issue = st.text_area(t["issue"], value=auto_issues_str, key="rep_issue_desc")
     
@@ -690,7 +716,7 @@ with tab2:
 # --- TAB 3: QUOTE / PRICE QUOTATION WITH FULL OPTIONS ---
 with tab3:
     st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
-    st.header("💡 عرض سعر وحساب الأرباح")
+    st.header(f"💡 عرض سعر وحساب الأرباح ({global_branch})")
     q_emp = st.text_input(t["employee"], key="q_emp")
     q_name = st.text_input(t["customer_name"], key="q_name")
     q_phone = st.text_input(t["phone"], key="q_phone")
@@ -781,31 +807,38 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name=st.session_state.get('q_pdf_name', 'quote.pdf'))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE ---
+# --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF) ---
 with tab4:
-    st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
-    st.header("📄 الفاتورة الرسمية")
+    st.markdown("<div class='invoice-box'>", unsafe_allow_html=Type)
+    st.header(f"📄 الفاتورة الرسمية القياسية ({global_branch})")
+    
+    inv_emp = st.text_input(t["employee"], key="inv_emp")
+    inv_no = st.text_input("رقم الفاتورة (Fakturanummer)", value="FAK-2026-001", key="inv_no_in")
+    ref_no = st.text_input("إشارة المرجع أو الطلب (Vår referens / Ordernr)", value="", key="inv_ref_in")
+
+    st.markdown("---")
+    st.subheader("👤 بيانات العميل وعنوان الإرسال (Köparens adress)")
+    inv_name = st.text_input("اسم العميل / اسم الشركة (Kund / Företag)", key="inv_name")
+    inv_address = st.text_input("عنوان الشارع والمدينة (Gatuadress, Postnummer Ort)", value="Drottninggatan 1, 632 20 Eskilstuna", key="inv_addr_in")
+    inv_phone = st.text_input(t["phone"], key="inv_phone")
+    inv_date = st.date_input("تاريخ الفاتورة (Fakturadatum)", value=date.today(), key="inv_date")
+
+    st.markdown("---")
     inv_curr = st.selectbox("العملة", ["SEK", "EUR"], key="inv_curr")
     inv_moms = st.selectbox("نسبة الضريبة (Moms)", ["25%", "12%", "6%", "0%"], key="inv_moms_sel")
-    inv_emp = st.text_input(t["employee"], key="inv_emp")
-    inv_no = st.text_input("رقم الفاتورة", value="FAK-2026-001", key="inv_no_in")
 
-    inv_name = st.text_input(t["customer_name"], key="inv_name")
-    inv_phone = st.text_input(t["phone"], key="inv_phone")
-    inv_date = st.date_input("تاريخ الفاتورة", value=date.today(), key="inv_date")
-
-    item_desc = st.text_input("وصف البند أو الخدمة", value="Reparation och reservdelar", key="inv_desc")
-    item_qty = st.number_input("الكمية", min_value=1, value=1, key="inv_qty")
-    item_price = st.number_input("السعر الإجمالي inkl. moms", min_value=0.0, step=50.0, key="inv_price")
+    item_desc = st.text_input("وصف البند أو الخدمة (Beskrivning)", value="Reparation och reservdelar", key="inv_desc")
+    item_qty = st.number_input("الكمية (Antal)", min_value=1, value=1, key="inv_qty")
+    item_price = st.number_input("السعر الإجمالي inkl. moms (Á-pris)", min_value=0.0, step=50.0, key="inv_price")
     
     total_amount = item_qty * item_price
     moms_div = 1.25 if "25%" in inv_moms else (1.12 if "12%" in inv_moms else (1.06 if "6%" in inv_moms else 1.0))
     netto = total_amount / moms_div if moms_div > 1 else total_amount
     moms = total_amount - netto
 
-    st.markdown(f"**المبلغ الإجمالي Att betala:** **{total_amount:.2f} {inv_curr}**")
+    st.markdown(f"**المبلغ الإجمالي Att betala:** **{total_amount:.2f} {inv_curr}** (Netto: {netto:.2f} | Moms: {moms:.2f})")
 
-    if st.button("حفظ وتوليد فاتورة PDF", type="primary", key="btn_save_inv"):
+    if st.button("حفظ وتوليد فاتورة PDF رسمية", type="primary", key="btn_save_inv"):
         if inv_name and inv_emp:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -813,34 +846,36 @@ with tab4:
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
+                            "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
+                            "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (global_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
+                        "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ تم حفظ الفاتورة!")
+                st.success("✅ تم حفظ الفاتورة بنجاح!")
             except Exception as e:
                 st.error(f"❌ خطأ: {e}")
 
             record_data = {
                 "branch": global_branch,
                 "customer_name": inv_name,
+                "address": inv_address,
                 "phone": inv_phone,
+                "ref_no": ref_no,
                 "invoice_no": inv_no,
                 "amount": total_amount,
                 "moms": moms,
@@ -854,7 +889,7 @@ with tab4:
             st.session_state['inv_pdf'] = pdf_buf
             safe_cust = inv_name.replace(' ', '_')
             st.session_state['inv_pdf_name'] = f"Faktura_{inv_no}_-_{safe_cust}.pdf"
-            st.success("✅ تم تجهيز فاتورة PDF!")
+            st.success("✅ تم تجهيز فاتورة PDF الرسمية!")
 
     if 'inv_pdf' in st.session_state:
         st.markdown("---")
@@ -864,7 +899,7 @@ with tab4:
 # --- TAB 5: SUBSCRIPTIONS (IMEI LINKED) ---
 with tab5:
     st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
-    st.header("💳 الاشتراكات وضمان IMEI")
+    st.header(f"💳 الاشتراكات وضمان IMEI ({global_branch})")
     sub_emp = st.text_input(t["employee"], key="sub_emp")
     sub_imei = st.text_input(t["imei"], key="sub_imei")
     sub_device = st.text_input(t["device"], key="sub_device")
@@ -921,7 +956,7 @@ with tab5:
 # --- TAB 6: PRE-ORDERS ---
 with tab6:
     st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
-    st.header("🛒 الطلب المسبق لقطع الغيار")
+    st.header(f"🛒 الطلب المسبق لقطع الغيار ({global_branch})")
     pre_emp = st.text_input(t["employee"], key="pre_emp")
     pre_name = st.text_input(t["customer_name"], key="pre_name")
     pre_phone = st.text_input(t["phone"], key="pre_phone")
@@ -966,7 +1001,7 @@ with tab6:
 # --- TAB 7: INVENTORY ---
 with tab7:
     st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
-    st.header("📦 إدارة المخزون وقطع الغيار")
+    st.header(f"📦 إدارة المخزون وقطع الغيار ({global_branch})")
     conn, db_type = get_db_connection()
     
     st.subheader("➕ إضافة قطعة جديدة للمخزون")
@@ -1018,7 +1053,7 @@ with tab7:
 # --- TAB 8: SEARCH & ARCHIVE ---
 with tab8:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header("🔍 الأرشيف والبحث وإدارة البيانات")
+    st.header(f"🔍 الأرشيف والبحث وإدارة البيانات ({global_branch})")
     search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات", "💳 الاشتراكات", "🛒 الطلبات المسبقة", "💡 عروض الأسعار", "📄 الفواتير", "📦 المخزون"])
     search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
     
@@ -1034,13 +1069,13 @@ with tab8:
     
     try:
         if db_type == "turso":
-            res = conn.execute(f"SELECT * FROM {cur_tbl} ORDER BY id DESC")
+            res = conn.execute(f"SELECT * FROM {cur_tbl} WHERE branch = ? ORDER BY id DESC", (global_branch,))
             rows = res.fetchall()
             cols = [c[1] for c in conn.execute(f"PRAGMA table_info({cur_tbl})").fetchall()]
             df_search = pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame()
         else:
             local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-            df_search = pd.read_sql_query(f"SELECT * FROM {cur_tbl} ORDER BY id DESC", local_conn)
+            df_search = pd.read_sql_query(f"SELECT * FROM {cur_tbl} WHERE branch = ? ORDER BY id DESC", local_conn, params=(global_branch,))
             local_conn.close()
     except Exception:
         df_search = pd.DataFrame()
@@ -1075,5 +1110,5 @@ with tab8:
                 except Exception as e:
                     st.error(f"❌ خطأ: {e}")
     else:
-        st.info("لا توجد بيانات مطابقة.")
+        st.info("لا توجد بيانات مطابقة لهذا الفرع.")
     st.markdown("</div>", unsafe_allow_html=True)
