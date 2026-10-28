@@ -503,13 +503,22 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik: {branch}")
 
     elif record_type == "label_sticker":
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(30, height - 30, f"30 MINUTES PHONE FIX - {branch}")
+        p.setLineWidth(0.5)
+        p.rect(30, height - 140, 250, 110)
+        
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, height - 48, f"{comp['name']} - {branch}")
+        
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(40, height - 65, f"Ärende ID: #{data.get('repair_id')}   |   Datum: {data.get('created_at')}")
+        
         p.setFont("Helvetica", 9)
-        p.drawString(30, height - 48, f"ID: #{data.get('repair_id')} | Kund: {data.get('customer_name')}")
-        p.drawString(30, height - 63, f"Enhet: {data.get('device')}")
-        p.drawString(30, height - 78, f"IMEI: {data.get('imei', '---')}")
-        p.drawString(30, height - 93, f"Tel: {data.get('phone')} | Pris: {data.get('price')} SEK")
+        p.drawString(40, height - 80, f"Kund: {data.get('customer_name')}")
+        p.drawString(40, height - 95, f"Enhet: {data.get('device')}")
+        p.drawString(40, height - 110, f"IMEI: {data.get('imei', '---')}")
+        
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(40, height - 125, f"Tel: {data.get('phone')}   |   Pris: {data.get('price')} SEK")
 
     elif record_type == "quote":
         p.setFont("Helvetica-Bold", 12)
@@ -750,7 +759,6 @@ with tab2:
                     conn.close()
                 st.success(t["success_repair"])
                 
-                # Generate Inlämningskvitto PDF data
                 rec_data = {
                     "branch": global_branch,
                     "repair_id": "99",
@@ -1119,10 +1127,10 @@ with tab7:
         pass
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 8: SEARCH & ARCHIVE ---
+# --- TAB 8: SEARCH, ARCHIVE & ADVANCED PRINTING OPTION ---
 with tab8:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 الأرشيف والبحث وإدارة البيانات ({global_branch})")
+    st.header(f"🔍 الأرشيف والبحث وإدارة الطباعة ({global_branch})")
     search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات", "💳 الاشتراكات", "🛒 الطلبات المسبقة", "💡 عروض الأسعار", "📄 الفواتير", "📦 المخزون"])
     search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
     
@@ -1157,6 +1165,50 @@ with tab8:
             filtered_df = df_search
             
         st.dataframe(filtered_df, use_container_width=True)
+
+        # --- ADDITIONAL PRINT & SAVE OPTIONS FROM SEARCH ---
+        if cur_tbl == "repairs":
+            st.markdown("---")
+            st.subheader("🖨️ طباعة إيصال أو ملصق للعميل المحدد من الأرشيف")
+            repair_opts = [f"ID: {r['id']} | 👤 {r['customer_name']} ({r['device']})" for _, r in filtered_df.iterrows()]
+            selected_rep_to_print = st.selectbox("اختر الإصلاح للطباعة", repair_opts, key="sel_rep_print")
+            
+            if selected_rep_to_print:
+                sel_id = int(selected_rep_to_print.split("|")[0].replace("ID:", "").strip())
+                row_data = filtered_df[filtered_df['id'] == sel_id].iloc[0]
+                
+                col_pr1, col_pr2 = st.columns(2)
+                with col_pr1:
+                    if st.button("📄 طباعة إيصال الاستلام (Inlämningskvitto)", key="btn_print_rec_arch"):
+                        r_data = {
+                            "branch": global_branch,
+                            "repair_id": str(row_data['id']),
+                            "customer_name": row_data['customer_name'],
+                            "phone": row_data['phone'],
+                            "device": row_data['device'],
+                            "imei": row_data['imei'],
+                            "issue": row_data['issue'],
+                            "price": row_data['price'],
+                            "employee": row_data.get('employee', 'Admin'),
+                            "created_at": str(row_data['created_at'])[:10]
+                        }
+                        pdf_buf = generate_pdf_from_record("repair_receipt", r_data, COMPANY_INFO)
+                        display_pdf_preview(pdf_buf, file_name=f"Inlamningskvitto_{sel_id}.pdf")
+                        
+                with col_pr2:
+                    if st.button("🏷️ طباعة ملصق الجهاز (IMEI Label)", key="btn_print_lbl_arch"):
+                        r_data = {
+                            "branch": global_branch,
+                            "repair_id": str(row_data['id']),
+                            "customer_name": row_data['customer_name'],
+                            "phone": row_data['phone'],
+                            "device": row_data['device'],
+                            "imei": row_data['imei'],
+                            "price": row_data['price'],
+                            "created_at": str(row_data['created_at'])[:10]
+                        }
+                        pdf_buf = generate_pdf_from_record("label_sticker", r_data, COMPANY_INFO)
+                        display_pdf_preview(pdf_buf, file_name=f"IMEI_Label_{sel_id}.pdf")
 
         st.markdown("---")
         st.subheader("🗑️ حذف بند نهائياً")
