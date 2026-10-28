@@ -430,7 +430,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
         netto_val = amount_val - moms_val
         
         p.setFont("Helvetica", 10)
-        p.drawString(60, y_pos, "Reparation och reservdelar / Repair & Spare Parts")
+        p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation / Abonnemang / Service')}")
         p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
         
         # Totals Section
@@ -785,7 +785,6 @@ elif menu == t["menu_invoice"]:
     
     total_amount = item_qty * item_price
     
-    # Calculate Moms based on user selection
     if "25%" in moms_choice:
         moms_rate_val = 0.25
         moms_calc_divisor = 1.25
@@ -856,6 +855,7 @@ elif menu == t["menu_invoice"]:
                 "moms": moms,
                 "currency": currency_choice,
                 "moms_rate": moms_choice,
+                "item_desc": item_desc,
                 "employee": employee_name,
                 "created_at": invoice_date.strftime('%Y-%m-%d')
             }
@@ -927,7 +927,8 @@ elif menu == t["menu_sub"]:
     plan_choice = st.selectbox("Välj Plan / Plan Type", [
         "Glass Protection Abonnemang (99 SEK/mån)",
         "Case / Cover Abonnemang (399 SEK start + 99 SEK/mån)",
-        "Teknik, Mjukvara & Virus Help (99 SEK/mån)"
+        "Teknik, Mjukvara & Virus Help (99 SEK/mån)",
+        "Phone Shield Total Club (149 SEK/mån)"
     ])
     
     if "Glass Protection" in plan_choice:
@@ -936,6 +937,9 @@ elif menu == t["menu_sub"]:
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
         st.info("💡 **Case / Cover Plan:** 399 SEK startavgift + 99 SEK/mån.")
+    elif "Phone Shield Total Club" in plan_choice:
+        sub_price = 149.0
+        st.info("💡 **Phone Shield Total Club:** 149 SEK/mån | شاشة حماية مجانية كل شهرين + خصم 35% على الإصلاحات + صيانة دورية.")
     else:
         sub_price = 99.0
         st.info("💡 **Teknik & Mjukvara Plan:** 99 SEK/mån.")
@@ -990,6 +994,94 @@ elif menu == t["menu_sub"]:
             st.warning("⚠️ Du måste bocka i att kunden godkänner villkoren.")
         else:
             st.warning("⚠️ Fyll i kundens namn.")
+
+    # --- Feature to Generate Invoice from Subscriptions ---
+    st.markdown("---")
+    st.subheader("📄 توليد فاتورة من الاشتراكات المسجلة / Generate Invoice from Subscription")
+    
+    conn, db_type = get_db_connection()
+    try:
+        if db_type == "turso":
+            subs_rows = conn.execute("SELECT id, customer_name, phone, device, imei, plan_type, price, employee, branch FROM subscriptions ORDER BY id DESC LIMIT 20").fetchall()
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, customer_name, phone, device, imei, plan_type, price, employee, branch FROM subscriptions ORDER BY id DESC LIMIT 20")
+            subs_rows = cursor.fetchall()
+            
+        if subs_rows:
+            subs_df = pd.DataFrame(subs_rows, columns=["ID", "Kund / Customer", "Telefon", "Enhet", "IMEI", "Plan", "Pris", "Mوظف", "الفرع"])
+            st.dataframe(subs_df, use_container_width=True)
+            
+            sub_id_to_inv = st.number_input("أدخل رقم ID الاشتراك لتوليد فاتورة له / Enter Subscription ID to invoice", min_value=1, step=1)
+            inv_currency = st.selectbox("عملة الفواتير / Currency", ["SEK", "EUR"], key="sub_inv_curr")
+            inv_moms_rate = st.selectbox("نسبة الضريبة / VAT Rate", ["25%", "12%", "6%", "0%"], key="sub_inv_moms")
+            
+            if st.button("🖨️ إنشاء وتصدير فاتورة لهذا الاشتراك / Create Subscription Invoice", type="primary"):
+                selected_sub = [row for row in subs_rows if row[0] == sub_id_to_inv]
+                if selected_sub:
+                    s_data = selected_sub[0]
+                    s_id, s_cust, s_phone, s_dev, s_imei, s_plan, s_price, s_emp, s_branch = s_data
+                    
+                    # Calculate VAT
+                    if "25%" in inv_moms_rate:
+                        moms_div = 1.25
+                        moms_val = s_price - (s_price / moms_div)
+                    elif "12%" in inv_moms_rate:
+                        moms_div = 1.12
+                        moms_val = s_price - (s_price / moms_div)
+                    elif "6%" in inv_moms_rate:
+                        moms_div = 1.06
+                        moms_val = s_price - (s_price / moms_div)
+                    else:
+                        moms_val = 0.0
+
+                    invoice_no_gen = f"SUB-{datetime.now().strftime('%Y%m%d')}-{s_id}"
+                    
+                    # Save to invoices table
+                    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    try:
+                        if db_type == "turso":
+                            conn.execute(
+                                "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (s_branch, s_cust, s_phone, invoice_no_gen, s_price, moms_val, inv_currency, inv_moms_rate, s_emp, created_at)
+                            )
+                        else:
+                            cursor = conn.cursor()
+                            cursor.execute(
+                                "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (s_branch, s_cust, s_phone, invoice_no_gen, s_price, moms_val, inv_currency, inv_moms_rate, s_emp, created_at)
+                            )
+                            conn.commit()
+                    except Exception:
+                        pass
+
+                    inv_record_data = {
+                        "branch": s_branch,
+                        "customer_name": s_cust,
+                        "phone": s_phone,
+                        "invoice_no": invoice_no_gen,
+                        "amount": s_price,
+                        "moms": moms_val,
+                        "currency": inv_currency,
+                        "moms_rate": inv_moms_rate,
+                        "item_desc": f"Abonnemang / Subscription: {s_plan} (IMEI: {s_imei})",
+                        "employee": s_emp,
+                        "created_at": date.today().strftime('%Y-%m-%d')
+                    }
+                    
+                    pdf_buf = generate_pdf_from_record("invoice", inv_record_data, COMPANY_INFO)
+                    st.session_state['sub_invoice_pdf'] = pdf_buf
+                    st.success(f"✅ تم إنشاء الفاتورة رقم {invoice_no_gen} بنجاح!")
+                else:
+                    st.warning("⚠️ رقم الـ ID غير موجود في الاشتراكات.")
+
+            if 'sub_invoice_pdf' in st.session_state:
+                st.markdown("---")
+                display_pdf_preview(st.session_state['sub_invoice_pdf'], file_name="abonnemang_faktura.pdf")
+        else:
+            st.info("ℹ️ لا توجد اشتراكات مسجلة بعد.")
+    except Exception as e:
+        st.error(f"خطأ في جلب الاشتراكات: {e}")
 
 # --- 6. LAGER & RESERVDELAR / INVENTORY & PARTS ---
 elif menu == t["menu_inventory"]:
