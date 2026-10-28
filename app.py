@@ -210,17 +210,13 @@ except Exception:
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
-# --- Custom CSS Styling for Mobile Experience & Eye Comfort ---
+# --- Custom CSS Styling ---
 st.markdown("""
 <style>
     .stApp {
-        background-color: #f7f9fa;
+        background-color: #f4f6f9;
         color: #2c3e50;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    section[data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #e1e8ed;
     }
     h1, h2, h3 {
         color: #1a252f;
@@ -237,10 +233,21 @@ st.markdown("""
         border-radius: 8px;
         border: none;
     }
-    /* Mobile optimization for tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 5px;
-        overflow-x: auto;
+    .dashboard-box { background-color: #eaf2f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; }
+    .repair-box { background-color: #e8f8f5; padding: 20px; border-radius: 10px; border-left: 6px solid #1abc9c; }
+    .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; }
+    .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; }
+    .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
+    .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
+    
+    .login-container {
+        background: #ffffff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        max-width: 450px;
+        margin: auto;
+        border-top: 5px solid #e74c3c;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -264,13 +271,79 @@ COMPANY_INFO = {
     }
 }
 
-st.sidebar.title("📱 30 Minutes Phone Fix")
-if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True)
+# --- MULTI-LANGUAGE DICTIONARY ---
+TRANSLATIONS = {
+    "Svenska": {
+        "tab_dash": "📊 Dashboard",
+        "tab_repair": "🛠️ Nytt Ärende",
+        "tab_quote": "💡 Kostnadsförslag",
+        "tab_invoice": "📄 Faktura",
+        "tab_stock": "📦 Lager",
+        "tab_search": "🔍 Sök & Arkiv",
+        "employee": "Handläggare / Säljare",
+        "phone": "Telefonnummer",
+        "customer_name": "Kundens namn",
+        "email": "E-post (Valfritt)",
+        "device": "Enhet / Modell",
+        "imei": "IMEI / Serienummer",
+        "price": "Pris",
+        "issue": "Beskrivning av fel",
+        "save_repair": "Spara Ärende",
+        "success_repair": "✅ Ärendet har sparats!"
+    },
+    "English": {
+        "tab_dash": "📊 Dashboard",
+        "tab_repair": "🛠️ New Repair",
+        "tab_quote": "💡 Quote",
+        "tab_invoice": "📄 Invoice",
+        "tab_stock": "📦 Inventory",
+        "tab_search": "🔍 Search & Archive",
+        "employee": "Employee Name",
+        "phone": "Phone Number",
+        "customer_name": "Customer Name",
+        "email": "Email (Optional)",
+        "device": "Device Model",
+        "imei": "IMEI / Serial Number",
+        "price": "Price",
+        "issue": "Issue Description",
+        "save_repair": "Save Repair",
+        "success_repair": "✅ Repair saved successfully!"
+    },
+    "العربية (Arabic)": {
+        "tab_dash": "📊 لوحة التحكم",
+        "tab_repair": "🛠️ إصلاح جديد",
+        "tab_quote": "💡 عرض سعر",
+        "tab_invoice": "📄 فاتورة",
+        "tab_stock": "📦 المخزون",
+        "tab_search": "🔍 الأرشيف والبحث",
+        "employee": "اسم الموظف المسؤول",
+        "phone": "رقم الهاتف",
+        "customer_name": "اسم العميل",
+        "email": "البريد الإلكتروني (اختياري)",
+        "device": "نوع وطراز الجهاز",
+        "imei": "رقم الـ IMEI أو الرقم التسلسلي",
+        "price": "السعر",
+        "issue": "وصف العطل أو الإصلاح المطلوب",
+        "save_repair": "حفظ بيانات الإصلاح",
+        "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
+    }
+}
 
-st.sidebar.markdown("**Eskilstuna & Västerås**")
-st.sidebar.markdown("---")
+# --- TOP HEADER BAR: LANGUAGE & BRANCH SELECTION IN THE HEAD ---
+head_c1, head_c2, head_c3 = st.columns([1, 2, 2])
+with head_c1:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=55)
+with head_c2:
+    lang_choice = st.selectbox("🌐 Language / اللغة", ["Svenska", "English", "العربية (Arabic)"], key="top_lang_bar")
+with head_c3:
+    global_branch = st.selectbox("🏢 Branch / الفرع", ["Eskilstuna", "Västerås"], key="top_branch_bar")
 
+t = TRANSLATIONS[lang_choice]
+comp = COMPANY_INFO[global_branch]
+st.markdown("---")
+
+# --- AUTHENTICATION / LOGIN SCREEN ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -280,28 +353,24 @@ if not st.session_state['authenticated']:
     except Exception:
         default_pin = "tunapark"
         
-    sidebar_pin = st.sidebar.text_input("🔑 System Login / Inloggning", type="password")
-    remember_device = st.sidebar.checkbox("💾 تذكرني على هذا الجهاز")
+    st.markdown("<div class='login-container'>", unsafe_allow_html=True)
+    st.markdown("### 🔒 تسجيل الدخول للنظام / System Login")
+    st.markdown("الرجاء إدخال رمز المرور الخاص بالمحل للمتابعة:")
+    login_pin = st.text_input("🔑 رمز المرور / PIN Code", type="password", key="login_pin_input")
+    remember_me = st.session_state.get('remember_me', False)
+    remember_device = st.checkbox("💾 تذكرني على هذا الجهاز", value=remember_me)
     
-    if sidebar_pin == default_pin:
+    if login_pin == default_pin:
         st.session_state['authenticated'] = True
-        if remember_device:
-            st.session_state['remember_me'] = True
-        st.sidebar.success("✅ System Unlocked")
+        st.session_state['remember_me'] = remember_device
+        st.success("✅ تم تسجيل الدخول بنجاح!")
         st.rerun()
-    elif sidebar_pin:
-        st.sidebar.error("❌ Fel PIN-kod")
-
-if not st.session_state.get('authenticated') and st.session_state.get('remember_me'):
-    st.session_state['authenticated'] = True
-
-if not st.session_state['authenticated']:
-    st.title("🔒 30 Minutes Phone Fix CRM - Locked")
-    st.info("Please enter the system PIN in the sidebar to log in.")
+    elif login_pin:
+        st.error("❌ رمز المرور غير صحيح!")
+    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-st.sidebar.success("✅ Logged In")
-if st.sidebar.button("🔒 Log Out / تسجيل خروج"):
+if st.sidebar.button("🔒 تسجيل خروج / Log Out"):
     st.session_state['authenticated'] = False
     st.session_state['remember_me'] = False
     st.rerun()
@@ -313,7 +382,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     
     st.success("✅ Dokumentet är redo!")
     st.download_button(
-        label="📥 Ladda ner PDF / تحميل",
+        label="📥 Ladda ner PDF / تحميل المستند",
         data=pdf_bytes,
         file_name=file_name,
         mime="application/pdf",
@@ -429,20 +498,19 @@ def generate_pdf_from_record(record_type, data, comp_info):
     buffer.seek(0)
     return buffer
 
-# --- MAIN APP WITH MOBILE-FRIENDLY TABS (NO BACK-BUTTON NEEDED) ---
-st.title("📱 30 Minutes Phone Fix - CRM")
-
+# --- TABS WITH DYNAMIC TRANSLATIONS & SECTION COLORS ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📊 لوحة التحكم", 
-    "🛠️ إصلاح جديد", 
-    "💡 عرض سعر", 
-    "📄 فاتورة", 
-    "📦 المخزون", 
-    "🔍 البحث والأرشيف"
+    t["tab_dash"], 
+    t["tab_repair"], 
+    t["tab_quote"], 
+    t["tab_invoice"], 
+    t["tab_stock"], 
+    t["tab_search"]
 ])
 
 # --- TAB 1: DASHBOARD ---
 with tab1:
+    st.markdown("<div class='dashboard-box'>", unsafe_allow_html=True)
     st.header("📊 لوحة المؤشرات والإحصاءات العامة")
     conn, db_type = get_db_connection()
     try:
@@ -499,13 +567,14 @@ with tab1:
             st.info("لا توجد إصلاحات مسجلة حالياً.")
     except Exception as e:
         st.error(f"خطأ: {e}")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 2: NEW REPAIR ---
 with tab2:
+    st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
     st.header("🛠️ تسجيل إصلاح جديد")
-    branch = st.selectbox("اختر الفرع", ["Eskilstuna", "Västerås"], key="rep_branch")
-    employee_name = st.text_input("اسم الموظف المسؤول (Employee)", key="rep_emp")
-    c_phone = st.text_input("رقم الهاتف", key="rep_phone")
+    employee_name = st.text_input(t["employee"], key="rep_emp")
+    c_phone = st.text_input(t["phone"], key="rep_phone")
     
     auto_name, auto_email = "", ""
     if c_phone and len(c_phone) > 5:
@@ -523,23 +592,23 @@ with tab2:
         except Exception:
             pass
 
-    c_name = st.text_input("اسم العميل", value=auto_name, key="rep_name")
-    c_email = st.text_input("البريد الإلكتروني (اختياري)", value=auto_email, key="rep_email")
-    device = st.text_input("نوع وطراز الجهاز", key="rep_device")
-    imei = st.text_input("رقم الـ IMEI أو الرقم التسلسلي", key="rep_imei")
+    c_name = st.text_input(t["customer_name"], value=auto_name, key="rep_name")
+    c_email = st.text_input(t["email"], value=auto_email, key="rep_email")
+    device = st.text_input(t["device"], key="rep_device")
+    imei = st.text_input(t["imei"], key="rep_imei")
     
-    st.markdown("⚡ **اختر الأعطال السريعة:**")
+    st.markdown("⚡ **قوالب الأعطال السريعة:**")
     selected_issues = []
     if st.checkbox("📱 تغيير شاشة أصلي", key="i_scr"): selected_issues.append("Skärmbyte / Screen")
-    if st.checkbox("🔋 استبدال بطارية", key="i_bat"): selected_issues.append("Batteribyte / Battery")
-    if st.checkbox("🔌 منفذ الشحن", key="i_chg"): selected_issues.append("Laddport / Charging Port")
-    if st.checkbox("💧 أضرار السوائل والمياه", key="i_wat"): selected_issues.append("Vattenskada / Water Damage")
+    if st.checkbox("🔋 استبدال بطارية جديدة", key="i_bat"): selected_issues.append("Batteribyte / Battery")
+    if st.checkbox("🔌 إصلاح منفذ الشحن", key="i_chg"): selected_issues.append("Laddport / Charging Port")
+    if st.checkbox("💧 معالجة أضرار المياه", key="i_wat"): selected_issues.append("Vattenskada / Water Damage")
     
     combined_template_str = ", ".join(selected_issues)
-    price = st.number_input("السعر الإجمالي (SEK)", min_value=0.0, step=50.0, key="rep_price")
-    issue = st.text_area("وصف العطل التفصيلي", value=combined_template_str, key="rep_issue_desc")
+    price = st.number_input(t["price"], min_value=0.0, step=50.0, key="rep_price")
+    issue = st.text_area(t["issue"], value=combined_template_str, key="rep_issue_desc")
     
-    if st.button("حفظ طلب الإصلاح", type="primary", key="btn_save_rep"):
+    if st.button(t["save_repair"], type="primary", key="btn_save_rep"):
         if c_name and c_phone and device and employee_name:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -549,14 +618,14 @@ with tab2:
                     try:
                         conn.execute(
                             "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
+                            (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
                             "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
+                            (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
@@ -564,26 +633,25 @@ with tab2:
                     cursor = conn.cursor()
                     cursor.execute(
                         "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
+                        (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ تم حفظ الإصلاح بنجاح!")
+                st.success(t["success_repair"])
             except Exception as e:
                 st.error(f"❌ خطأ: {e}")
         else:
-            st.warning("⚠️ يرجى تعبئة الحقول الأساسية بما فيها اسم الموظف.")
+            st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 3: QUOTE / PRICE QUOTATION ---
 with tab3:
+    st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
     st.header("💡 عرض سعر وحساب الأرباح")
-    q_branch = st.selectbox("اختر الفرع", ["Eskilstuna", "Västerås"], key="q_branch")
-    comp = COMPANY_INFO[q_branch]
-    
-    q_emp = st.text_input("اسم الموظف المسؤول", key="q_emp")
-    q_name = st.text_input("اسم العميل", key="q_name")
-    q_phone = st.text_input("رقم الهاتف", key="q_phone")
-    q_device = st.text_input("نوع الجهاز", key="q_device")
+    q_emp = st.text_input(t["employee"], key="q_emp")
+    q_name = st.text_input(t["customer_name"], key="q_name")
+    q_phone = st.text_input(t["phone"], key="q_phone")
+    q_device = st.text_input(t["device"], key="q_device")
 
     st.markdown("---")
     st.subheader("🛠️ اختر قطع الغيار والإصلاحات")
@@ -617,14 +685,14 @@ with tab3:
                     try:
                         conn.execute(
                             "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (q_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
+                            (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
                             "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (q_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
+                            (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
@@ -632,7 +700,7 @@ with tab3:
                     cursor = conn.cursor()
                     cursor.execute(
                         "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (q_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
+                        (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -641,7 +709,7 @@ with tab3:
                 st.error(f"❌ خطأ: {e}")
 
             record_data = {
-                "branch": q_branch,
+                "branch": global_branch,
                 "customer_name": q_name,
                 "phone": q_phone,
                 "device": q_device,
@@ -661,20 +729,19 @@ with tab3:
     if 'q_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['q_pdf'], file_name=st.session_state.get('q_pdf_name', 'quote.pdf'))
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 4: INVOICE ---
 with tab4:
+    st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
     st.header("📄 الفاتورة الرسمية")
-    inv_branch = st.selectbox("اختر الفرع", ["Eskilstuna", "Västerås"], key="inv_branch")
-    comp = COMPANY_INFO[inv_branch]
-    
     inv_curr = st.selectbox("العملة", ["SEK", "EUR"], key="inv_curr")
     inv_moms = st.selectbox("نسبة الضريبة (Moms)", ["25%", "12%", "6%", "0%"], key="inv_moms_sel")
-    inv_emp = st.text_input("اسم الموظف المسؤول", key="inv_emp")
+    inv_emp = st.text_input(t["employee"], key="inv_emp")
     inv_no = st.text_input("رقم الفاتورة", value="FAK-2026-001", key="inv_no_in")
 
-    inv_name = st.text_input("اسم العميل / الشركة", key="inv_name")
-    inv_phone = st.text_input("رقم الهاتف", key="inv_phone")
+    inv_name = st.text_input(t["customer_name"], key="inv_name")
+    inv_phone = st.text_input(t["phone"], key="inv_phone")
     inv_date = st.date_input("تاريخ الفاتورة", value=date.today(), key="inv_date")
 
     item_desc = st.text_input("وصف البند أو الخدمة", value="Reparation och reservdelar", key="inv_desc")
@@ -697,14 +764,14 @@ with tab4:
                     try:
                         conn.execute(
                             "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (inv_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
+                            (global_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
                             "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (inv_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
+                            (global_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
@@ -712,7 +779,7 @@ with tab4:
                     cursor = conn.cursor()
                     cursor.execute(
                         "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (inv_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
+                        (global_branch, inv_name, inv_phone, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -721,7 +788,7 @@ with tab4:
                 st.error(f"❌ خطأ: {e}")
 
             record_data = {
-                "branch": inv_branch,
+                "branch": global_branch,
                 "customer_name": inv_name,
                 "phone": inv_phone,
                 "invoice_no": inv_no,
@@ -742,11 +809,12 @@ with tab4:
     if 'inv_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['inv_pdf'], file_name=st.session_state.get('inv_pdf_name', 'invoice.pdf'))
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 5: INVENTORY ---
 with tab5:
+    st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
     st.header("📦 إدارة المخزون وقطع الغيار")
-    inv_b = st.selectbox("اختر الفرع", ["Eskilstuna", "Västerås"], key="stock_branch")
     conn, db_type = get_db_connection()
     
     st.subheader("➕ إضافة قطعة جديدة للمخزون")
@@ -759,16 +827,16 @@ with tab5:
             try:
                 if db_type == "turso":
                     try:
-                        conn.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, inv_b))
+                        conn.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
-                        local_cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, inv_b))
+                        local_cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
-                    cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, inv_b))
+                    cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
                     conn.commit()
                     conn.close()
                 st.success("✅ تمت الإضافة للمخزون!")
@@ -781,11 +849,11 @@ with tab5:
     st.markdown("---")
     try:
         if db_type == "turso":
-            rows = conn.execute("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ? ORDER BY id DESC", (inv_b,)).fetchall()
+            rows = conn.execute("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ? ORDER BY id DESC", (global_branch,)).fetchall()
             df_inv = pd.DataFrame(rows, columns=["ID", "القطعة", "العدد", "الحد الأدنى"]) if rows else pd.DataFrame()
         else:
             local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-            df_inv = pd.read_sql_query("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ? ORDER BY id DESC", local_conn, params=(inv_b,))
+            df_inv = pd.read_sql_query("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ? ORDER BY id DESC", local_conn, params=(global_branch,))
             local_conn.close()
         if not df_inv.empty:
             st.dataframe(df_inv, use_container_width=True)
@@ -793,10 +861,12 @@ with tab5:
             st.info("لا توجد قطع مسجلة حالياً.")
     except Exception:
         pass
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 6: SEARCH & ARCHIVE ---
 with tab6:
-    st.header("🔍 البحث والأرشيف وإدارة البيانات")
+    st.markdown("<div class='search-box'>", unsafe_allow_html=True)
+    st.header("🔍 الأرشيف والبحث وإدارة البيانات")
     search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات", "💡 عروض الأسعار", "📄 الفواتير", "📦 المخزون"])
     search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
     
@@ -852,3 +922,4 @@ with tab6:
                     st.error(f"❌ خطأ: {e}")
     else:
         st.info("لا توجد بيانات مطابقة.")
+    st.markdown("</div>", unsafe_allow_html=True)
