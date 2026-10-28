@@ -154,7 +154,7 @@ COMPANY_INFO = {
     }
 }
 
-# --- Translations Dictionary (App UI supports 3 languages fully) ---
+# --- Translations Dictionary ---
 TRANSLATIONS = {
     "Svenska": {
         "title": "30 MINUTES PHONE FIX",
@@ -259,7 +259,7 @@ t = TRANSLATIONS[lang_choice]
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
-# Persistent Session Login State
+# Persistent Session Login State with "Remember Me" Support
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -270,12 +270,20 @@ if not st.session_state['authenticated']:
         default_pin = "tunapark"
         
     sidebar_pin = st.sidebar.text_input("🔑 System Login / Inloggning", type="password")
+    remember_device = st.sidebar.checkbox("💾 تذكرني على هذا الجهاز / Remember on this device")
+    
     if sidebar_pin == default_pin:
         st.session_state['authenticated'] = True
+        if remember_device:
+            st.session_state['remember_me'] = True
         st.sidebar.success("✅ System Unlocked / Systemet upplåst")
         st.rerun()
     elif sidebar_pin:
         st.sidebar.error("❌ Fel PIN-kod / Incorrect PIN")
+
+# Check persistent session memory
+if not st.session_state.get('authenticated') and st.session_state.get('remember_me'):
+    st.session_state['authenticated'] = True
 
 if not st.session_state['authenticated']:
     st.title("🔒 30 Minutes Phone Fix CRM - Locked / Låst")
@@ -285,6 +293,7 @@ if not st.session_state['authenticated']:
 st.sidebar.success("✅ Logged In / Inloggad")
 if st.sidebar.button("🔒 Log Out / Logga ut"):
     st.session_state['authenticated'] = False
+    st.session_state['remember_me'] = False
     st.rerun()
 
 menu = st.sidebar.radio("Navigation / القائمة الرئيسية", [
