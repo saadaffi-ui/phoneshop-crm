@@ -143,55 +143,50 @@ init_db()
 
 # --- Robust Email Sender Function with Timeout Handling ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
-    try:
-        sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
-        sender_password = st.secrets.get("EMAIL_PASSWORD", "Amaryj223355")
-        smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
-        smtp_port = int(st.secrets.get("SMTP_PORT", 587))
-    except Exception:
-        sender_email = "info@30minutesphonefix.se"
-        sender_password = "Amaryj223355"
-        smtp_server = "mailout.one.com"
-        smtp_port = 587
+    api_key = "re_EUnVDsTT_3QZr3adGSQY9vEdSjTYc1b2h"
+    sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
     
-    if not sender_password:
-        st.error("⚠️ E-postlösenord saknas i Streamlit Secrets. / Email password is required.")
-        return False
-        
     try:
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
+        url = "https://api.resend.com/emails"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "from": f"30 Minutes Phone Fix <{sender_email}>",
+            "to": [receiver_email],
+            "subject": subject,
+            "text": body
+        }
         
         if pdf_buffer is not None:
             pdf_buffer.seek(0)
-            attachment = MIMEApplication(pdf_buffer.read(), Name=filename)
-            attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
-            msg.attach(attachment)
+            pdf_bytes = pdf_buffer.read()
+            encoded_file = base64.b64encode(pdf_bytes).decode('utf-8')
+            payload["attachments"] = [
+                {
+                    "filename": filename,
+                    "content": encoded_file
+                }
+            ]
             
-        # Try Port 587 first with a 15s timeout
-        try:
-            server = smtplib.SMTP(smtp_server, 587, timeout=15)
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
+        # Lägg till timeout för att hantera nätverksfördröjningar
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        
+        if response.status_code == 200 or response.status_code == 201:
             return True
-        except Exception:
-            # Fallback to Port 465 SSL
-            server = smtplib.SMTP_SSL(smtp_server, 465, timeout=15)
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
-            return True
-            
-    except Exception as e:
-        st.error(f"❌ E-post kunde inte skickas på grund av nätverks-/brandväggsbegränsningar (Cloud Timeout). Ladda ner PDF-filen och skicka manuellt. Detalj: {e}")
+        else:
+            st.error(f"❌ E-postfel från Resend API: {response.text}")
+            return False
+    except requests.exceptions.Timeout:
+        st.error("❌ Anslutningen till Resend API tog för lång tid (Timeout). Kontrollera din internetanslutning.")
         return False
+    except Exception as e:
+        st.error(f"❌ Fel vid direkt e-postutskick: {e}")
+        return False
+            
+   
 
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
