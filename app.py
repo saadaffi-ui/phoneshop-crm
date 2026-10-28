@@ -158,6 +158,7 @@ COMPANY_INFO = {
 TRANSLATIONS = {
     "Svenska": {
         "title": "30 MINUTES PHONE FIX",
+        "menu_dashboard": "📈 Dashboard & Statistik / Overview",
         "menu_repair": "📝 Nytt Ärende / New Repair",
         "menu_quote": "💡 Kostnadsförslag / Quote",
         "menu_invoice": "📄 Faktura / Invoice",
@@ -169,6 +170,7 @@ TRANSLATIONS = {
     },
     "English": {
         "title": "30 MINUTES PHONE FIX",
+        "menu_dashboard": "📈 Dashboard & Analytics",
         "menu_repair": "📝 New Repair",
         "menu_quote": "💡 Quote",
         "menu_invoice": "📄 Invoice",
@@ -180,6 +182,7 @@ TRANSLATIONS = {
     },
     "العربية (Arabic)": {
         "title": "صيانة الهواتف 30 دقيقة",
+        "menu_dashboard": "📈 لوحة المؤشرات والإحصاءات",
         "menu_repair": "📝 تسجيل إصلاح جديد",
         "menu_quote": "💡 عرض سعر",
         "menu_invoice": "📄 فاتورة رسمية",
@@ -231,6 +234,7 @@ if st.sidebar.button("🔒 Log Out / Logga ut"):
     st.rerun()
 
 menu = st.sidebar.radio("Navigation / Meny", [
+    t["menu_dashboard"],
     t["menu_repair"], 
     t["menu_quote"], 
     t["menu_invoice"], 
@@ -315,13 +319,78 @@ def generate_pdf_from_record(record_type, data, comp_info):
     buffer.seek(0)
     return buffer
 
-# --- 1. NYTT ÄRENDE / NEW REPAIR (With Smart Auto-Fill) ---
-if menu == t["menu_repair"]:
-    st.header("📝 Registrera nytt ärende / Register New Repair")
+# --- 0. DASHBOARD & ANALYTICS ---
+if menu == t["menu_dashboard"]:
+    st.header("📈 لوحة المؤشرات والإحصاءات / Dashboard & Analytics")
+    branch_filter = st.selectbox("اختر الفرع / Select Branch", ["Alla / All", "Eskilstuna", "Västerås"])
+    
+    conn, db_type = get_db_connection()
+    try:
+        if db_type == "turso":
+            rep_count = conn.execute("SELECT COUNT(*) FROM repairs").fetchone()[0]
+            quote_count = conn.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
+            inv_count = conn.execute("SELECT COUNT(*) FROM invoices").fetchone()[0]
+            total_rev = conn.execute("SELECT SUM(amount) FROM invoices").fetchone()[0] or 0.0
+            total_prof = conn.execute("SELECT SUM(profit) FROM quotes").fetchone()[0] or 0.0
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM repairs")
+            rep_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM quotes")
+            quote_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM invoices")
+            inv_count = cursor.fetchone()[0]
+            cursor.execute("SELECT SUM(amount) FROM invoices")
+            total_rev = cursor.fetchone()[0] or 0.0
+            cursor.execute("SELECT SUM(profit) FROM quotes")
+            total_prof = cursor.fetchone()[0] or 0.0
+    except Exception:
+        rep_count, quote_count, inv_count, total_rev, total_prof = 0, 0, 0, 0.0, 0.0
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("📝 إجمالي الإصلاحات / Repairs", rep_count)
+    col2.metric("💡 عروض الأسعار / Quotes", quote_count)
+    col3.metric("📄 الفواتير الرسمية / Invoices", inv_count)
+    col4.metric("📈 إجمالي الأرباح / Est. Profit", f"{total_prof:.2f} Kr")
+
+    st.markdown("---")
+    st.subheader("🛠️ إدارة حالة الأجهزة السريعة / Quick Repair Status Update")
+    
+    try:
+        if db_type == "turso":
+            active_repairs = conn.execute("SELECT id, customer_name, device, status FROM repairs ORDER BY id DESC LIMIT 10").fetchall()
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, customer_name, device, status FROM repairs ORDER BY id DESC LIMIT 10")
+            active_repairs = cursor.fetchall()
+            
+        if active_repairs:
+            for rep in active_repairs:
+                r_id, r_cust, r_dev, r_status = rep
+                col_a, col_b, col_c = st.columns([3, 3, 2])
+                col_a.write(f"**ID: {r_id}** | {r_cust} ({r_dev})")
+                col_b.write(f"الحالة الحالية: `{r_status}`")
+                new_st = col_c.selectbox(f"تحديث #{r_id}", ["Under behandling / In Progress", "Väntar på reservdel / Waiting Part", "Klar att hämta / Ready", "Avslutad / Completed"], key=f"st_{r_id}")
+                if col_c.button("تحديث / Save", key=f"btn_st_{r_id}"):
+                    if db_type == "turso":
+                        conn.execute("UPDATE repairs SET status = ? WHERE id = ?", (new_st, r_id))
+                    else:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE repairs SET status = ? WHERE id = ?", (new_st, r_id))
+                        conn.commit()
+                    st.success(f"تم تحديث حالة الأذن #{r_id} بنجاح!")
+                    st.rerun()
+        else:
+            st.info("لا توجد إصلاحات مسجلة حالياً.")
+    except Exception as e:
+        st.error(f"خطأ في تحميل الإصلاحات: {e}")
+
+# --- 1. NYTT ÄRENDE / NEW REPAIR (With Smart Auto-Fill & Quick Templates) ---
+elif menu == t["menu_repair"]:
+    st.header("📝 تسجيل إصلاح جديد / Register New Repair")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
     
-    # Auto-fill customer details by phone number search
-    c_phone = st.text_input("Telefonnummer / Phone Number")
+    c_phone = st.text_input("رقم الهاتف / Phone Number")
     
     auto_name, auto_email = "", ""
     if c_phone and len(c_phone) > 5:
@@ -335,16 +404,30 @@ if menu == t["menu_repair"]:
                 res = cursor.fetchone()
             if res:
                 auto_name, auto_email = res[0], res[1] or ""
-                st.info(f"💡 Tidigare kund hittad i systemet! Namn fyllts i automatiskt: **{auto_name}**")
+                st.info(f"💡 Tidigare kund hittad! **{auto_name}**")
         except Exception:
             pass
 
     c_name = st.text_input("Kundens namn / Customer Name", value=auto_name)
     c_email = st.text_input("E-post / Email (Valfritt / Optional)", value=auto_email)
-    device = st.text_input("Enhet / Modell / Device Model")
+    device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
     imei = st.text_input("IMEI / Serienummer / IMEI / Serial Number")
+    
+    # Quick Issue Templates
+    st.markdown("⚡ **قوالب الأعطال السريعة / Quick Issue Templates:**")
+    q_cols = st.columns(4)
+    template_issue = ""
+    if q_cols[0].button("📱 تغيير شاشة أصلي"):
+        template_issue = "Skärmbyte / Screen Replacement"
+    if q_cols[1].button("🔋 استبدال بطارية"):
+        template_issue = "Batteribyte / Battery Replacement"
+    if q_cols[2].button("🔌 إصلاح منفذ الشحن"):
+        template_issue = "Laddport / Charging Port Repair"
+    if q_cols[3].button("💧 معالجة أضرار المياه"):
+        template_issue = "Vattenskada / Water Damage Service"
+
     price = st.number_input("Pris (Kr) / Price", min_value=0.0, step=50.0)
-    issue = st.text_area("Beskrivning av fel / Issue Description")
+    issue = st.text_area("Beskrivning av fel / Issue Description", value=template_issue)
     
     if st.button("Spara Ärende / Save Repair", type="primary"):
         if c_name and c_phone and device:
@@ -384,7 +467,7 @@ if menu == t["menu_repair"]:
 
 # --- 2. KOSTNADSFÖRSLAG / QUOTE (With Profit Calculator) ---
 elif menu == t["menu_quote"]:
-    st.header("💡 Kostnadsförslag & Vinstberäkning / Price Quotation & Profit")
+    st.header("💡 عرض سعر وحاسبة الأرباح / Price Quotation & Profit")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
@@ -517,7 +600,7 @@ elif menu == t["menu_quote"]:
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == t["menu_invoice"]:
-    st.header("📄 Professionell Faktura / Professional Invoice")
+    st.header("📄 فاتورة رسمية / Professional Invoice")
     branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
@@ -624,7 +707,7 @@ elif menu == t["menu_invoice"]:
 
 # --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == t["menu_preorder"]:
-    st.header("🛒 Förbeställning av reservdelar / Spare Parts Pre-order")
+    st.header("🛒 طلب مسبق لقطع الغيار / Spare Parts Pre-order")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
     fb_name = st.text_input("Kundens namn / Customer Name")
     fb_phone = st.text_input("Telefonnummer / Phone Number")
@@ -667,7 +750,7 @@ elif menu == t["menu_preorder"]:
 
 # --- 5. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == t["menu_sub"]:
-    st.header("💳 IMEI-kopplade Abonnemang & Villkor / IMEI Subscriptions & Terms")
+    st.header("💳 الاشتراكات وضمان IMEI / IMEI Subscriptions & Terms")
     
     sub_imei = st.text_input("IMEI-nummer (Unikt för enheten) / IMEI Number")
     sub_device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
@@ -694,14 +777,9 @@ elif menu == t["menu_sub"]:
 
     st.markdown("---")
     st.info("""
-    **Svenska (Villkor):**
-    1. **IMEI-koppling:** Abonnemanget är strikt kopplat till enhetens **IMEI-nummer**.
-    2. **Uppsägningstid:** 3 månaders uppsägningstid gäller.
-    
-    ---
-    **English (Terms):**
-    1. **IMEI Linking:** Subscription is strictly linked to the device's **IMEI number**.
-    2. **Notice Period:** 3 months notice period required.
+    **Svenska / العربية (Villkor / الشروط):**
+    1. **IMEI-koppling / ربط IMEI:** Abonnemanget är strikt kopplat till enhetens IMEI-nummer.
+    2. **Uppsägningstid / فترة الإلغاء:** 3 månaders uppsägningstid gäller.
     """)
     
     agree_terms = st.checkbox("Kunden godkänner avtalsvillkoren & IMEI-regler / Customer accepts terms")
@@ -748,7 +826,7 @@ elif menu == t["menu_sub"]:
 
 # --- 6. LAGER & RESERVDELAR / INVENTORY & PARTS ---
 elif menu == t["menu_inventory"]:
-    st.header("📦 Lager & Reservdelar / Inventory Management")
+    st.header("📦 إدارة المخزون وقطع الغيار / Inventory Management")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
     
     conn, db_type = get_db_connection()
@@ -803,7 +881,6 @@ elif menu == t["menu_inventory"]:
         inv_df = pd.DataFrame()
 
     if not inv_df.empty:
-        # Check for low stock warnings
         low_stock = inv_df[inv_df["Antal"] <= inv_df["Min Gräns"]]
         if not low_stock.empty:
             st.warning("⚠️ **Varning! Följande reservdelar håller på att ta slut i lager:**")
@@ -816,7 +893,7 @@ elif menu == t["menu_inventory"]:
 
 # --- 7. DOKUMENT & HISTORIK / PRINT & HISTORY HUB ---
 elif menu == t["menu_history"]:
-    st.header("🖨️ Visa och Skriv ut tidigare sparade dokument")
+    st.header("🖨️ مركز الطباعة والأرشيف / Print & History Hub")
     st.markdown("Välj kategori och ange ID för att visa eller skriva ut ett sparat dokument från databasen:")
     
     category = st.selectbox("Välj Kategori / Category", [
@@ -876,7 +953,7 @@ elif menu == t["menu_history"]:
 
 # --- 8. DATA CENTER & SÖK / ALL DATA & SEARCH ---
 elif menu == t["menu_datacenter"]:
-    st.header("📊 Data Center, Sök, Export & Hantering / Search & Management")
+    st.header("📊 إدارة البيانات والبحث الشامل / Search & Management")
     st.markdown("Sök, exportera, visa dokument eller radera poster från databasen:")
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
