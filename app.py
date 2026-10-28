@@ -11,7 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 
-# --- Turso Cloud Database Connection ---
+# --- الاتصال بقاعدة البيانات السحابية Turso / Turso Cloud Database Connection ---
 import libsql_client
 
 def get_db_connection():
@@ -57,14 +57,14 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS quotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT,
+                branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
                 device TEXT, issues TEXT, total REAL, created_at TEXT
             )
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, invoice_no TEXT,
+                branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
                 amount REAL, moms REAL, created_at TEXT
             )
         """)
@@ -96,14 +96,14 @@ def init_db():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS quotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, phone TEXT,
+                branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
                 device TEXT, issues TEXT, total REAL, created_at TEXT
             )
         """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch TEXT, customer_name TEXT, invoice_no TEXT,
+                branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
                 amount REAL, moms REAL, created_at TEXT
             )
         """)
@@ -112,7 +112,7 @@ def init_db():
 
 init_db()
 
-# --- Email Sender Function (Configured for One.com mailout.one.com:465) ---
+# --- دالة إرسال البريد الإلكتروني / Email Sender Function (mailout.one.com:465) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
     sender_password = st.secrets.get("EMAIL_PASSWORD")
@@ -137,13 +137,11 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             msg.attach(attachment)
             
         if smtp_port == 465:
-            # One.com SSL Connection
             server = smtplib.SMTP_SSL(smtp_server, smtp_port)
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
             server.quit()
         else:
-            # TLS Connection
             server = smtplib.SMTP(smtp_server, smtp_port)
             server.starttls()
             server.login(sender_email, sender_password)
@@ -155,7 +153,30 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
         return False
 
-# Page Configuration & Mobile UI Setup
+# --- دالة إرسال الرسائل النصية القصيرة / SMS Sender Function (Twilio) ---
+def send_sms_message(receiver_phone, message_body):
+    account_sid = st.secrets.get("TWILIO_ACCOUNT_SID")
+    auth_token = st.secrets.get("TWILIO_AUTH_TOKEN")
+    sender_phone = st.secrets.get("TWILIO_PHONE_NUMBER")
+    
+    if not account_sid or not auth_token or not sender_phone:
+        st.error("⚠️ Twilio SMS credentials missing in Streamlit Secrets.")
+        return False
+        
+    try:
+        from twilio.rest import Client
+        client = Client(account_sid, auth_token)
+        message = client.messages.create(
+            body=message_body,
+            from_=sender_phone,
+            to=receiver_phone
+        )
+        return True
+    except Exception as e:
+        st.error(f"❌ Fel vid SMS-utskick / SMS error: {e}")
+        return False
+
+# إعدادات الصفحة وواجهة الجوال / Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
 
 COMPANY_INFO = {
@@ -181,7 +202,7 @@ st.sidebar.title("30 MINUTES FIX AB")
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
-# Persistent Session Login State
+# حالة تسجيل الدخول / Persistent Session Login State
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -210,10 +231,11 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📄 Faktura / Invoice", 
     "🛒 Förbeställning / Pre-order", 
     "💳 Abonnemang / Subscriptions",
+    "📤 Utskick & Historik / Send & History",
     "📊 Data Center & Sök / All Data & Search"
 ])
 
-# --- 1. NYTT ÄRENDE / NEW REPAIR ---
+# --- 1. تسجيل طلب إصلاح جديد / NYTT ÄRENDE / NEW REPAIR ---
 if menu == "📝 Nytt Ärende / New Repair":
     st.header("📝 Registrera nytt ärende / Register New Repair")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
@@ -252,7 +274,7 @@ if menu == "📝 Nytt Ärende / New Repair":
         else:
             st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
 
-# --- 2. KOSTNADSFÖRSLAG / QUOTE ---
+# --- 2. عرض السعر / KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == "💡 Kostnadsförslag / Quote":
     st.header("💡 Kostnadsförslag / Price Quotation")
     branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
@@ -355,14 +377,14 @@ elif menu == "💡 Kostnadsförslag / Quote":
             try:
                 if db_type == "turso":
                     conn.execute(
-                        "INSERT INTO quotes (branch, customer_name, phone, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, device, issues_str, total_price, created_at)
+                        "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
                     )
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO quotes (branch, customer_name, phone, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, device, issues_str, total_price, created_at)
+                        "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -415,7 +437,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             else:
                 st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
 
-# --- 3. FAKTURA / INVOICE ---
+# --- 3. الفاتورة / FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
     st.header("📄 Professionell Faktura / Professional Invoice")
     branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
@@ -433,6 +455,7 @@ elif menu == "📄 Faktura / Invoice":
     st.subheader("👤 Kunduppgifter / Customer Info")
     f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
     f_email_inv = st.text_input("E-post för faktura / Customer Email for Invoice")
+    f_phone_inv = st.text_input("Telefonnummer / Phone Number")
     f_org = st.text_input("Org.nr / Personnummer / Org.nr / ID (Valfritt / Optional)")
     f_address = st.text_input("Adress / Address")
     invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
@@ -465,14 +488,14 @@ elif menu == "📄 Faktura / Invoice":
             try:
                 if db_type == "turso":
                     conn.execute(
-                        "INSERT INTO invoices (branch, customer_name, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (branch, f_name, invoice_no, total_amount, moms, created_at)
+                        "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
                     )
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO invoices (branch, customer_name, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (branch, f_name, invoice_no, total_amount, moms, created_at)
+                        "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
                     )
                     conn.commit()
                     conn.close()
@@ -518,7 +541,7 @@ elif menu == "📄 Faktura / Invoice":
             else:
                 st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
 
-# --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
+# --- 4. الطلب المسبق / FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
     st.header("🛒 Förbeställning av reservdelar / Spare Parts Pre-order")
     branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
@@ -551,7 +574,7 @@ elif menu == "🛒 Förbeställning / Pre-order":
         else:
             st.warning("⚠️ Fyll i namn och telefonnummer. / Fill name and phone number.")
 
-# --- 5. ABONNEMANG / SUBSCRIPTIONS ---
+# --- 5. الاشتراكات / ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == "💳 Abonnemang / Subscriptions":
     st.header("💳 IMEI-kopplade Abonnemang & Villkor / IMEI Subscriptions & Terms")
     
@@ -574,7 +597,7 @@ elif menu == "💳 Abonnemang / Subscriptions":
         st.info("💡 **Glass Protection Plan:** 99 Kr/mån | Byt skärmskydd upp till 2 ggr/mån utan självrisk (0 SEK självrisk).")
     elif "Case / Cover" in plan_choice:
         sub_price = 99.0
-        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån | Byt kفر/غطاء 1 gång var 3:e månad utan självrisk.")
+        st.info("💡 **Case / Cover Plan:** 399 Kr startavgift + 99 Kr/mån | Byt skydd 1 gång var 3:e månad utan självrisk.")
     else:
         sub_price = 99.0
         st.info("💡 **Teknik & Mjukvara Plan:** 99 Kr/mån | Fri hjälp med mjukvara och virusrensning.")
@@ -625,7 +648,82 @@ elif menu == "💳 Abonnemang / Subscriptions":
         else:
             st.warning("⚠️ Fyll i kundens namn. / Enter customer name.")
 
-# --- 6. DATA CENTER & SEARCH, EXPORT & DELETE ---
+# --- 6. الإرسال والمتابعة / UTSKICK & HISTORIK / SEND & HISTORY HUB ---
+elif menu == "📤 Utskick & Historik / Send & History":
+    st.header("📤 Skicka tidigare sparade dokument eller SMS")
+    st.markdown("Välj kategori nedan för att hämta tidigare sparade poster från databasen och skicka till kund via e-post eller SMS:")
+    
+    category = st.selectbox("Välj Kategori / Category", [
+        "💡 Kostnadsförslag / Quotes", 
+        "📄 Fakturor / Invoices", 
+        "📝 Reparationer / Repairs"
+    ])
+    
+    conn, db_type = get_db_connection()
+    table_name = "quotes" if "Quotes" in category else ("invoices" if "Invoices" in category else "repairs")
+    
+    if db_type == "turso":
+        rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25").fetchall()
+        columns_res = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        col_names = [c[1] for c in columns_res]
+        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+    else:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25")
+        rows = cursor.fetchall()
+        col_names = [d[0] for d in cursor.description]
+        df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+        
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+        
+        st.markdown("### ✉️ Välj post via ID för utskick")
+        selected_id = st.number_input("Ange Post-ID (första kolumnen i tabellen) / Enter Record ID", min_value=1, step=1)
+        
+        target_row = df[df['id'] == selected_id]
+        
+        if not target_row.empty:
+            row_data = target_row.iloc[0]
+            c_name = row_data.get('customer_name', 'Kund')
+            c_phone = row_data.get('phone', '')
+            c_email = row_data.get('email', '') 
+            
+            input_email = st.text_input("Mottagare E-post / Receiver Email", value=c_email if c_email else "")
+            input_phone = st.text_input("Mottagare Mobil / Receiver Phone (t.ex. +46700122444)", value=c_phone if c_phone else "")
+            
+            col_s1, col_s2 = st.columns(2)
+            
+            with col_s1:
+                if st.button("📧 Skicka via E-post"):
+                    if input_email:
+                        pdf_buf = st.session_state.get('last_quote_pdf', None) if "Quotes" in category else st.session_state.get('last_invoice_pdf', None)
+                        success = send_email_with_attachment(
+                            receiver_email=input_email,
+                            subject=f"Dokument från 30 Minutes Fix AB",
+                            body=f"Hej {c_name}!\n\nHär kommer information gällande ditt ärende hos oss.\nVälkommen åter!\nTel: 0700122444",
+                            pdf_buffer=pdf_buf,
+                            filename="dokument.pdf"
+                        )
+                        if success:
+                            st.success(f"✅ E-post skickad till {input_email}!")
+                    else:
+                        st.warning("⚠️ Ange en giltig e-postadress.")
+                        
+            with col_s2:
+                if st.button("📱 Skicka via SMS"):
+                    if input_phone:
+                        sms_text = f"Hej {c_name}! Tack for ditt besök hos 30 Minutes Fix AB. Har du frågor? Ring oss på 0700122444."
+                        success = send_sms_message(input_phone, sms_text)
+                        if success:
+                            st.success(f"✅ SMS skickat till {input_phone}!")
+                    else:
+                        st.warning("⚠️ Ange ett giltigt telefonnummer.")
+        else:
+            st.info("ℹ️ Ange ett giltigt ID från tabellen ovan för att välja kund.")
+    else:
+        st.info("ℹ️ Ingen data hittades i denna tabell.")
+
+# --- 7. مركز البيانات والبحث / DATA CENTER & SEARCH, EXPORT & DELETE ---
 elif menu == "📊 Data Center & Sök / All Data & Search":
     st.header("📊 Data Center, Sök, Export & Hantering / Search, Export & Management")
     st.markdown("Sök, exportera eller radera poster från molnet / Search, export, or delete cloud records:")
@@ -664,87 +762,35 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
         rows = cursor.fetchall()
         col_names = [description[0] for description in cursor.description]
         df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
-        conn.close()
         
-    if not df.empty and search_term:
-        mask = df.astype(str).apply(lambda x: x.str.lower().str.contains(search_term).any(), axis=1)
-        filtered_df = df[mask]
-    else:
-        filtered_df = df
-        
-    if not filtered_df.empty:
-        st.markdown(f"### Matchande poster / Matching Records ({len(filtered_df)}):")
+    if not df.empty:
+        if search_term:
+            mask = df.astype(str).apply(lambda x: x.str.lower().str.contains(search_term)).any(axis=1)
+            filtered_df = df[mask]
+        else:
+            filtered_df = df
+            
         st.dataframe(filtered_df, use_container_width=True)
         
-        # --- Export Options ---
         st.markdown("---")
-        st.subheader("📥 Exportera Data / Export Data")
-        col_ex1, col_ex2 = st.columns(2)
+        st.subheader("🗑️ Radera post / Delete Record")
+        delete_id = st.number_input("Ange ID för post som ska raderas / Enter ID to delete", min_value=0, step=1)
         
-        with col_ex1:
-            csv_data = filtered_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Ladda ner som Excel / CSV / Download CSV",
-                data=csv_data,
-                file_name=f"{current_table}_export.csv",
-                mime="text/csv"
-            )
-            
-        with col_ex2:
-            if st.button("📥 Generera PDF Export / Generate PDF"):
-                pdf_buffer = io.BytesIO()
-                p = canvas.Canvas(pdf_buffer, pagesize=A4)
-                p.drawString(50, 800, f"30 MINUTES FIX AB - Export: {search_category}")
-                p.drawString(50, 780, f"Datum / Date: {date.today().strftime('%Y-%m-%d')}")
-                p.drawString(50, 760, "-------------------------------------------------------------------")
-                
-                y = 730
-                for index, row in filtered_df.iterrows():
-                    if y < 50:
-                        p.showPage()
-                        y = 800
-                    row_text = f"ID: {row.iloc[0]} | Namn/Name: {row.iloc[2] if len(row)>2 else ''} | Info: {row.iloc[3] if len(row)>3 else ''}"
-                    p.drawString(50, y, str(row_text)[:90])
-                    y -= 20
-                
-                p.save()
-                pdf_buffer.seek(0)
-                st.download_button(
-                    label="📥 Ladda ner PDF Export / Download PDF",
-                    data=pdf_buffer,
-                    file_name=f"{current_table}_export.pdf",
-                    mime="application/pdf"
-                )
-
-        # --- Protected Deletion (Abonnemang & Fakturor are locked, uses 'tunapark') ---
-        if current_table not in ["subscriptions", "invoices"]:
-            st.markdown("---")
-            st.subheader("🗑️ Radera Post / Delete Record")
-            st.warning("⚠️ Säkerhetsmeddelande: Du kan inte radera abonnemang eller fakturor härifrån. / Security notice: Subscriptions and invoices cannot be deleted.")
-            
-            del_id = st.number_input("Ange ID för posten som ska raderas / Enter Record ID to Delete", min_value=1, step=1)
-            del_pin = st.text_input("Ange PIN-kod för radering (tunapark) / Deletion PIN", type="password", key="del_pin_input")
-            
-            if st.button("Radera permanent / Delete Permanently", type="primary"):
-                if del_pin == st.secrets.get("DELETE_PIN", "tunapark"):
-                    conn_del, dtype_del = get_db_connection()
-                    try:
-                        if dtype_del == "turso":
-                            conn_del.execute(f"DELETE FROM {current_table} WHERE id = ?", (del_id,))
-                        else:
-                            cur_del = conn_del.cursor()
-                            cur_del.execute(f"DELETE FROM {current_table} WHERE id = ?", (del_id,))
-                            conn_del.commit()
-                            conn_del.close()
-                        st.success(f"✅ Posten med ID {del_id} har raderats! / Record deleted successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Fel vid radering / Error deleting: {e}")
-                else:
-                    st.error("❌ Fel PIN-kod för radering! / Incorrect deletion PIN!")
-        else:
-            st.markdown("---")
-            st.info("🔒 **Skyddat avtal / Protected:** Abonnemang och fakturor är permanent skyddade och kan inte raderas. / Subscriptions and invoices are permanently protected.")
-            
+        if st.button("Radera permanent / Delete Permanently", type="secondary"):
+            if delete_id > 0:
+                try:
+                    if db_type == "turso":
+                        conn.execute(f"DELETE FROM {current_table} WHERE id = ?", (delete_id,))
+                    else:
+                        cursor = conn.cursor()
+                        cursor.execute(f"DELETE FROM {current_table} WHERE id = ?", (delete_id,))
+                        conn.commit()
+                        conn.close()
+                    st.success(f"✅ Post med ID {delete_id} har raderats! / Record deleted successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Fel vid radering / Delete error: {e}")
+            else:
+                st.warning("⚠️ Ange ett giltigt ID att radera.")
     else:
-        st.info("Inga poster hittades i denna kategori. / No records found in this category.")
+        st.info("ℹ️ Inga poster hittades i databasen.")
