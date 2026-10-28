@@ -141,7 +141,7 @@ def init_db():
 
 init_db()
 
-# --- Robust Email Sender Function (One.com SMTP via Port 587 STARTTLS) ---
+# --- Ultra-Robust Email Sender Function (One.com SMTP with Extended Timeout) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
@@ -171,15 +171,24 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
             msg.attach(attachment)
             
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
-        server.quit()
+        # محاولة الاتصال بالمنفذ 587 أولاً مع زيادة المهلة إلى 30 ثانية
+        try:
+            server = smtplib.SMTP(smtp_server, 587, timeout=30)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+            return True
+        except Exception:
+            # إذا فشلت المحاولة عبر 587، تجربة الاتصال عبر منفذ SSL 465 كخيار ثاني
+            server = smtplib.SMTP_SSL(smtp_server, 465, timeout=30)
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.quit()
+            return True
             
-        return True
     except Exception as e:
         st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
         return False
