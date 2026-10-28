@@ -803,12 +803,15 @@ elif menu == t["menu_quote"]:
             }
             pdf_buf = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
             st.session_state['last_quote_pdf'] = pdf_buf
+            safe_dev = device.replace(' ', '_')
+            safe_cust = c_name.replace(' ', '_')
+            st.session_state['last_quote_filename'] = f"Kostnadsforslag_{safe_dev}_{safe_cust}.pdf"
             st.success("✅ PDF skapades framgångsrikt! / PDF generated successfully!")
 
     if 'last_quote_pdf' in st.session_state:
         st.markdown("---")
         st.subheader("👀 Förhandsgranska och Skriv ut / Preview & Print")
-        display_pdf_preview(st.session_state['last_quote_pdf'], file_name="kostnadsforslag.pdf")
+        display_pdf_preview(st.session_state['last_quote_pdf'], file_name=st.session_state.get('last_quote_filename', 'kostnadsforslag.pdf'))
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == t["menu_invoice"]:
@@ -925,12 +928,14 @@ elif menu == t["menu_invoice"]:
             }
             pdf_buf = generate_pdf_from_record("invoice", record_data, COMPANY_INFO)
             st.session_state['last_invoice_pdf'] = pdf_buf
+            safe_cust = f_name.replace(' ', '_')
+            st.session_state['last_invoice_filename'] = f"Faktura_{invoice_no}_{safe_cust}.pdf"
             st.success("✅ Faktura PDF skapades! / Invoice PDF generated!")
 
     if 'last_invoice_pdf' in st.session_state:
         st.markdown("---")
         st.subheader("👀 Förhandsgranska och Skriv ut / Preview & Print")
-        display_pdf_preview(st.session_state['last_invoice_pdf'], file_name=f"{invoice_no}.pdf")
+        display_pdf_preview(st.session_state['last_invoice_pdf'], file_name=st.session_state.get('last_invoice_filename', 'faktura.pdf'))
 
 # --- 4. FÖRBÄLLNING / PRE-ORDER ---
 elif menu == t["menu_preorder"]:
@@ -1132,13 +1137,15 @@ elif menu == t["menu_sub"]:
                     
                     pdf_buf = generate_pdf_from_record("invoice", inv_record_data, COMPANY_INFO)
                     st.session_state['sub_invoice_pdf'] = pdf_buf
+                    safe_cust = s_cust.replace(' ', '_')
+                    st.session_state['sub_invoice_filename'] = f"Faktura_{s_dev}_{safe_cust}.pdf"
                     st.success(f"✅ تم إنشاء الفاتورة رقم {invoice_no_gen} بنجاح!")
                 else:
                     st.warning("⚠️ رقم الـ ID غير موجود في الاشتراكات.")
 
             if 'sub_invoice_pdf' in st.session_state:
                 st.markdown("---")
-                display_pdf_preview(st.session_state['sub_invoice_pdf'], file_name="abonnemang_faktura.pdf")
+                display_pdf_preview(st.session_state['sub_invoice_pdf'], file_name=st.session_state.get('sub_invoice_filename', 'abonnemang_faktura.pdf'))
         else:
             st.info("ℹ️ لا توجد اشتراكات مسجلة بعد.")
     except Exception as e:
@@ -1214,7 +1221,7 @@ elif menu == t["menu_inventory"]:
 # --- 7. DOKUMENT & HISTORIK / PRINT & HISTORY HUB ---
 elif menu == t["menu_history"]:
     st.header(t["history_header"])
-    st.markdown("ضع علامة صح (✔) بجانب الملف الذي تريد طباعته، ثم اضغط على زر طباعة الملفات المحددة أدناه:")
+    st.markdown("اختر نوع المستند، ثم ضع علامة صح (✔) بجانب اسم الجهاز والعميل الذي تريد طباعته وحفظه:")
     
     category = st.selectbox("Välj Kategori / Category", [
         "💡 Kostnadsförslag / Quotes", 
@@ -1246,33 +1253,37 @@ elif menu == t["menu_history"]:
         df = pd.DataFrame()
         
     if not df.empty:
-        st.markdown("### 🗂️ حدد الملفات للطباعة / Check files to print")
+        st.markdown("### 🗂️ القائمة والملفات المتاحة للطباعة / Check file & device to print")
         
-        selected_rows_to_print = []
+        selected_record_to_print = None
         
         for idx, row in df.iterrows():
             r_id = row['id']
             c_name = row.get('customer_name', 'عميل غير معروف')
             c_phone = row.get('phone', 'بدون هاتف')
+            device_name = row.get('device', 'جهاز غير مدون') if record_type == "quote" else row.get('invoice_no', 'فاتورة')
             date_str = row.get('created_at', '')
             total_val = row.get('total') if 'total' in row else row.get('amount', 0)
-            doc_label = f"📄 #{r_id} | العميل: {c_name} | هاتف: {c_phone} | المبلغ: {total_val} SEK | التاريخ: {date_str}"
             
-            # مربع اختيار (Check) بجانب كل ملف
-            if st.checkbox(doc_label, key=f"chk_print_{record_type}_{r_id}"):
-                selected_rows_to_print.append(row.to_dict())
+            file_title = "Kostnadsförslag" if record_type == "quote" else "Faktura"
+            checkbox_label = f"📱 [{file_title}] الجهاز: **{device_name}** | العميل: **{c_name}** | المبلغ: {total_val} SEK | التاريخ: {date_str}"
+            
+            if st.checkbox(checkbox_label, key=f"chk_single_print_{record_type}_{r_id}"):
+                selected_record_to_print = row.to_dict()
 
         st.markdown("---")
-        if st.button("🖨️ طباعة الملفات المحددة / Print Selected Files", type="primary"):
-            if selected_rows_to_print:
-                # سنقوم بطباعة أول ملف تم تحديده (أو يمكنك معاينته مباشرة)
-                target_data = selected_rows_to_print[0]
-                pdf_buf = generate_pdf_from_record(record_type, target_data, COMPANY_INFO)
+        if st.button("🖨️ طباعة وعرض الملف المختار / Print Selected File", type="primary"):
+            if selected_record_to_print:
+                pdf_buf = generate_pdf_from_record(record_type, selected_record_to_print, COMPANY_INFO)
                 st.session_state['hub_pdf'] = pdf_buf
-                st.session_state['hub_pdf_name'] = f"{record_type}_{target_data.get('id')}.pdf"
-                st.success(f"✅ تم تجهيز ملف العميل: {target_data.get('customer_name')} للطباعة!")
+                file_desc = "Kostnadsförslag" if record_type == "quote" else "Faktura"
+                dev_title = selected_record_to_print.get('device', selected_record_to_print.get('invoice_no', 'doc')).replace(' ', '_')
+                cust_title = selected_record_to_print.get('customer_name', 'kund').replace(' ', '_')
+                st.session_state['hub_pdf_name'] = f"{file_desc}_{dev_title}_{cust_title}.pdf"
+                st.success(f"✅ تم تجهيز ملف {file_desc} للجهاز ({selected_record_to_print.get('device', 'غير مدون')}) للعميل: {selected_record_to_print.get('customer_name')} للطباعة!")
+                st.rerun()
             else:
-                st.warning("⚠️ الرجاء وضع علامة صح (✔) على ملف واحد على الأقل من القائمة أعلاه.")
+                st.warning("⚠️ الرجاء وضع علامة صح (✔) على الملف الذي تريد طباعته.")
 
         if 'hub_pdf' in st.session_state:
             st.markdown("---")
@@ -1342,31 +1353,36 @@ elif menu == t["menu_datacenter"]:
         
         if current_table in ["quotes", "invoices"]:
             st.markdown("---")
-            st.subheader("🖨️ طباعة عبر تحديد المربعات / Print via Checkboxes")
+            st.subheader("🖨️ طباعة مستند من مركز البيانات / Print Document")
             
             rec_type = "quote" if current_table == "quotes" else "invoice"
-            dc_selected_list = []
+            file_title = "Kostnadsförslag" if rec_type == "quote" else "Faktura"
+            dc_selected_record = None
             
             for _, dc_row in filtered_df.iterrows():
                 dc_id = dc_row['id']
                 dc_name = dc_row.get('customer_name', 'عميل غير معروف')
+                dc_device = dc_row.get('device', 'جهاز غير مدون') if rec_type == "quote" else dc_row.get('invoice_no', 'فاتورة')
                 dc_total = dc_row.get('total') if 'total' in dc_row else dc_row.get('amount', 0)
-                dc_label = f"📄 مستند #{dc_id} | 👤 {dc_name} | 💰 {dc_total} SEK"
+                dc_label = f"📱 [{file_title}] الجهاز: **{dc_device}** | العميل: **{dc_name}** | المبلغ: {dc_total} SEK"
                 
-                if st.checkbox(dc_label, key=f"chk_dc_{rec_type}_{dc_id}"):
-                    dc_selected_list.append(dc_row.to_dict())
+                if st.checkbox(dc_label, key=f"chk_dc_single_{rec_type}_{dc_id}"):
+                    dc_selected_record = dc_row.to_dict()
             
-            if st.button("🖨️ طباعة المحدد من مركز البيانات / Print Selected", type="primary", key="btn_dc_print_selected"):
-                if dc_selected_list:
-                    buf = generate_pdf_from_record(rec_type, dc_selected_list[0], COMPANY_INFO)
+            if st.button("🖨️ طباعة الملف المختار / Print File", type="primary", key="btn_dc_print_single"):
+                if dc_selected_record:
+                    buf = generate_pdf_from_record(rec_type, dc_selected_record, COMPANY_INFO)
                     st.session_state['datacenter_pdf'] = buf
+                    safe_dev = dc_selected_record.get('device', dc_selected_record.get('invoice_no', 'doc')).replace(' ', '_')
+                    safe_cust = dc_selected_record.get('customer_name', 'kund').replace(' ', '_')
+                    st.session_state['datacenter_pdf_name'] = f"{file_title}_{safe_dev}_{safe_cust}.pdf"
                     st.rerun()
                 else:
-                    st.warning("⚠️ يرجى تحديد ملف واحد على الأقل.")
+                    st.warning("⚠️ يرجى تحديد ملف واحد للطباعة.")
 
             if 'datacenter_pdf' in st.session_state:
                 st.markdown("---")
-                display_pdf_preview(st.session_state['datacenter_pdf'], file_name="arkiv_dokument.pdf")
+                display_pdf_preview(st.session_state['datacenter_pdf'], file_name=st.session_state.get('datacenter_pdf_name', 'arkiv_dokument.pdf'))
 
         st.markdown("---")
         st.subheader("🗑️ Radera post / Delete Record")
