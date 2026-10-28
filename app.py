@@ -6,7 +6,6 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
 import pandas as pd
-import requests
 import base64
 
 # --- Database Connection with Instant SQLite Fallback ---
@@ -68,18 +67,10 @@ def init_db():
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS invoices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
+                    branch TEXT, customer_name TEXT, phone TEXT, invoice_no TEXT,
                     amount REAL, moms REAL, created_at TEXT
                 )
             """)
-            try:
-                conn.execute("ALTER TABLE quotes ADD COLUMN email TEXT")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE invoices ADD COLUMN email TEXT")
-            except Exception:
-                pass
             return
         except Exception:
             pass
@@ -120,69 +111,14 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch TEXT, customer_name TEXT, phone TEXT, email TEXT, invoice_no TEXT,
+            branch TEXT, customer_name TEXT, phone TEXT, invoice_no TEXT,
             amount REAL, moms REAL, created_at TEXT
         )
     """)
-    
-    try:
-        cursor.execute("ALTER TABLE quotes ADD COLUMN email TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE invoices ADD COLUMN email TEXT")
-    except Exception:
-        pass
-        
     conn.commit()
     conn.close()
 
 init_db()
-
-# --- Final Fixed Direct Email Sender via Resend API ---
-def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
-    api_key = "re_CHdLhv2m_8qHi1DVV5vfgPZ5NABb4BbXv"
-    # استخدام بريد الاختبار المعتمد من Resend لمنع أخطاء 401 الناتجة عن عدم توثيق النطاق
-    sender_email = "onboarding@resend.dev"
-    
-    try:
-        url = "https://api.resend.com/emails"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "from": f"30 Minutes Phone Fix <{sender_email}>",
-            "to": [receiver_email],
-            "subject": subject,
-            "text": body
-        }
-        
-        if pdf_buffer is not None:
-            pdf_buffer.seek(0)
-            pdf_bytes = pdf_buffer.read()
-            encoded_file = base64.b64encode(pdf_bytes).decode('utf-8')
-            payload["attachments"] = [
-                {
-                    "filename": filename,
-                    "content": encoded_file
-                }
-            ]
-            
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        
-        if response.status_code == 200 or response.status_code == 201:
-            return True
-        else:
-            st.error(f"❌ E-postfel från Resend API: {response.text}")
-            return False
-    except requests.exceptions.Timeout:
-        st.error("❌ Anslutningen till Resend API tog för lång tid (Timeout).")
-        return False
-    except Exception as e:
-        st.error(f"❌ Fel vid direkt e-postutskick: {e}")
-        return False
 
 # Page Configuration & Mobile UI Setup
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
@@ -247,9 +183,70 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📄 Faktura / Invoice", 
     "🛒 Förbeställning / Pre-order", 
     "💳 Abonnemang / Subscriptions",
-    "📤 E-post Utskick & Historik / Email Hub & History",
+    "🖨️ Dokument & Historik / Print & History Hub",
     "📊 Data Center & Sök / All Data & Search"
 ])
+
+# Hjälpfunktion för att visa PDF direkt i webbläsaren (Förhandsgranskning & Utskrift)
+def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
+    pdf_buffer.seek(0)
+    base64_pdf = base64.b64encode(pdf_buffer.read()).decode('utf-8')
+    
+    pdf_display = f"""
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <a href="data:application/pdf;base64,{base64_pdf}" download="{file_name}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold;">📥 Ladda ner PDF / Save PDF</a>
+        <button onclick="var iframe = document.getElementById('pdf-frame'); iframe.contentWindow.print();" style="background-color: #008CBA; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🖨️ Skriv ut / Print PDF</button>
+    </div>
+    <iframe id="pdf-frame" src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700px" style="border: 1px solid #ccc; border-radius: 5px;"></iframe>
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+# Generera PDF på nytt för sparade objekt vid visning/utskrift
+def generate_pdf_from_record(record_type, data, comp_info):
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    
+    if os.path.exists("logo.png"):
+        try:
+            p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
+        except Exception:
+            pass
+            
+    branch = data.get('branch', 'Eskilstuna')
+    comp = comp_info.get(branch, comp_info['Eskilstuna'])
+
+    if record_type == "quote":
+        p.drawString(140, 780, comp["name"])
+        p.drawString(140, 765, f"Adress: {comp['address']} | Tel: {comp['phone']}")
+        p.drawString(140, 750, f"Org.nr: {comp['org_nr']}")
+        p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
+        p.drawString(50, 715, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
+        p.drawString(50, 695, f"Datum / Date: {data.get('created_at', '')}")
+        p.drawString(50, 675, f"Kund / Customer: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
+        p.drawString(50, 655, f"Enhet / Device: {data.get('device', '')}")
+        p.drawString(50, 635, "------------------------------------------------------------------------------------------------")
+        
+        p.drawString(70, 605, f"- {data.get('issues', '')}")
+        p.drawString(50, 570, f"TOTAL SUMMA / TOTAL: {data.get('total', 0):.2f} Kr (inkl. moms)")
+        p.drawString(50, 540, "* Detta kostnadsförslag gäller endast i vår verkstad.")
+
+    elif record_type == "invoice":
+        p.drawString(140, 780, comp["name"])
+        p.drawString(140, 765, f"Adress: {comp['address']}")
+        p.drawString(140, 750, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+        p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
+        p.drawString(50, 715, "FAKTURA / INVOICE")
+        p.drawString(50, 695, f"Fakturanr / Invoice No: {data.get('invoice_no', '')} | Datum / Date: {data.get('created_at', '')}")
+        p.drawString(50, 675, f"Kund / Customer: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
+        p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
+        p.drawString(50, 625, f"Att betala Totalt / Total: {data.get('amount', 0):.2f} Kr (inkl. moms)")
+        p.drawString(50, 595, f"Moms (25%): {data.get('moms', 0):.2f} Kr")
+        p.drawString(50, 555, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
+
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer
 
 # --- 1. NYTT ÄRENDE / NEW REPAIR ---
 if menu == "📝 Nytt Ärende / New Repair":
@@ -308,7 +305,6 @@ elif menu == "💡 Kostnadsförslag / Quote":
     
     c_name = st.text_input("Kundens namn / Customer Name")
     c_phone = st.text_input("Telefonnummer / Phone Number")
-    c_email_q = st.text_input("E-post för utskick / Customer Email for Sending")
     device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15, MacBook Pro)")
     imei = st.text_input("IMEI / Serienummer (Valfritt / Optional)")
 
@@ -394,7 +390,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
     st.markdown(f"### 💰 **Total Summa / Final Total: {total_price:.2f} Kr (inkl. moms / incl. VAT)**")
     st.info("📜 *Detta kostnadsförslag gäller endast i vår verkstad / This quote is valid only in our workshop.*")
 
-    if st.button("Spara & Generera PDF Kostnadsförslag / Save & Generate PDF Quote", type="primary"):
+    if st.button("Spara & Generera Kostnadsförslag PDF / Save & Generate Quote PDF", type="primary"):
         if c_name and device and issues_list:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -405,14 +401,14 @@ elif menu == "💡 Kostnadsförslag / Quote":
                     try:
                         conn.execute(
                             "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
+                            (branch, c_name, c_phone, "", device, issues_str, total_price, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
                             "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
+                            (branch, c_name, c_phone, "", device, issues_str, total_price, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
@@ -420,18 +416,17 @@ elif menu == "💡 Kostnadsförslag / Quote":
                     cursor = conn.cursor()
                     cursor.execute(
                         "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
+                        (branch, c_name, c_phone, "", device, issues_str, total_price, created_at)
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Kostnadsförslag sparat! / Quote saved successfully!")
+                st.success("✅ Kostnadsförslag sparat i databasen! / Quote saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
-            # --- PDF Logo & Header Integration ---
             if os.path.exists("logo.png"):
                 try:
                     p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
@@ -465,21 +460,9 @@ elif menu == "💡 Kostnadsförslag / Quote":
             st.success("✅ PDF skapades framgångsrikt! / PDF generated successfully!")
 
     if 'last_quote_pdf' in st.session_state:
-        st.download_button("📥 Ladda ner PDF / Download PDF", st.session_state['last_quote_pdf'], file_name="kostnadsforslag.pdf", mime="application/pdf")
-        
-        if st.button("📧 Skicka PDF via E-post / Send PDF via Email"):
-            if c_email_q:
-                success = send_email_with_attachment(
-                    receiver_email=c_email_q,
-                    subject=f"Kostnadsförslag från 30 Minutes Phone Fix ({branch})",
-                    body=f"Hej {c_name}!\n\nHär kommer ditt kostnadsförslag för {device}.\nTotalpris: {total_price:.2f} Kr (inkl. moms).\n\nVälkommen åter!\nTel: {comp['phone']}",
-                    pdf_buffer=st.session_state['last_quote_pdf'],
-                    filename="kostnadsforslag.pdf"
-                )
-                if success:
-                    st.success("✅ E-post skickad direkt till kund via API!")
-            else:
-                st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
+        st.markdown("---")
+        st.subheader("👀 Förhandsgranska och Skriv ut / Preview & Print")
+        display_pdf_preview(st.session_state['last_quote_pdf'], file_name="kostnadsforslag.pdf")
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == "📄 Faktura / Invoice":
@@ -498,9 +481,7 @@ elif menu == "📄 Faktura / Invoice":
     st.markdown("---")
     st.subheader("👤 Kunduppgifter / Customer Info")
     f_name = st.text_input("Företag / Kundens namn / Company or Customer Name")
-    f_email_inv = st.text_input("E-post för faktura / Customer Email for Invoice")
     f_phone_inv = st.text_input("Telefonnummer / Phone Number")
-    f_org = st.text_input("Org.nr / Personnummer / Org.nr / ID (Valfritt / Optional)")
     f_address = st.text_input("Adress / Address")
     invoice_no = st.text_input("Fakturanummer / Invoice No.", value="FAK-2026-001")
     invoice_date = st.date_input("Fakturadatum / Invoice Date", value=date.today())
@@ -533,34 +514,33 @@ elif menu == "📄 Faktura / Invoice":
                 if db_type == "turso":
                     try:
                         conn.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
+                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, created_at)
                         )
                     except Exception:
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
+                            "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, created_at)
                         )
                         local_conn.commit()
                         local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
+                        "INSERT INTO invoices (branch, customer_name, phone, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (branch, f_name, f_phone_inv, invoice_no, total_amount, moms, created_at)
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Faktura sparad! / Invoice saved successfully!")
+                st.success("✅ Faktura sparad i databasen! / Invoice saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
-            # --- PDF Logo & Header Integration ---
             if os.path.exists("logo.png"):
                 try:
                     p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
@@ -587,21 +567,9 @@ elif menu == "📄 Faktura / Invoice":
             st.success("✅ Faktura PDF skapades! / Invoice PDF generated!")
 
     if 'last_invoice_pdf' in st.session_state:
-        st.download_button("📥 Ladda ner Faktura PDF / Download Invoice PDF", st.session_state['last_invoice_pdf'], file_name=f"{invoice_no}.pdf", mime="application/pdf")
-        
-        if st.button("📧 Skicka Faktura via E-post / Send Invoice via Email"):
-            if f_email_inv:
-                success = send_email_with_attachment(
-                    receiver_email=f_email_inv,
-                    subject=f"Faktura {invoice_no} från 30 Minutes Phone Fix ({branch})",
-                    body=f"Hej {f_name}!\n\nHär kommer faktura nr {invoice_no}.\nAtt betala: {total_amount:.2f} Kr.\nBetalning sker via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}.\n\nTack för din affär!\nTel: {comp['phone']}",
-                    pdf_buffer=st.session_state['last_invoice_pdf'],
-                    filename=f"{invoice_no}.pdf"
-                )
-                if success:
-                    st.success("✅ Faktura skickad direkt till kund via API!")
-            else:
-                st.warning("⚠️ Ange kundens e-postadress först. / Please enter customer email first.")
+        st.markdown("---")
+        st.subheader("👀 Förhandsgranska och Skriv ut / Preview & Print")
+        display_pdf_preview(st.session_state['last_invoice_pdf'], file_name=f"{invoice_no}.pdf")
 
 # --- 4. FÖRBESTÄLLNING / PRE-ORDER ---
 elif menu == "🛒 Förbeställning / Pre-order":
@@ -655,7 +623,6 @@ elif menu == "💳 Abonnemang / Subscriptions":
     branch = st.selectbox("Butik / Branch", ["Eskilstuna", "Västerås"])
     sub_name = st.text_input("Kundens namn / Customer Name")
     sub_phone = st.text_input("Telefonnummer / Phone Number")
-    sub_email = st.text_input("E-post / Email (Valfritt / Optional)")
 
     st.markdown("---")
     plan_choice = st.selectbox("Välj Plan / Plan Type", [
@@ -730,34 +697,34 @@ elif menu == "💳 Abonnemang / Subscriptions":
         else:
             st.warning("⚠️ Fyll i kundens namn. / Enter customer name.")
 
-# --- 6. E-POST UTSKICK & HISTORIK / EMAIL HUB & HISTORY ---
-elif menu == "📤 E-post Utskick & Historik / Email Hub & History":
-    st.header("📤 Skicka tidigare sparade dokument via E-post")
-    st.markdown("Välj kategori nedan för att hämta tidigare sparade poster från databasen och skicka till kund via e-post:")
+# --- 6. DOKUMENT & HISTORIK / PRINT & HISTORY HUB ---
+elif menu == "🖨️ Dokument & Historik / Print & History Hub":
+    st.header("🖨️ Visa och Skriv ut tidigare sparade dokument")
+    st.markdown("Välj kategori och ange ID för att visa eller skriva ut ett sparat dokument från databasen:")
     
     category = st.selectbox("Välj Kategori / Category", [
         "💡 Kostnadsförslag / Quotes", 
-        "📄 Fakturor / Invoices", 
-        "📝 Reparationer / Repairs"
+        "📄 Fakturor / Invoices"
     ])
     
     conn, db_type = get_db_connection()
-    table_name = "quotes" if "Quotes" in category else ("invoices" if "Invoices" in category else "repairs")
+    table_name = "quotes" if "Quotes" in category else "invoices"
+    record_type = "quote" if "Quotes" in category else "invoice"
     
     try:
         if db_type == "turso":
             try:
-                rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25").fetchall()
+                rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 30").fetchall()
                 columns_res = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
                 col_names = [c[1] for c in columns_res]
                 df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
             except Exception:
                 local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                df = pd.read_sql_query(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25", local_conn)
+                df = pd.read_sql_query(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 30", local_conn)
                 local_conn.close()
         else:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25")
+            cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 30")
             rows = cursor.fetchall()
             col_names = [d[0] for d in cursor.description]
             df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
@@ -767,45 +734,36 @@ elif menu == "📤 E-post Utskick & Historik / Email Hub & History":
     if not df.empty:
         st.dataframe(df, use_container_width=True)
         
-        st.markdown("### ✉️ Välj post via ID för e-postutskick")
-        selected_id = st.number_input("Ange Post-ID (första kolumnen i tabellen) / Enter Record ID", min_value=1, step=1)
+        st.markdown("### 🔍 Välj post via ID för att Visa / Skriva ut")
+        selected_id = st.number_input("Ange Post-ID (första kolumnen) / Enter Record ID", min_value=1, step=1)
         
         target_row = df[df['id'] == selected_id]
         
         if not target_row.empty:
-            row_data = target_row.iloc[0]
-            c_name = row_data.get('customer_name', 'Kund')
-            c_email = row_data.get('email', '') 
+            row_data = target_row.iloc[0].to_dict()
+            st.success(f"✅ Vald post hittad: {row_data.get('customer_name', '')}")
             
-            input_email = st.text_input("Mottagare E-post / Receiver Email", value=c_email if c_email else "")
-            
-            if st.button("📧 Skicka Dokument via E-post", type="primary"):
-                if input_email:
-                    pdf_buf = st.session_state.get('last_quote_pdf', None) if "Quotes" in category else st.session_state.get('last_invoice_pdf', None)
-                    success = send_email_with_attachment(
-                        receiver_email=input_email,
-                        subject=f"Dokument från 30 Minutes Phone Fix",
-                        body=f"Hej {c_name}!\n\nHär kommer information och dokument gällande ditt ärende hos oss.\nVälkommen åter!\nTel: 0700122444",
-                        pdf_buffer=pdf_buf,
-                        filename="dokument.pdf"
-                    )
-                    if success:
-                        st.success(f"✅ E-post skickad direkt till {input_email}!")
-                else:
-                    st.warning("⚠️ Ange en giltig e-postadress.")
+            if st.button("👁️ Generera & Förhandsgranska PDF / View PDF", type="primary"):
+                pdf_buf = generate_pdf_from_record(record_type, row_data, COMPANY_INFO)
+                st.session_state['hub_pdf'] = pdf_buf
+                st.session_state['hub_pdf_name'] = f"dokument_{selected_id}.pdf"
+                
+            if 'hub_pdf' in st.session_state:
+                st.markdown("---")
+                display_pdf_preview(st.session_state['hub_pdf'], file_name=st.session_state.get('hub_pdf_name', 'dokument.pdf'))
         else:
-            st.info("ℹ️ Ange ett giltigt ID från tabellen ovan för att välja kund.")
+            st.info("ℹ️ Ange ett giltigt ID från tabellen ovan.")
     else:
-        st.info("ℹ️ Ingen data hittades i denna tabell.")
+        st.info("ℹ️ Inga dokument hittades.")
 
-# --- 7. DATA CENTER & SEARCH, EXPORT & DELETE ---
+# --- 7. DATA CENTER & SÖK / ALL DATA & SEARCH ---
 elif menu == "📊 Data Center & Sök / All Data & Search":
     st.header("📊 Data Center, Sök, Export & Hantering / Search, Export & Management")
-    st.markdown("Sök, exportera eller radera poster från databasen / Search, export, or delete records:")
+    st.markdown("Sök, exportera, visa dokument eller radera poster från databasen:")
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
         "📝 Reparationer / Repairs", 
-        "💳 Abonnemang / Subscriptions", 
+        "💳 Abonnemang / subscriptions", 
         "🛒 Förbeställningar / Pre-orders", 
         "💡 Kostnadsförslag / Quotes", 
         "📄 Fakturor / Invoices"
@@ -817,7 +775,7 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
     
     table_map = {
         "📝 Reparationer / Repairs": "repairs",
-        "💳 Abonnemang / Subscriptions": "subscriptions",
+        "💳 Abonnemang / subscriptions": "subscriptions",
         "🛒 Förbeställningar / Pre-orders": "preorders",
         "💡 Kostnadsförslag / Quotes": "quotes",
         "📄 Fakturor / Invoices": "invoices"
@@ -855,9 +813,26 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
             
         st.dataframe(filtered_df, use_container_width=True)
         
+        # Om det är Kostnadsförslag eller Fakturor ger vi möjlighet att direkt förhandsgranska/skriva ut direkt härifrån också!
+        if current_table in ["quotes", "invoices"]:
+            st.markdown("---")
+            st.subheader("👁️ Visa och Skriv ut sparad post direkt / View & Print Record")
+            doc_id = st.number_input("Ange ID för dokument som ska visas/skrivas ut", min_value=0, step=1, key="doc_view_id")
+            if doc_id > 0:
+                match_row = df[df['id'] == doc_id]
+                if not match_row.empty:
+                    row_dict = match_row.iloc[0].to_dict()
+                    rec_type = "quote" if current_table == "quotes" else "invoice"
+                    if st.button("🖨️ Generera förhandsgranskning för ID", type="primary"):
+                        buf = generate_pdf_from_record(rec_type, row_dict, COMPANY_INFO)
+                        st.session_state['datacenter_pdf'] = buf
+                        
+            if 'datacenter_pdf' in st.session_state:
+                display_pdf_preview(st.session_state['datacenter_pdf'], file_name="arkiv_dokument.pdf")
+
         st.markdown("---")
         st.subheader("🗑️ Radera post / Delete Record")
-        delete_ID = st.number_input("Ange ID för post som ska raderas / Enter ID to delete", min_value=0, step=1)
+        delete_id = st.number_input("Ange ID för post som ska raderas / Enter ID to delete", min_value=0, step=1, key="del_id_input")
         
         if st.button("Radera permanent / Delete Permanently", type="secondary"):
             if delete_id > 0:
