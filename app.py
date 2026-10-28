@@ -492,13 +492,23 @@ def generate_pdf_from_record(record_type, data, comp_info):
         
         p.line(50, height - 320, width - 50, height - 320)
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 345, f"Att betala / Total: {price_val:.2f} {currency}")
+        p.drawString(300, height - 335, f"Att betala / Total: {price_val:.2f} {currency}")
         p.setFont("Helvetica", 8)
-        p.drawString(300, height - 360, "(Inkl. moms / Incl. VAT)")
+        p.drawString(300, height - 350, "(Inkl. moms / Incl. VAT)")
         
-        p.setFont("Helvetica-Oblique", 8)
-        p.drawString(50, height - 420, "* Detta kvitto måste uppvisas vid uthämtning av enheten / Receipt required for pickup.")
-        p.drawString(50, height - 435, "* Vi ansvarar ej för icke säkerhetskopierad data / Not responsible for unbacked data.")
+        # --- GUARANTEE & DATA LOSS DISCLAIMER CLAUSES ---
+        p.setFont("Helvetica-Bold", 8)
+        p.drawString(50, height - 385, "Garanti & Villkor / Warranty & Terms:")
+        p.setFont("Helvetica", 7.5)
+        p.drawString(50, height - 398, "- Garanti ges endast for det arbete/delar som har utforts/bytts ut.")
+        p.drawString(50, height - 410, "- Vi ansvarar ej for forlorad data (sarskilt vid vattenskadade, doeda eller enheter med svart skaerm),")
+        p.drawString(50, height - 422, "  da datan kan ha gått forlorad redan innan inlamning.")
+        p.drawString(50, height - 434, "- Detta kvitto maste uppvisas vid uthamtning. Vi ansvarar ej for ej uthamtade enheter efter 3 manader.")
+
+        p.setFont("Helvetica-Oblique", 7.5)
+        p.drawString(50, height - 455, "* Warranty applies only to the specific repair performed.")
+        p.drawString(50, height - 467, "* Not responsible for data loss (especially on water-damaged, dead or black-screen devices).")
+
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
@@ -727,6 +737,16 @@ with tab2:
     
     auto_issues_str = ", ".join(selected_rep_issues)
     issue = st.text_area(t["issue"], value=auto_issues_str, key="rep_issue_desc")
+
+    # --- NOTICE BOX INSIDE NEW REPAIR TAB FOR EMPLOYEES ---
+    st.markdown("""
+    <div style="background-color: #fff3cd; padding: 12px; border-radius: 8px; border-left: 5px solid #ffc107; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
+        <b>⚠️ شروط الضمان وإخلاء المسؤولية (Warranty & Disclaimer Terms on Receipt):</b><br>
+        • الضمان يغطي فقط الإصلاح أو القطعة التي تم استبدالها.<br>
+        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات (خصوصاً في الأجهزة التالفة بسبب الماء، الأجهزة الميتة، أو ذات الشاشة السوداء)، حيث قد تكون البيانات تالفة مسبقاً.<br>
+        <i>• Warranty covers only the specific repair/part. No liability for data loss on water-damaged, dead, or black-screen devices.</i>
+    </div>
+    """, unsafe_allow_html=True)
     
     if st.button(t["save_repair"], type="primary", key="btn_save_rep"):
         if c_name and c_phone and device and employee_name:
