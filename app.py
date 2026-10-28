@@ -19,7 +19,6 @@ def get_db_connection():
         url = st.secrets.get("TURSO_DATABASE_URL", "")
         token = st.secrets.get("TURSO_AUTH_TOKEN", "")
         
-        # إذا كان الرابط يبدأ بـ libsql:// أو https://
         if url and token:
             if hasattr(libsql_client, "create_client_sync"):
                 conn = libsql_client.create_client_sync(url=url, auth_token=token)
@@ -29,7 +28,6 @@ def get_db_connection():
                 conn = libsql_client.connect(url=url, auth_token=token)
             return conn, "turso"
     except Exception:
-        # التحول الفوري والآمن إلى SQLite المحلية عند أي خطأ في السحابة
         pass
     
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
@@ -76,11 +74,19 @@ def init_db():
                     amount REAL, moms REAL, created_at TEXT
                 )
             """)
+            try:
+                conn.execute("ALTER TABLE quotes ADD COLUMN email TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE invoices ADD COLUMN email TEXT")
+            except Exception:
+                pass
             return
         except Exception:
             pass
 
-    # SQLite initialization fallback
+    # SQLite initialization fallback & migration
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("""
@@ -120,6 +126,17 @@ def init_db():
             amount REAL, moms REAL, created_at TEXT
         )
     """)
+    
+    # إضافة الأوردة المفقودة إن لم تكن موجودة
+    try:
+        cursor.execute("ALTER TABLE quotes ADD COLUMN email TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN email TEXT")
+    except Exception:
+        pass
+        
     conn.commit()
     conn.close()
 
@@ -289,7 +306,6 @@ if menu == "📝 Nytt Ärende / New Repair":
                             (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
                         )
                     except Exception:
-                        # Fallback to local sqlite if turso write fails
                         local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
                         local_cursor = local_conn.cursor()
                         local_cursor.execute(
