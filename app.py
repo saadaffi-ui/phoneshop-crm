@@ -210,7 +210,7 @@ except Exception:
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
-# --- Custom CSS Styling ---
+# --- Custom CSS Styling & Color Coding for Each Section ---
 st.markdown("""
 <style>
     .stApp {
@@ -237,6 +237,8 @@ st.markdown("""
     .repair-box { background-color: #e8f8f5; padding: 20px; border-radius: 10px; border-left: 6px solid #1abc9c; }
     .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; }
     .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; }
+    .sub-box { background-color: #fbeee6; padding: 20px; border-radius: 10px; border-left: 6px solid #d35400; }
+    .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; }
     .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
     .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
     
@@ -271,13 +273,14 @@ COMPANY_INFO = {
     }
 }
 
-# --- MULTI-LANGUAGE DICTIONARY ---
 TRANSLATIONS = {
     "Svenska": {
         "tab_dash": "📊 Dashboard",
         "tab_repair": "🛠️ Nytt Ärende",
         "tab_quote": "💡 Kostnadsförslag",
         "tab_invoice": "📄 Faktura",
+        "tab_sub": "💳 Abonnemang",
+        "tab_preorder": "🛒 Förbeställning",
         "tab_stock": "📦 Lager",
         "tab_search": "🔍 Sök & Arkiv",
         "employee": "Handläggare / Säljare",
@@ -296,6 +299,8 @@ TRANSLATIONS = {
         "tab_repair": "🛠️ New Repair",
         "tab_quote": "💡 Quote",
         "tab_invoice": "📄 Invoice",
+        "tab_sub": "💳 Subscriptions",
+        "tab_preorder": "🛒 Pre-order",
         "tab_stock": "📦 Inventory",
         "tab_search": "🔍 Search & Archive",
         "employee": "Employee Name",
@@ -314,6 +319,8 @@ TRANSLATIONS = {
         "tab_repair": "🛠️ إصلاح جديد",
         "tab_quote": "💡 عرض سعر",
         "tab_invoice": "📄 فاتورة",
+        "tab_sub": "💳 الاشتراكات",
+        "tab_preorder": "🛒 الطلب المسبق",
         "tab_stock": "📦 المخزون",
         "tab_search": "🔍 الأرشيف والبحث",
         "employee": "اسم الموظف المسؤول",
@@ -498,12 +505,14 @@ def generate_pdf_from_record(record_type, data, comp_info):
     buffer.seek(0)
     return buffer
 
-# --- TABS WITH DYNAMIC TRANSLATIONS & SECTION COLORS ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+# --- TABS WITH ALL SECTIONS INCLUDED ---
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     t["tab_dash"], 
     t["tab_repair"], 
     t["tab_quote"], 
     t["tab_invoice"], 
+    t["tab_sub"], 
+    t["tab_preorder"],
     t["tab_stock"], 
     t["tab_search"]
 ])
@@ -811,8 +820,110 @@ with tab4:
         display_pdf_preview(st.session_state['inv_pdf'], file_name=st.session_state.get('inv_pdf_name', 'invoice.pdf'))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 5: INVENTORY ---
+# --- TAB 5: SUBSCRIPTIONS (IMEI LINKED) ---
 with tab5:
+    st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
+    st.header("💳 الاشتراكات وضمان IMEI")
+    sub_emp = st.text_input(t["employee"], key="sub_emp")
+    sub_imei = st.text_input(t["imei"], key="sub_imei")
+    sub_device = st.text_input(t["device"], key="sub_device")
+    sub_name = st.text_input(t["customer_name"], key="sub_name")
+    sub_phone = st.text_input(t["phone"], key="sub_phone")
+
+    plan_choice = st.selectbox("Välj Plan / خطة الاشتراك", [
+        "Glass Protection Abonnemang (99 SEK/mån)",
+        "Case / Cover Abonnemang (399 SEK start + 99 SEK/mån)",
+        "Teknik, Mjukvara & Virus Help (99 SEK/mån)",
+        "Phone Shield Total Club (149 SEK/mån)"
+    ])
+    
+    sub_price = 149.0 if "Phone Shield Total Club" in plan_choice else 99.0
+    st.info("💡 **شروط الاشتراك:** مرتبط حصرياً برقم الـ IMEI للجهاز. فترة الإلغاء 3 أشهر.")
+    agree_terms = st.checkbox("Kunden godkänner villkoren / العميل يوافق على الشروط")
+
+    if st.button("سپار Abonnemang / حفظ الاشتراك", type="primary", key="btn_save_sub"):
+        if sub_imei and sub_name and agree_terms and sub_emp:
+            conn, db_type = get_db_connection()
+            start_date = datetime.now().strftime("%Y-%m-%d")
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                if db_type == "turso":
+                    try:
+                        conn.execute(
+                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
+                        )
+                    except Exception:
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
+                    )
+                    conn.commit()
+                    conn.close()
+                st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI بنجاح!")
+            except Exception as e:
+                st.error(f"❌ خطأ: {e}")
+        else:
+            st.warning("⚠️ يرجى إدخال اسم الموظف، رقم الـ IMEI، اسم العميل، والموافقة على الشروط.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 6: PRE-ORDERS ---
+with tab6:
+    st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
+    st.header("🛒 الطلب المسبق لقطع الغيار")
+    pre_emp = st.text_input(t["employee"], key="pre_emp")
+    pre_name = st.text_input(t["customer_name"], key="pre_name")
+    pre_phone = st.text_input(t["phone"], key="pre_phone")
+    pre_details = st.text_area("تفاصيل القطعة المطلوبة / Part details")
+    pre_deposit = st.number_input("العربون المدفوع / Deposit (SEK)", min_value=0.0, step=50.0)
+
+    if st.button("حفظ الطلب المسبق", type="primary", key="btn_save_pre"):
+        if pre_name and pre_phone and pre_emp:
+            conn, db_type = get_db_connection()
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                if db_type == "turso":
+                    try:
+                        conn.execute(
+                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at)
+                        )
+                    except Exception:
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
+                else:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at)
+                    )
+                    conn.commit()
+                    conn.close()
+                st.success("✅ تم حفظ الطلب المسبق بنجاح!")
+            except Exception as e:
+                st.error(f"❌ خطأ: {e}")
+        else:
+            st.warning("⚠️ أدخل اسم الموظف واسم العميل ورقم الهاتف.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 7: INVENTORY ---
+with tab7:
     st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
     st.header("📦 إدارة المخزون وقطع الغيار")
     conn, db_type = get_db_connection()
@@ -863,15 +974,17 @@ with tab5:
         pass
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 6: SEARCH & ARCHIVE ---
-with tab6:
+# --- TAB 8: SEARCH & ARCHIVE ---
+with tab8:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
     st.header("🔍 الأرشيف والبحث وإدارة البيانات")
-    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات", "💡 عروض الأسعار", "📄 الفواتير", "📦 المخزون"])
+    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات", "💳 الاشتراكات", "🛒 الطلبات المسبقة", "💡 عروض الأسعار", "📄 الفواتير", "📦 المخزون"])
     search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
     
     table_map = {
         "📝 الإصلاحات": "repairs",
+        "💳 الاشتراكات": "subscriptions",
+        "🛒 الطلبات المسبقة": "preorders",
         "💡 عروض الأسعار": "quotes",
         "📄 الفواتير": "invoices",
         "📦 المخزون": "inventory"
