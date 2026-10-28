@@ -187,22 +187,35 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📊 Data Center & Sök / All Data & Search"
 ])
 
-# Robust hjälpfunktion för förhandsgranskning och utskrift via object/embed
+# Stabil hjälpfunktion för nedladdning och utskrift via ny flik (undviker webbläsarblockeringar)
 def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
-    base64_pdf = base64.b64encode(pdf_buffer.read()).decode('utf-8')
+    pdf_bytes = pdf_buffer.read()
+    b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+    pdf_data_url = f"data:application/pdf;base64,{b64_pdf}"
     
-    pdf_display = f"""
-    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-        <a href="data:application/pdf;base64,{base64_pdf}" download="{file_name}" style="background-color: #4CAF50; color: white; padding: 12px 24px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 16px;">📥 Ladda ner PDF / Save PDF</a>
-        <a href="data:application/pdf;base64,{base64_pdf}" target="_blank" style="background-color: #008CBA; color: white; padding: 12px 24px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 16px;">🖨️ Öppna & Skriv ut / Print PDF</a>
-    </div>
-    <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="750px" style="border: 1px solid #ccc; border-radius: 6px;">
-        <embed src="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="750px" />
-        <p>Din webbläsare stöder inte inbäddad PDF-visning. Använd knappen ovan för att ladda ner eller skriva ut dokumentet.</p>
-    </object>
-    """
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    st.success("✅ Dokumentet är klart!")
+    
+    col_dl, col_pr = st.columns(2)
+    with col_dl:
+        st.download_button(
+            label="📥 Ladda ner PDF / Save PDF",
+            data=pdf_bytes,
+            file_name=file_name,
+            mime="application/pdf",
+            type="primary"
+        )
+    with col_pr:
+        st.markdown(
+            f"""
+            <div style="margin-top: 2px;">
+                <a href="{pdf_data_url}" target="_blank" style="background-color: #008CBA; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold;">
+                    🖨️ Öppna & Skriv ut / Print PDF
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 # Generera PDF på nytt för sparade objekt vid visning/utskrift
 def generate_pdf_from_record(record_type, data, comp_info):
