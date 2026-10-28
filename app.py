@@ -187,35 +187,35 @@ menu = st.sidebar.radio("Navigation / Meny", [
     "📊 Data Center & Sök / All Data & Search"
 ])
 
-# Stabil hjälpfunktion för nedladdning och utskrift via ny flik (undviker webbläsarblockeringar)
+# Stabil hjälpfunktion för nedladdning och förhandsgranskning utan blanka sidor
 def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    pdf_data_url = f"data:application/pdf;base64,{b64_pdf}"
     
-    st.success("✅ Dokumentet är klart!")
+    st.success("✅ Dokumentet är redo!")
     
-    col_dl, col_pr = st.columns(2)
-    with col_dl:
-        st.download_button(
-            label="📥 Ladda ner PDF / Save PDF",
-            data=pdf_bytes,
-            file_name=file_name,
-            mime="application/pdf",
-            type="primary"
-        )
-    with col_pr:
-        st.markdown(
-            f"""
-            <div style="margin-top: 2px;">
-                <a href="{pdf_data_url}" target="_blank" style="background-color: #008CBA; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold;">
-                    🖨️ Öppna & Skriv ut / Print PDF
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    # Nedladdningsknapp
+    st.download_button(
+        label="📥 Ladda ner PDF / Save PDF",
+        data=pdf_bytes,
+        file_name=file_name,
+        mime="application/pdf",
+        type="primary"
+    )
+    
+    st.markdown("---")
+    st.markdown("### 👁️ Förhandsgranskning & Utskrift / Preview")
+    st.info("💡 Du kan skriva ut direkt genom att använda webbläsarens utskriftsfunktion (Ctrl+P på Windows eller Cmd+P på Mac) när dokumentet visas nedan.")
+    
+    # Inbäddad visning som fungerar stabilt
+    pdf_display = f"""
+    <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="700px" style="border: 1px solid #ccc; border-radius: 5px;">
+        <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="700px" />
+        <p style="padding: 20px; text-align: center;">Din webbläsare stöder inte direkt inbäddad PDF-visning. Använd knappen ovan för att ladda ner filen.</p>
+    </object>
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
 # Generera PDF på nytt för sparade objekt vid visning/utskrift
 def generate_pdf_from_record(record_type, data, comp_info):
