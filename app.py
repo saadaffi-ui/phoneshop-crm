@@ -503,13 +503,11 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "FAKTURA / INVOICE")
         
-        # Swedish Standard Invoice Header Details block
         p.setFont("Helvetica", 10)
         p.drawString(50, height - 135, f"Fakturanr: {data.get('invoice_no', '')}")
         p.drawString(50, height - 150, f"Fakturadatum: {data.get('created_at', '')}")
         p.drawString(50, height - 165, f"Vår referens: {employee_name}")
         
-        # Customer address box (Fakturamottagare)
         p.setFont("Helvetica-Bold", 10)
         p.drawString(300, height - 135, "Köpare / Kund:")
         p.setFont("Helvetica", 10)
@@ -809,7 +807,7 @@ with tab3:
 
 # --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF) ---
 with tab4:
-    st.markdown("<div class='invoice-box'>", unsafe_allow_html=Type)
+    st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
     st.header(f"📄 الفاتورة الرسمية القياسية ({global_branch})")
     
     inv_emp = st.text_input(t["employee"], key="inv_emp")
