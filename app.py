@@ -11,14 +11,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 
-# --- Turso Cloud Database Connection with Safe Fallback ---
+# --- Database Connection with Instant SQLite Fallback ---
 import libsql_client
 
 def get_db_connection():
     try:
-        url = st.secrets.get("TURSO_DATABASE_URL", "libsql://30minutesphonefix-saadaffi.aws-eu-north-1.turso.io")
-        token = st.secrets.get("TURSO_AUTH_TOKEN", "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTMxMTYyMjMsImlkIjoiMDFhMTdkODMtNmMwMS03MDFlLWExYzYtNGIxZDIxZWYwZjdkIiwia2lkIjoib2V0R2gwTjFIbHpzNlY1alRPZEpCNDlySTkzTWI4eW5rT21iT3Q2VUh2MCIsInJpZCI6IjA5NTI0MzIzLWRjZTMtNGJiMS1hY2VmLTE5MzdhMjkzZWQ1ZiJ9.Mb92yDL3GtxeXQ9U8yDzaPIRoO23HijuTZ215CXsgiS0e6Sq8YAyqZ3vk_f7ZzGbRccMRVpsqTKwSI8-eVVOCg")
+        url = st.secrets.get("TURSO_DATABASE_URL", "")
+        token = st.secrets.get("TURSO_AUTH_TOKEN", "")
         
+        # إذا كان الرابط يبدأ بـ libsql:// أو https://
         if url and token:
             if hasattr(libsql_client, "create_client_sync"):
                 conn = libsql_client.create_client_sync(url=url, auth_token=token)
@@ -28,7 +29,7 @@ def get_db_connection():
                 conn = libsql_client.connect(url=url, auth_token=token)
             return conn, "turso"
     except Exception:
-        # Fallback to local SQLite if cloud connection fails (prevents WS handshake crash)
+        # التحول الفوري والآمن إلى SQLite المحلية عند أي خطأ في السحابة
         pass
     
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
@@ -77,7 +78,7 @@ def init_db():
             """)
             return
         except Exception:
-            pass  # Fall through to sqlite if turso execution fails
+            pass
 
     # SQLite initialization fallback
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
@@ -274,7 +275,7 @@ if menu == "📝 Nytt Ärende / New Repair":
     price = st.number_input("Pris (Kr) / Price", min_value=0.0, step=50.0)
     issue = st.text_area("Beskrivning av fel / Issue Description")
     
-    if st.button("Spara Ärende / Save Repair (Cloud)", type="primary"):
+    if st.button("Spara Ärende / Save Repair", type="primary"):
         if c_name and c_phone and device:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -282,10 +283,21 @@ if menu == "📝 Nytt Ärende / New Repair":
             
             try:
                 if db_type == "turso":
-                    conn.execute(
-                        "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
-                    )
+                    try:
+                        conn.execute(
+                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
+                        )
+                    except Exception:
+                        # Fallback to local sqlite if turso write fails
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, c_email, device, imei, issue, price, status, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
@@ -294,7 +306,7 @@ if menu == "📝 Nytt Ärende / New Repair":
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Ärendet har sparats i databasen! / Repair saved successfully!")
+                st.success("✅ Ärendet har sparats! / Repair saved successfully!")
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
@@ -402,10 +414,20 @@ elif menu == "💡 Kostnadsförslag / Quote":
             
             try:
                 if db_type == "turso":
-                    conn.execute(
-                        "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
-                    )
+                    try:
+                        conn.execute(
+                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
+                        )
+                    except Exception:
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, c_name, c_phone, c_email_q, device, issues_str, total_price, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
@@ -513,10 +535,20 @@ elif menu == "📄 Faktura / Invoice":
             
             try:
                 if db_type == "turso":
-                    conn.execute(
-                        "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
-                    )
+                    try:
+                        conn.execute(
+                            "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
+                        )
+                    except Exception:
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO invoices (branch, customer_name, phone, email, invoice_no, amount, moms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, f_name, f_phone_inv, f_email_inv, invoice_no, total_amount, moms, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
@@ -582,10 +614,20 @@ elif menu == "🛒 Förbeställning / Pre-order":
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 if db_type == "turso":
-                    conn.execute(
-                        "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (branch, fb_name, fb_phone, fb_details, fb_deposit, created_at)
-                    )
+                    try:
+                        conn.execute(
+                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (branch, fb_name, fb_phone, fb_details, fb_deposit, created_at)
+                        )
+                    except Exception:
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (branch, fb_name, fb_phone, fb_details, fb_deposit, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
@@ -652,10 +694,20 @@ elif menu == "💳 Abonnemang / Subscriptions":
             
             try:
                 if db_type == "turso":
-                    conn.execute(
-                        "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
-                    )
+                    try:
+                        conn.execute(
+                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
+                        )
+                    except Exception:
+                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute(
+                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, start_date, created_at)
+                        )
+                        local_conn.commit()
+                        local_conn.close()
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
@@ -690,10 +742,15 @@ elif menu == "📤 Utskick & Historik / Send & History":
     
     try:
         if db_type == "turso":
-            rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25").fetchall()
-            columns_res = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-            col_names = [c[1] for c in columns_res]
-            df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+            try:
+                rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25").fetchall()
+                columns_res = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+                col_names = [c[1] for c in columns_res]
+                df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+            except Exception:
+                local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                df = pd.read_sql_query(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25", local_conn)
+                local_conn.close()
         else:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 25")
@@ -781,11 +838,16 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
     
     try:
         if db_type == "turso":
-            res = conn.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
-            rows = res.fetchall()
-            columns_res = conn.execute(f"PRAGMA table_info({current_table})").fetchall()
-            col_names = [c[1] for c in columns_res]
-            df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+            try:
+                res = conn.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
+                rows = res.fetchall()
+                columns_res = conn.execute(f"PRAGMA table_info({current_table})").fetchall()
+                col_names = [c[1] for c in columns_res]
+                df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
+            except Exception:
+                local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                df = pd.read_sql_query(f"SELECT * FROM {current_table} ORDER BY id DESC", local_conn)
+                local_conn.close()
         else:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
@@ -812,7 +874,14 @@ elif menu == "📊 Data Center & Sök / All Data & Search":
             if delete_id > 0:
                 try:
                     if db_type == "turso":
-                        conn.execute(f"DELETE FROM {current_table} WHERE id = ?", (delete_id,))
+                        try:
+                            conn.execute(f"DELETE FROM {current_table} WHERE id = ?", (delete_id,))
+                        except Exception:
+                            local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+                            local_cursor = local_conn.cursor()
+                            local_cursor.execute(f"DELETE FROM {current_table} WHERE id = ?", (delete_id,))
+                            local_conn.commit()
+                            local_conn.close()
                     else:
                         cursor = conn.cursor()
                         cursor.execute(f"DELETE FROM {current_table} WHERE id = ?", (delete_id,))
