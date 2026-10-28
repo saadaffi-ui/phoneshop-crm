@@ -11,7 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 
-# --- Turso Cloud Database Connection (مع قيم احتياطية مباشرة) ---
+# --- Turso Cloud Database Connection (مع التحديث الجديد للاتصال) ---
 import libsql_client
 
 def get_db_connection():
@@ -23,7 +23,12 @@ def get_db_connection():
     
     if url and token:
         try:
-            conn = libsql_client.connect(url=url, auth_token=token)
+            if hasattr(libsql_client, "create_client_sync"):
+                conn = libsql_client.create_client_sync(url=url, auth_token=token)
+            elif hasattr(libsql_client, "create_client"):
+                conn = libsql_client.create_client(url=url, auth_token=token)
+            else:
+                conn = libsql_client.connect(url=url, auth_token=token)
             return conn, "turso"
         except Exception as e:
             st.error(f"⚠️ Turso DB Connection Error: {e}")
@@ -115,11 +120,11 @@ def init_db():
 
 init_db()
 
-# --- Email Sender Function (مع قيم احتياطية مباشرة لتعمل فوراً) ---
+# --- Email Sender Function ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
-        sender_password = st.secrets.get("EMAIL_PASSWORD", "Amaryj223355") # قيمة احتياطية مباشرة
+        sender_password = st.secrets.get("EMAIL_PASSWORD", "Amaryj223355")
         smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
         smtp_port = int(st.secrets.get("SMTP_PORT", 465))
     except Exception:
