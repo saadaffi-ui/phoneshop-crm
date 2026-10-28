@@ -513,7 +513,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "label_sticker":
-        # --- FIXED & CLEAR LABEL STICKER LAYOUT ---
         p.setLineWidth(1)
         p.rect(35, height - 165, 270, 140)
         
@@ -739,7 +738,6 @@ with tab2:
     auto_issues_str = ", ".join(selected_rep_issues)
     issue = st.text_area(t["issue"], value=auto_issues_str, key="rep_issue_desc")
 
-    # --- NOTICE BOX INSIDE NEW REPAIR TAB FOR EMPLOYEES ---
     st.markdown("""
     <div style="background-color: #fff3cd; padding: 12px; border-radius: 8px; border-left: 5px solid #ffc107; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
         <b>⚠️ شروط الضمان وإخلاء المسؤولية (Warranty & Disclaimer Terms on Receipt):</b><br>
@@ -905,10 +903,10 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name=st.session_state.get('q_pdf_name', 'quote.pdf'))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF) ---
+# --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF + BOTH PAYMENT OPTIONS) ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
-    st.header(f"📄 الفاتورة الرسمية القياسية / Standard Invoice ({global_branch})")
+    st.header(f"📄 الفاتورة الرسمية القياسية وخيارات الدفع الإلكتروني / Standard Invoice & Payments ({global_branch})")
     
     inv_emp = st.text_input(t["employee"], key="inv_emp")
     inv_no = st.text_input("رقم الفاتورة / Fakturanummer", value="FAK-2026-001", key="inv_no_in")
@@ -936,6 +934,38 @@ with tab4:
 
     st.markdown(f"**المبلغ الإجمالي / Att betala:** **{total_amount:.2f} {inv_curr}** (Netto: {netto:.2f} | Moms: {moms:.2f})")
 
+    # --- INTEGRATED PAYMENT GATEWAY BUTTONS (SWISH & STRIPE CARD) ---
+    st.markdown("---")
+    st.subheader("💳 وسائل وسداد الدفع الإلكتروني المباشر / Direct Payment Gateways")
+    
+    pay_col1, pay_col2 = st.columns(2)
+    with pay_col1:
+        st.markdown(f"""
+        <div style="background-color: #e8f8f5; padding: 15px; border-radius: 8px; border: 1px solid #1abc9c;">
+            <b>📱 Swish Direct Pay</b><br>
+            • Nummer: <b>{comp['swish']}</b><br>
+            • Belopp: <b>{total_amount:.2f} {inv_curr}</b><br>
+            <span style="color: #16a085; font-size: 12px;">امسح كود الـ Swish أو ادفع فوراً على الرقم التجاري.</span>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("🚀 توليد تنبيه دفع Swish / Trigger Swish Payment", key="btn_swish_pay"):
+            st.success(f"✅ جاهز! أبلغ العميل بتحويل {total_amount:.2f} {inv_curr} على Swish رقم: {comp['swish']}")
+
+    with pay_col2:
+        st.markdown(f"""
+        <div style="background-color: #fef9e7; padding: 15px; border-radius: 8px; border: 1px solid #f1c40f;">
+            <b>💳 Card Payment Link (Stripe / POS)</b><br>
+            • Belopp: <b>{total_amount:.2f} {inv_curr}</b><br>
+            <span style="color: #d68910; font-size: 12px;">إنشاء رابط دفع آمن بالبطاقة الائتمانية (Visa / Mastercard).</span>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("🔗 إنشاء رابط دفع بالبطاقة / Generate Card Link", key="btn_stripe_pay"):
+            # Mock or dynamic secure link generator for payment terminal/Stripe
+            payment_url = f"https://pay.30minutesphonefix.se/checkout?amount={total_amount}&ref={inv_no}"
+            st.info(f"🔗 **رابط الدفع المباشر للعميل:**\n`{payment_url}`")
+            st.markdown(f"[اضغط هنا لفتح صفحة الدفع]({payment_url})", unsafe_allow_html=True)
+
+    st.markdown("---")
     if st.button("حفظ وتوليد فاتورة PDF رسمية / Save Invoice PDF", type="primary", key="btn_save_inv"):
         if inv_name and inv_emp:
             conn, db_type = get_db_connection()
