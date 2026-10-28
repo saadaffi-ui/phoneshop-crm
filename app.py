@@ -141,18 +141,18 @@ def init_db():
 
 init_db()
 
-# --- Robust Email Sender Function (One.com SMTP) ---
+# --- Robust Email Sender Function (One.com SMTP via Port 587 STARTTLS) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
         sender_password = st.secrets.get("EMAIL_PASSWORD", "Amaryj223355")
         smtp_server = st.secrets.get("SMTP_SERVER", "mailout.one.com")
-        smtp_port = int(st.secrets.get("SMTP_PORT", 465))
+        smtp_port = int(st.secrets.get("SMTP_PORT", 587))
     except Exception:
         sender_email = "info@30minutesphonefix.se"
         sender_password = "Amaryj223355"
         smtp_server = "mailout.one.com"
-        smtp_port = 465
+        smtp_port = 587
     
     if not sender_password:
         st.error("⚠️ E-postlösenord saknas i Streamlit Secrets. / Email password is required.")
@@ -171,18 +171,13 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
             msg.attach(attachment)
             
-        # الاتصال بخادم البريد (يدعم المنفذ 465 أو البديل 587)
-        if smtp_port == 465:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10)
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
-        else:
-            server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            server.quit()
+        server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
+        server.quit()
             
         return True
     except Exception as e:
