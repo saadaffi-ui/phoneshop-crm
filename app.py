@@ -139,10 +139,12 @@ def init_db():
 
 init_db()
 
-# --- Direct Email Sender via Resend API ---
+# --- Direct Email Sender via Resend API (Using tested onboarding sender) ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
-    api_key = "re_EUnVDsTT_3QZr3adGSQY9vEdSjTYc1b2h"
-    sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
+    api_key = "re_CHdLhv2m_8qHi1DVV5vfgPZ5NABb4BbXv"
+    sender_name = "info"
+    # استخدام بريد الاختبار الخاص بـ Resend لضمان نجاح الإرسال الفوري بدون أخطاء نطاق
+    sender_email = "onboarding@resend.dev"
     
     try:
         url = "https://api.resend.com/emails"
@@ -152,7 +154,7 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
         }
         
         payload = {
-            "from": f"30 Minutes Phone Fix <{sender_email}>",
+            "from": f"{sender_name} <{sender_email}>",
             "to": [receiver_email],
             "subject": subject,
             "text": body
@@ -208,7 +210,7 @@ COMPANY_INFO = {
 # --- Sidebar Branding with Logo ---
 st.sidebar.title("30 MINUTES PHONE FIX")
 if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True) #[cite: 1]
+    st.sidebar.image("logo.png", use_container_width=True)
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
@@ -433,7 +435,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             # --- PDF Logo & Header Integration ---
             if os.path.exists("logo.png"):
                 try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') #[cite: 1]
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
                 except Exception:
                     pass
             
@@ -562,7 +564,7 @@ elif menu == "📄 Faktura / Invoice":
             # --- PDF Logo & Header Integration ---
             if os.path.exists("logo.png"):
                 try:
-                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto') #[cite: 1]
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
                 except Exception:
                     pass
             
