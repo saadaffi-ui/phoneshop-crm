@@ -154,11 +154,11 @@ COMPANY_INFO = {
     }
 }
 
-# --- Translations Dictionary (App UI supports 3 languages) ---
+# --- Translations Dictionary (App UI supports 3 languages fully) ---
 TRANSLATIONS = {
     "Svenska": {
         "title": "30 MINUTES PHONE FIX",
-        "menu_dashboard": "📈 Dashboard & Statistik / Overview",
+        "menu_dashboard": "📈 Dashboard & Statistik",
         "menu_repair": "📝 Nytt Ärende / New Repair",
         "menu_quote": "💡 Kostnadsförslag / Quote",
         "menu_invoice": "📄 Faktura / Invoice",
@@ -166,7 +166,25 @@ TRANSLATIONS = {
         "menu_sub": "💳 Abonnemang / Subscriptions",
         "menu_inventory": "📦 Lager & Reservdelar / Inventory",
         "menu_history": "🖨️ Dokument & Historik / Print Hub",
-        "menu_datacenter": "📊 Data Center & Sök / Search & Data"
+        "menu_datacenter": "📊 Data Center & Sök / Search & Data",
+        "branch_select": "Välj Butik / Select Branch",
+        "phone": "Telefonnummer / Phone Number",
+        "customer_name": "Kundens namn / Customer Name",
+        "email": "E-post / Email (Valfritt / Optional)",
+        "device": "Enhet / Modell / Device Model",
+        "imei": "IMEI / Serienummer / IMEI / Serial Number",
+        "price": "Pris (Kr) / Price",
+        "issue": "Beskrivning av fel / Issue Description",
+        "save_repair": "Spara Ärende / Save Repair",
+        "success_repair": "✅ Ärendet har sparats! / Repair saved successfully!",
+        "dash_header": "📈 Dashboard & Statistik",
+        "quote_header": "💡 Kostnadsförslag & Vinstberäkning",
+        "invoice_header": "📄 Professionell Faktura",
+        "preorder_header": "🛒 Förbeställning av reservdelar",
+        "sub_header": "💳 IMEI-kopplade Abonnemang & Villkor",
+        "inv_header": "📦 Lager & Reservdelar",
+        "history_header": "🖨️ Visa och Skriv ut tidigare sparade dokument",
+        "datacenter_header": "📊 Data Center, Sök, Export & Hantering"
     },
     "English": {
         "title": "30 MINUTES PHONE FIX",
@@ -178,19 +196,55 @@ TRANSLATIONS = {
         "menu_sub": "💳 Subscriptions",
         "menu_inventory": "📦 Inventory & Parts",
         "menu_history": "🖨️ Print Hub",
-        "menu_datacenter": "📊 Data Center & Search"
+        "menu_datacenter": "📊 Data Center & Search",
+        "branch_select": "Select Branch",
+        "phone": "Phone Number",
+        "customer_name": "Customer Name",
+        "email": "Email (Optional)",
+        "device": "Device Model",
+        "imei": "IMEI / Serial Number",
+        "price": "Price (SEK)",
+        "issue": "Issue Description",
+        "save_repair": "Save Repair",
+        "success_repair": "✅ Repair saved successfully!",
+        "dash_header": "📈 Dashboard & Analytics",
+        "quote_header": "💡 Price Quotation & Profit",
+        "invoice_header": "📄 Professional Invoice",
+        "preorder_header": "🛒 Spare Parts Pre-order",
+        "sub_header": "💳 IMEI Subscriptions & Terms",
+        "inv_header": "📦 Inventory Management",
+        "history_header": "🖨️ Print & History Hub",
+        "datacenter_header": "📊 Search & Management"
     },
     "العربية (Arabic)": {
         "title": "صيانة الهواتف 30 دقيقة",
-        "menu_dashboard": "📈 لوحة المؤشرات والإحصاءات",
+        "menu_dashboard": "📈 لوحة المؤشرات والإحصاءات العامة",
         "menu_repair": "📝 تسجيل إصلاح جديد",
-        "menu_quote": "💡 عرض سعر",
+        "menu_quote": "💡 عرض سعر وحساب الأرباح",
         "menu_invoice": "📄 فاتورة رسمية",
-        "menu_preorder": "🛒 طلب مسبق",
+        "menu_preorder": "🛒 طلب مسبق لقطع الغيار",
         "menu_sub": "💳 الاشتراكات وضمان IMEI",
         "menu_inventory": "📦 إدارة المخزون وقطع الغيار",
         "menu_history": "🖨️ مركز الطباعة والأرشيف",
-        "menu_datacenter": "📊 إدارة البيانات والبحث الشامل"
+        "menu_datacenter": "📊 إدارة البيانات والبحث الشامل",
+        "branch_select": "اختر الفرع",
+        "phone": "رقم الهاتف",
+        "customer_name": "اسم العميل",
+        "email": "البريد الإلكتروني (اختياري)",
+        "device": "نوع وطراز الجهاز",
+        "imei": "رقم الـ IMEI أو الرقم التسلسلي",
+        "price": "السعر (كرونا سويدية)",
+        "issue": "وصف العطل أو الإصلاح المطلوب",
+        "save_repair": "حفظ بيانات الإصلاح",
+        "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!",
+        "dash_header": "📈 لوحة المؤشرات والإحصاءات العامة",
+        "quote_header": "💡 عرض سعر وحاسبة الأرباح",
+        "invoice_header": "📄 الفاتورة الرسمية للمحل",
+        "preorder_header": "🛒 طلب مسبق لقطع الغيار",
+        "sub_header": "💳 الاشتراكات وضمان IMEI",
+        "inv_header": "📦 إدارة المخزون وقطع الغيار",
+        "history_header": "🖨️ مركز الطباعة والأرشيف",
+        "datacenter_header": "📊 إدارة البيانات والبحث الشامل"
     }
 }
 
@@ -199,7 +253,7 @@ st.sidebar.title("30 MINUTES PHONE FIX")
 if os.path.exists("logo.png"):
     st.sidebar.image("logo.png", use_container_width=True) # type: ignore
 
-lang_choice = st.sidebar.selectbox("🌐 Välj Språk / Language / اللغة", ["Svenska", "English", "العربية (Arabic)"])
+lang_choice = st.sidebar.selectbox("🌐 Välj Språk / Language / لغة الواجهة", ["Svenska", "English", "العربية (Arabic)"])
 t = TRANSLATIONS[lang_choice]
 
 st.sidebar.markdown("**Eskilstuna & Västerås**")
@@ -233,7 +287,7 @@ if st.sidebar.button("🔒 Log Out / Logga ut"):
     st.session_state['authenticated'] = False
     st.rerun()
 
-menu = st.sidebar.radio("Navigation / Meny", [
+menu = st.sidebar.radio("Navigation / القائمة الرئيسية", [
     t["menu_dashboard"],
     t["menu_repair"], 
     t["menu_quote"], 
@@ -272,7 +326,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Generera PDF på nytt för sparade objekt (Alltid på Svenska & English)
+# Generera PDF på nytt för sparade objekt (Alltid tvåspråkig på Svenska & English)
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -312,7 +366,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
         p.drawString(50, 625, f"Att betala Totalt / Total Amount: {data.get('amount', 0):.2f} Kr (inkl. moms / incl. VAT)")
         p.drawString(50, 595, f"Moms / VAT (25%): {data.get('moms', 0):.2f} Kr")
-        p.drawString(50, 555, f"Betalning via Swish: {comp['swish']} eller Bankgiro / Payment via Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 555, f"Betalning via Swish: {comp['swish']} eller Bankgiro / Bankgiro: {comp['bankgiro']}")
 
     p.showPage()
     p.save()
@@ -321,7 +375,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
 
 # --- 0. DASHBOARD & ANALYTICS ---
 if menu == t["menu_dashboard"]:
-    st.header("📈 لوحة المؤشرات والإحصاءات / Dashboard & Analytics")
+    st.header(t["dash_header"])
     branch_filter = st.selectbox("اختر الفرع / Select Branch", ["Alla / All", "Eskilstuna", "Västerås"])
     
     conn, db_type = get_db_connection()
@@ -387,10 +441,10 @@ if menu == t["menu_dashboard"]:
 
 # --- 1. NYTT ÄRENDE / NEW REPAIR ---
 elif menu == t["menu_repair"]:
-    st.header("📝 تسجيل إصلاح جديد / Register New Repair")
-    branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
+    st.header(t["menu_repair"])
+    branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
     
-    c_phone = st.text_input("رقم الهاتف / Phone Number")
+    c_phone = st.text_input(t["phone"])
     
     auto_name, auto_email = "", ""
     if c_phone and len(c_phone) > 5:
@@ -408,27 +462,42 @@ elif menu == t["menu_repair"]:
         except Exception:
             pass
 
-    c_name = st.text_input("Kundens namn / Customer Name", value=auto_name)
-    c_email = st.text_input("E-post / Email (Valfritt / Optional)", value=auto_email)
-    device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
-    imei = st.text_input("IMEI / Serienummer / IMEI / Serial Number")
+    c_name = st.text_input(t["customer_name"], value=auto_name)
+    c_email = st.text_input(t["email"], value=auto_email)
+    device = st.text_input(t["device"])
+    imei = st.text_input(t["imei"])
     
-    st.markdown("⚡ **قوالب الأعطال السريعة / Quick Issue Templates:**")
-    q_cols = st.columns(4)
-    template_issue = ""
-    if q_cols[0].button("📱 تغيير شاشة أصلي"):
-        template_issue = "Skärmbyte / Screen Replacement"
-    if q_cols[1].button("🔋 استبدال بطارية"):
-        template_issue = "Batteribyte / Battery Replacement"
-    if q_cols[2].button("🔌 إصلاح منفذ الشحن"):
-        template_issue = "Laddport / Charging Port Repair"
-    if q_cols[3].button("💧 معالجة أضرار المياه"):
-        template_issue = "Vattenskada / Water Damage Service"
+    st.markdown("⚡ **قوالب الأعطال السريعة المتعددة / Multi-Issue Quick Templates:**")
+    
+    col_t1, col_t2 = st.columns(2)
+    selected_issues = []
+    
+    with col_t1:
+        if st.checkbox("📱 تغيير شاشة أصلي (Screen Replacement)"):
+            selected_issues.append("Skärmbyte / Screen Replacement")
+        if st.checkbox("🔋 استبدال بطارية جديدة (Battery Replacement)"):
+            selected_issues.append("Batteribyte / Battery Replacement")
+        if st.checkbox("🔌 إصلاح / تغيير منفذ الشحن (Charging Port)"):
+            selected_issues.append("Laddport / Charging Port Repair")
+        if st.checkbox("📷 إصلاح الكاميرا الأمامية/الخلفية (Camera)"):
+            selected_issues.append("Kamera / Camera Repair")
+            
+    with col_t2:
+        if st.checkbox("💧 معالجة أضرار المياه والسوائل (Water Damage)"):
+            selected_issues.append("Vattenskada / Water Damage Service")
+        if st.checkbox("🔊 إصلاح السماعة أو الميكروفون (Speaker/Mic)"):
+            selected_issues.append("Ljud / Speaker & Mic Repair")
+        if st.checkbox("🪟 تغيير الزجاج الخلفي (Back Glass Damaged)"):
+            selected_issues.append("Baksida kraschad / Back Glass Damaged")
+        if st.checkbox("⚙️ فحص وبرمجة الميكرو/النظام (Software/Diagnostics)"):
+            selected_issues.append("Mjukvara & Felsökning / Software & Diagnostics")
 
-    price = st.number_input("Pris (Kr) / Price", min_value=0.0, step=50.0)
-    issue = st.text_area("Beskrivning av fel / Issue Description", value=template_issue)
+    combined_template_str = ", ".join(selected_issues)
+
+    price = st.number_input(t["price"], min_value=0.0, step=50.0)
+    issue = st.text_area(t["issue"], value=combined_template_str)
     
-    if st.button("Spara Ärende / Save Repair", type="primary"):
+    if st.button(t["save_repair"], type="primary"):
         if c_name and c_phone and device:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -458,25 +527,25 @@ elif menu == t["menu_repair"]:
                     )
                     conn.commit()
                     conn.close()
-                st.success("✅ Ärendet har sparats! / Repair saved successfully!")
+                st.success(t["success_repair"])
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
         else:
-            st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / Please fill required fields.")
+            st.warning("⚠️ Fyll i obligatoriska fält (Namn, Telefon, Enhet). / يرجى تعبئة الحقول الأساسية.")
 
 # --- 2. KOSTNADSFÖRSLAG / QUOTE ---
 elif menu == t["menu_quote"]:
-    st.header("💡 عرض سعر وحاسبة الأرباح / Price Quotation & Profit")
-    branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
+    st.header(t["quote_header"])
+    branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
-    c_name = st.text_input("Kundens namn / Customer Name")
-    c_phone = st.text_input("Telefonnummer / Phone Number")
-    device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
-    imei = st.text_input("IMEI / Serienummer (Valfritt / Optional)")
+    c_name = st.text_input(t["customer_name"])
+    c_phone = st.text_input(t["phone"])
+    device = st.text_input(t["device"])
+    imei = st.text_input(t["imei"])
 
     st.markdown("---")
-    st.subheader("🛠️ Välj Fel / Reparationer")
+    st.subheader("🛠️ Välj Fel / Reparationer (عدة قطع وعيوب في نفس الوقت)")
     
     issues_list = []
     total_price = 0.0
@@ -484,7 +553,7 @@ elif menu == t["menu_quote"]:
 
     col_q1, col_q2 = st.columns(2)
     with col_q1:
-        has_screen = st.checkbox("📱 Skärmbyte / Damaged Screen")
+        has_screen = st.checkbox("📱 Skärmbyte / Damaged Screen", key="chk_scr")
         if has_screen:
             p_screen = st.number_input("Pris: Skärmbyte (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_scr")
             c_screen = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_scr")
@@ -492,7 +561,7 @@ elif menu == t["menu_quote"]:
             total_price += p_screen
             total_cost += c_screen
 
-        has_battery = st.checkbox("🔋 Batteribyte / Battery Replacement")
+        has_battery = st.checkbox("🔋 Batteribyte / Battery Replacement", key="chk_bat")
         if has_battery:
             p_bat = st.number_input("Pris: Batteri (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bat")
             c_bat = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_bat")
@@ -500,8 +569,16 @@ elif menu == t["menu_quote"]:
             total_price += p_bat
             total_cost += c_bat
 
+        has_backglass = st.checkbox("🪟 Baksida kraschad / Back Glass Damaged", key="chk_bg")
+        if has_backglass:
+            p_bg = st.number_input("Pris: Baksida (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_bg")
+            c_bg = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_bg")
+            issues_list.append(f"Baksida kraschad / Back Glass: {p_bg} Kr")
+            total_price += p_bg
+            total_cost += c_bg
+
     with col_q2:
-        has_charging = st.checkbox("🔌 Laddport / Charging Port")
+        has_charging = st.checkbox("🔌 Laddport / Charging Port", key="chk_chg")
         if has_charging:
             p_chg = st.number_input("Pris: Laddport (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_chg")
             c_chg = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_chg")
@@ -509,7 +586,23 @@ elif menu == t["menu_quote"]:
             total_price += p_chg
             total_cost += c_chg
 
-    custom_issue = st.text_input("Övrigt fel / Custom Issue")
+        has_water = st.checkbox("💧 Vattenskada / Water Damage", key="chk_wat")
+        if has_water:
+            p_wat = st.number_input("Pris: Vattenskada (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_wat")
+            c_wat = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_wat")
+            issues_list.append(f"Vattenskada / Water Damage: {p_wat} Kr")
+            total_price += p_wat
+            total_cost += c_wat
+
+        has_cam = st.checkbox("📷 Kamera / Camera Repair", key="chk_cam")
+        if has_cam:
+            p_cam = st.number_input("Pris: Kamera (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cam")
+            c_cam = st.number_input("Inköpskostnad del (Kr) / Part Cost", min_value=0.0, step=10.0, value=0.0, key="c_cam")
+            issues_list.append(f"Kamera / Camera: {p_cam} Kr")
+            total_price += p_cam
+            total_cost += c_cam
+
+    custom_issue = st.text_input("Övrigt fel / Custom Issue (إضافات أخرى مخصصة)")
     if custom_issue:
         p_cust = st.number_input("Pris för övrigt (Kr)", min_value=0.0, step=50.0, value=0.0, key="p_cust")
         c_cust = st.number_input("Inköpskostnad del (Kr)", min_value=0.0, step=10.0, value=0.0, key="c_cust")
@@ -557,7 +650,6 @@ elif menu == t["menu_quote"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
-            # Generera tvåspråkig PDF (Svenska & English)
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
@@ -600,8 +692,8 @@ elif menu == t["menu_quote"]:
 
 # --- 3. FAKTURA / INVOICE ---
 elif menu == t["menu_invoice"]:
-    st.header("📄 فاتورة رسمية / Professional Invoice")
-    branch = st.selectbox("Välj Företagsfilial / Select Branch", ["Eskilstuna", "Västerås"])
+    st.header(t["invoice_header"])
+    branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
     comp = COMPANY_INFO[branch]
     
     st.info(f"""
@@ -672,7 +764,6 @@ elif menu == t["menu_invoice"]:
             except Exception as e:
                 st.error(f"❌ Fel vid sparande / Error: {e}")
 
-            # Generera tvåspråkig Faktura PDF (Svenska & English)
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
             
@@ -708,10 +799,10 @@ elif menu == t["menu_invoice"]:
 
 # --- 4. FÖRBÄLLNING / PRE-ORDER ---
 elif menu == t["menu_preorder"]:
-    st.header("🛒 طلب مسبق لقطع الغيار / Spare Parts Pre-order")
-    branch = st.selectbox("Välj Butik / Select Branch", ["Eskilstuna", "Västerås"])
-    fb_name = st.text_input("Kundens namn / Customer Name")
-    fb_phone = st.text_input("Telefonnummer / Phone Number")
+    st.header(t["preorder_header"])
+    branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
+    fb_name = st.text_input(t["customer_name"])
+    fb_phone = st.text_input(t["phone"])
     fb_details = st.text_area("Artikel / Delar detaljer / Part Details")
     fb_deposit = st.number_input("Handpenning / Deposit (Kr)", min_value=0.0, step=50.0)
     
@@ -751,13 +842,13 @@ elif menu == t["menu_preorder"]:
 
 # --- 5. ABONNEMANG / SUBSCRIPTIONS ---
 elif menu == t["menu_sub"]:
-    st.header("💳 الاشتراكات وضمان IMEI / IMEI Subscriptions & Terms")
+    st.header(t["sub_header"])
     
-    sub_imei = st.text_input("IMEI-nummer (Unikt för enheten) / IMEI Number")
-    sub_device = st.text_input("Enhet / Modell / Device Model (t.ex. iPhone 15)")
-    branch = st.selectbox("Butik / Branch", ["Eskilstuna", "Västerås"])
-    sub_name = st.text_input("Kundens namn / Customer Name")
-    sub_phone = st.text_input("Telefonnummer / Phone Number")
+    sub_imei = st.text_input(t["imei"])
+    sub_device = st.text_input(t["device"])
+    branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
+    sub_name = st.text_input(t["customer_name"])
+    sub_phone = st.text_input(t["phone"])
 
     st.markdown("---")
     plan_choice = st.selectbox("Välj Plan / Plan Type", [
@@ -827,8 +918,8 @@ elif menu == t["menu_sub"]:
 
 # --- 6. LAGER & RESERVDELAR / INVENTORY & PARTS ---
 elif menu == t["menu_inventory"]:
-    st.header("📦 إدارة المخزون وقطع الغيار / Inventory Management")
-    branch = st.selectbox("Välj Butik / Branch", ["Eskilstuna", "Västerås"])
+    st.header(t["inv_header"])
+    branch = st.selectbox(t["branch_select"], ["Eskilstuna", "Västerås"])
     
     conn, db_type = get_db_connection()
     
@@ -894,7 +985,7 @@ elif menu == t["menu_inventory"]:
 
 # --- 7. DOKUMENT & HISTORIK / PRINT & HISTORY HUB ---
 elif menu == t["menu_history"]:
-    st.header("🖨️ مركز الطباعة والأرشيف / Print & History Hub")
+    st.header(t["history_header"])
     st.markdown("Välj kategori och ange ID för att visa eller skriva ut ett sparat dokument från databasen:")
     
     category = st.selectbox("Välj Kategori / Category", [
@@ -954,7 +1045,7 @@ elif menu == t["menu_history"]:
 
 # --- 8. DATA CENTER & SÖK / ALL DATA & SEARCH ---
 elif menu == t["menu_datacenter"]:
-    st.header("📊 إدارة البيانات والبحث الشامل / Search & Management")
+    st.header(t["datacenter_header"])
     st.markdown("Sök, exportera, visa dokument eller radera poster från databasen:")
     
     search_category = st.selectbox("Välj Kategori / Select Category", [
