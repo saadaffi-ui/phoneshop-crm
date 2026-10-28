@@ -388,13 +388,34 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
     
     st.success("✅ Dokumentet är redo!")
-    st.download_button(
-        label="📥 Ladda ner PDF / تحميل المستند",
-        data=pdf_bytes,
-        file_name=file_name,
-        mime="application/pdf",
-        type="primary"
-    )
+    
+    # Buttons row for Download and Print
+    b_col1, b_col2 = st.columns(2)
+    with b_col1:
+        st.download_button(
+            label="📥 Ladda ner PDF / تحميل المستند",
+            data=pdf_bytes,
+            file_name=file_name,
+            mime="application/pdf",
+            type="primary"
+        )
+    with b_col2:
+        print_html = f"""
+        <script>
+        function printPDF() {{
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = "data:application/pdf;base64,{b64_pdf}";
+            document.body.appendChild(iframe);
+            iframe.contentWindow.print();
+        }}
+        </script>
+        <button onclick="printPDF()" style="background-color: #2ecc71; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; width: 100%; cursor: pointer;">
+            🖨️ Skriv ut / طباعة فورية
+        </button>
+        """
+        st.markdown(print_html, unsafe_allow_html=True)
+
     st.markdown("---")
     st.markdown("### 👁️ معاينة المستند / Preview")
     pdf_display = f"""
@@ -578,7 +599,7 @@ with tab1:
         st.error(f"خطأ: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR ---
+# --- TAB 2: NEW REPAIR WITH COMPREHENSIVE ISSUE OPTIONS ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
     st.header("🛠️ تسجيل إصلاح جديد")
@@ -586,7 +607,7 @@ with tab2:
     c_phone = st.text_input(t["phone"], key="rep_phone")
     
     auto_name, auto_email = "", ""
-    if c_phone and len(c_phone) > 5:
+    if c_phone and len(c_phone > 5 if isinstance(c_phone, str) else 5):
         conn, db_type = get_db_connection()
         try:
             if db_type == "turso":
@@ -606,16 +627,29 @@ with tab2:
     device = st.text_input(t["device"], key="rep_device")
     imei = st.text_input(t["imei"], key="rep_imei")
     
-    st.markdown("⚡ **قوالب الأعطال السريعة:**")
-    selected_issues = []
-    if st.checkbox("📱 تغيير شاشة أصلي", key="i_scr"): selected_issues.append("Skärmbyte / Screen")
-    if st.checkbox("🔋 استبدال بطارية جديدة", key="i_bat"): selected_issues.append("Batteribyte / Battery")
-    if st.checkbox("🔌 إصلاح منفذ الشحن", key="i_chg"): selected_issues.append("Laddport / Charging Port")
-    if st.checkbox("💧 معالجة أضرار المياه", key="i_wat"): selected_issues.append("Vattenskada / Water Damage")
+    st.markdown("⚡ **اختر الأعطال الشاملة (أو اختر متعدد وتلقائي):**")
     
-    combined_template_str = ", ".join(selected_issues)
+    repair_issues_options = [
+        "Skärmbyte (Original) / شاشة أصلية",
+        "Skärmbyte (OLED / Kopia) / شاشة كوبي",
+        "Batteribyte / استبدال بطارية",
+        "Laddport / منفذ الشحن",
+        "Baksida / غطاء خلفي",
+        "Kamera bak / الكاميرا الخلفية",
+        "Kamera fram / الكاميرا الأمامية",
+        "Ljud / Högtalare / سماعة الصوت والمكالمات",
+        "Vattenskada / أضرار السوائل والمياه",
+        "Mjukvara / Software / تحديث وبرمجيات",
+        "Övrigt fel / عطل آخر"
+    ]
+    
+    selected_rep_issues = st.multiselect("قائمة الأعطال المتاحة للجهاز:", repair_issues_options, key="multi_rep_issues")
+    
     price = st.number_input(t["price"], min_value=0.0, step=50.0, key="rep_price")
-    issue = st.text_area(t["issue"], value=combined_template_str, key="rep_issue_desc")
+    
+    # Auto assemble description from multiselect + custom text
+    auto_issues_str = ", ".join(selected_rep_issues)
+    issue = st.text_area(t["issue"], value=auto_issues_str, key="rep_issue_desc")
     
     if st.button(t["save_repair"], type="primary", key="btn_save_rep"):
         if c_name and c_phone and device and employee_name:
@@ -653,7 +687,7 @@ with tab2:
             st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 3: QUOTE / PRICE QUOTATION ---
+# --- TAB 3: QUOTE / PRICE QUOTATION WITH FULL OPTIONS ---
 with tab3:
     st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
     st.header("💡 عرض سعر وحساب الأرباح")
@@ -663,26 +697,33 @@ with tab3:
     q_device = st.text_input(t["device"], key="q_device")
 
     st.markdown("---")
-    st.subheader("🛠️ اختر قطع الغيار والإصلاحات")
+    st.subheader("🛠️ اختر قطع الغيار والإصلاحات وحساب التكلفة والربح")
+    
+    quote_items = [
+        ("Skärmbyte (شاشة)", "qp_s", "qc_s"),
+        ("Batteribyte (بطارية)", "qp_b", "qc_b"),
+        ("Laddport (منفذ شحن)", "qp_l", "qc_l"),
+        ("Baksida (غطاء خلفي)", "qp_bk", "qc_bk"),
+        ("Övrigt / Utförande (خدمة أخرى)", "qp_o", "qc_o")
+    ]
     
     issues_list = []
     total_price = 0.0
     total_cost = 0.0
 
-    if st.checkbox("📱 تغيير شاشة", key="q_chk_scr"):
-        p_s = st.number_input("سعر شاشة للعميل", min_value=0.0, step=50.0, key="qp_s")
-        c_s = st.number_input("تكلفة الشاشة علينا", min_value=0.0, step=10.0, key="qc_s")
-        issues_list.append(f"Skärmbyte: {p_s}")
-        total_price += p_s; total_cost += c_s
-
-    if st.checkbox("🔋 استبدال بطارية", key="q_chk_bat"):
-        p_b = st.number_input("سعر البطارية للعميل", min_value=0.0, step=50.0, key="qp_b")
-        c_b = st.number_input("تكلفة البطارية علينا", min_value=0.0, step=10.0, key="qc_b")
-        issues_list.append(f"Batteribyte: {p_b}")
-        total_price += p_b; total_cost += c_b
+    for label, p_key, c_key in quote_items:
+        if st.checkbox(label, key=f"chk_{p_key}"):
+            col_p, col_c = st.columns(2)
+            with col_p:
+                p_val = st.number_input(f"سعر العميل ({label})", min_value=0.0, step=50.0, key=p_key)
+            with col_c:
+                c_val = st.number_input(f"التكلفة علينا ({label})", min_value=0.0, step=10.0, key=c_key)
+            issues_list.append(f"{label}: {p_val} SEK")
+            total_price += p_val
+            total_cost += c_val
 
     net_profit = total_price - total_cost
-    st.markdown(f"### 💰 الإجمالي: **{total_price:.2f} SEK** | 📈 الربح: **{net_profit:.2f} SEK**")
+    st.markdown(f"### 💰 الإجمالي: **{total_price:.2f} SEK** | 📈 الربح الصافي: **{net_profit:.2f} SEK**")
 
     if st.button("حفظ وتوليد عرض سعر PDF", type="primary", key="btn_save_q"):
         if q_name and q_device and issues_list and q_emp:
