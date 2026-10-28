@@ -126,6 +126,29 @@ def init_db():
             part_name TEXT, stock_qty INTEGER, min_limit INTEGER, branch TEXT
         )
     """)
+    
+    # Safe column migration check if tables already exist without employee column
+    try:
+        cursor.execute("ALTER TABLE subscriptions ADD COLUMN employee TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE repairs ADD COLUMN employee TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE preorders ADD COLUMN employee TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE quotes ADD COLUMN employee TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE invoices ADD COLUMN employee TEXT")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -253,7 +276,7 @@ TRANSLATIONS = {
 # --- Sidebar Branding & Language Selector ---
 st.sidebar.title("30 MINUTES PHONE FIX")
 if os.path.exists("logo.png"):
-    st.sidebar.image("logo.png", use_container_width=True) # type: ignore
+    st.sidebar.image("logo.png", use_container_width=True)
 
 lang_choice = st.sidebar.selectbox("🌐 Välj Språk / Language / لغة الواجهة", ["Svenska", "English", "العربية (Arabic)"])
 t = TRANSLATIONS[lang_choice]
@@ -348,10 +371,9 @@ def generate_pdf_from_record(record_type, data, comp_info):
     currency = data.get('currency', 'SEK')
     moms_rate_str = data.get('moms_rate', '25%')
 
-    # Professional Header & Logo
     if os.path.exists("logo.png"):
         try:
-            p.drawImage("logo.png", 50, height - 70, width=90, height=45, preserveAspectRatio=True, mask='auto') # type: ignore
+            p.drawImage("logo.png", 50, height - 70, width=90, height=45, preserveAspectRatio=True, mask='auto')
         except Exception:
             pass
             
@@ -362,7 +384,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
     p.drawString(150, height - 55, f"Adress / Address: {comp['address']}")
     p.drawString(150, height - 70, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
     
-    # Divider Line
     p.setLineWidth(1)
     p.line(50, height - 85, width - 50, height - 85)
 
@@ -377,7 +398,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
         p.drawString(300, height - 155, f"Enhet / Device: {data.get('device', '')}")
         
-        # Table Header Box
         p.setFillColorRGB(0.9, 0.9, 0.9)
         p.rect(50, height - 215, width - 100, 20, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
@@ -385,7 +405,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(60, height - 208, "Beskrivning av reparation / Repair Description")
         p.drawString(400, height - 208, f"Belopp / Amount ({currency})")
         
-        # Items Row
         p.setFont("Helvetica", 10)
         y_pos = height - 245
         issues_text = data.get('issues', '')
@@ -394,7 +413,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         total_val = data.get('total', 0)
         p.drawString(400, y_pos, f"{total_val:.2f} {currency}")
         
-        # Totals Section
         p.line(50, height - 320, width - 50, height - 320)
         p.setFont("Helvetica-Bold", 11)
         p.drawString(300, height - 345, f"Att betala / Total: {total_val:.2f} {currency}")
@@ -416,7 +434,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(300, height - 155, f"Handläggare / Employee: {employee_name}")
         p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
         
-        # Table Header Box
         p.setFillColorRGB(0.9, 0.9, 0.9)
         p.rect(50, height - 215, width - 100, 20, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
@@ -430,10 +447,9 @@ def generate_pdf_from_record(record_type, data, comp_info):
         netto_val = amount_val - moms_val
         
         p.setFont("Helvetica", 10)
-        p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation / Abonnemang / Service')}")
+        p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation och reservdelar / Repair & Parts')}")
         p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
         
-        # Totals Section
         p.line(50, height - 320, width - 50, height - 320)
         p.setFont("Helvetica", 9)
         p.drawString(300, height - 340, f"Netto / Net: {netto_val:.2f} {currency}")
@@ -1009,7 +1025,7 @@ elif menu == t["menu_sub"]:
             subs_rows = cursor.fetchall()
             
         if subs_rows:
-            subs_df = pd.DataFrame(subs_rows, columns=["ID", "Kund / Customer", "Telefon", "Enhet", "IMEI", "Plan", "Pris", "Mوظف", "الفرع"])
+            subs_df = pd.DataFrame(subs_rows, columns=["ID", "Kund / Customer", "Telefon", "Enhet", "IMEI", "Plan", "Pris", "الموظف", "الفرع"])
             st.dataframe(subs_df, use_container_width=True)
             
             sub_id_to_inv = st.number_input("أدخل رقم ID الاشتراك لتوليد فاتورة له / Enter Subscription ID to invoice", min_value=1, step=1)
@@ -1022,7 +1038,6 @@ elif menu == t["menu_sub"]:
                     s_data = selected_sub[0]
                     s_id, s_cust, s_phone, s_dev, s_imei, s_plan, s_price, s_emp, s_branch = s_data
                     
-                    # Calculate VAT
                     if "25%" in inv_moms_rate:
                         moms_div = 1.25
                         moms_val = s_price - (s_price / moms_div)
@@ -1037,7 +1052,6 @@ elif menu == t["menu_sub"]:
 
                     invoice_no_gen = f"SUB-{datetime.now().strftime('%Y%m%d')}-{s_id}"
                     
-                    # Save to invoices table
                     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     try:
                         if db_type == "turso":
@@ -1253,7 +1267,7 @@ elif menu == t["menu_datacenter"]:
                 local_conn.close()
         else:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {current_table} ORDER BY id DESC")
+            cursor.execute(f"SELECT * FROM {current_table} ORDER BY id` DESC")
             rows = cursor.fetchall()
             col_names = [description[0] for description in cursor.description]
             df = pd.DataFrame(rows, columns=col_names) if rows else pd.DataFrame()
