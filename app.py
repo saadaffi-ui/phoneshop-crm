@@ -141,7 +141,7 @@ def init_db():
 
 init_db()
 
-# --- Ultra-Robust Email Sender Function (One.com SMTP with Extended Timeout) ---
+# --- Robust Email Sender Function with Timeout Handling ---
 def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, filename="document.pdf"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "info@30minutesphonefix.se")
@@ -171,9 +171,9 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
             msg.attach(attachment)
             
-        # محاولة الاتصال بالمنفذ 587 أولاً مع زيادة المهلة إلى 30 ثانية
+        # Try Port 587 first with a 15s timeout
         try:
-            server = smtplib.SMTP(smtp_server, 587, timeout=30)
+            server = smtplib.SMTP(smtp_server, 587, timeout=15)
             server.ehlo()
             server.starttls()
             server.ehlo()
@@ -182,23 +182,23 @@ def send_email_with_attachment(receiver_email, subject, body, pdf_buffer=None, f
             server.quit()
             return True
         except Exception:
-            # إذا فشلت المحاولة عبر 587، تجربة الاتصال عبر منفذ SSL 465 كخيار ثاني
-            server = smtplib.SMTP_SSL(smtp_server, 465, timeout=30)
+            # Fallback to Port 465 SSL
+            server = smtplib.SMTP_SSL(smtp_server, 465, timeout=15)
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
             server.quit()
             return True
             
     except Exception as e:
-        st.error(f"❌ Fel vid e-postutskick / Email error: {e}")
+        st.error(f"❌ E-post kunde inte skickas på grund av nätverks-/brandväggsbegränsningar (Cloud Timeout). Ladda ner PDF-filen och skicka manuellt. Detalj: {e}")
         return False
 
 # Page Configuration & Mobile UI Setup
-st.set_page_config(page_title="30 Minutes Fix CRM", layout="wide", page_icon="📱")
+st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
 COMPANY_INFO = {
     "Eskilstuna": {
-        "name": "30 MINUTES FIX AB",
+        "name": "30 MINUTES PHONE FIX",
         "address": "Gunborg Nymans Väg 2, Eskilstuna",
         "phone": "0700122444",
         "org_nr": "5593708034",
@@ -206,7 +206,7 @@ COMPANY_INFO = {
         "bankgiro": "5837-0354"
     },
     "Västerås": {
-        "name": "30 MINUTES FIX AB",
+        "name": "30 MINUTES PHONE FIX",
         "address": "Västerås",
         "phone": "0700122444",
         "org_nr": "559537-1724",
@@ -215,7 +215,10 @@ COMPANY_INFO = {
     }
 }
 
-st.sidebar.title("30 MINUTES FIX AB")
+# --- Sidebar Branding with Logo ---
+st.sidebar.title("30 MINUTES PHONE FIX")
+if os.path.exists("logo.png"):
+    st.sidebar.image("logo.png", use_container_width=True)
 st.sidebar.markdown("**Eskilstuna & Västerås**")
 st.sidebar.markdown("---")
 
@@ -238,7 +241,7 @@ if not st.session_state['authenticated']:
         st.sidebar.error("❌ Fel PIN-kod / Incorrect PIN")
 
 if not st.session_state['authenticated']:
-    st.title("🔒 30 Minutes Fix CRM - Locked / Låst")
+    st.title("🔒 30 Minutes Phone Fix CRM - Locked / Låst")
     st.info("Please enter the system PIN in the sidebar to log in. / Ange PIN-kod i sidofältet för att logga in.")
     st.stop()
 
@@ -436,17 +439,25 @@ elif menu == "💡 Kostnadsförslag / Quote":
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
-            p.drawString(50, 800, comp["name"])
-            p.drawString(50, 785, f"Adress: {comp['address']} | Tel: {comp['phone']}")
-            p.drawString(50, 770, f"Org.nr: {comp['org_nr']}")
-            p.drawString(50, 750, "--------------------------------------------------------")
-            p.drawString(50, 730, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
-            p.drawString(50, 710, f"Datum / Date: {date.today().strftime('%Y-%m-%d')}")
-            p.drawString(50, 690, f"Kund / Customer: {c_name} | Tel: {c_phone}")
-            p.drawString(50, 670, f"Enhet / Device: {device} | IMEI/Serial: {imei}")
-            p.drawString(50, 650, "--------------------------------------------------------")
             
-            y_pos = 620
+            # --- PDF Logo & Header Integration ---
+            if os.path.exists("logo.png"):
+                try:
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
+                except Exception:
+                    pass
+            
+            p.drawString(140, 780, comp["name"])
+            p.drawString(140, 765, f"Adress: {comp['address']} | Tel: {comp['phone']}")
+            p.drawString(140, 750, f"Org.nr: {comp['org_nr']}")
+            p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
+            p.drawString(50, 715, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
+            p.drawString(50, 695, f"Datum / Date: {date.today().strftime('%Y-%m-%d')}")
+            p.drawString(50, 675, f"Kund / Customer: {c_name} | Tel: {c_phone}")
+            p.drawString(50, 655, f"Enhet / Device: {device} | IMEI/Serial: {imei}")
+            p.drawString(50, 635, "------------------------------------------------------------------------------------------------")
+            
+            y_pos = 605
             for item in issues_list:
                 p.drawString(70, y_pos, f"- {item}")
                 y_pos -= 25
@@ -469,7 +480,7 @@ elif menu == "💡 Kostnadsförslag / Quote":
             if c_email_q:
                 success = send_email_with_attachment(
                     receiver_email=c_email_q,
-                    subject=f"Kostnadsförslag från 30 Minutes Fix AB ({branch})",
+                    subject=f"Kostnadsförslag från 30 Minutes Phone Fix ({branch})",
                     body=f"Hej {c_name}!\n\nHär kommer ditt kostnadsförslag för {device}.\nTotalpris: {total_price:.2f} Kr (inkl. moms).\n\nVälkommen åter!\nTel: {comp['phone']}",
                     pdf_buffer=st.session_state['last_quote_pdf'],
                     filename="kostnadsforslag.pdf"
@@ -557,18 +568,26 @@ elif menu == "📄 Faktura / Invoice":
 
             buffer = io.BytesIO()
             p = canvas.Canvas(buffer, pagesize=A4)
-            p.drawString(50, 800, comp["name"])
-            p.drawString(50, 785, f"Adress: {comp['address']}")
-            p.drawString(50, 770, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
-            p.drawString(50, 750, "--------------------------------------------------------")
-            p.drawString(50, 730, "FAKTURA / INVOICE")
-            p.drawString(50, 710, f"Fakturanr / Invoice No: {invoice_no} | Datum / Date: {invoice_date} | Förfallodag / Due: {due_date}")
-            p.drawString(50, 690, f"Kund / Customer: {f_name} | Adress: {f_address}")
-            p.drawString(50, 670, "--------------------------------------------------------")
-            p.drawString(50, 640, f"Beskrivning / Description: {item_desc} (Antal / Qty: {item_qty})")
-            p.drawString(50, 610, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
-            p.drawString(50, 580, f"Att betala Totalt / Total: {total_amount:.2f} Kr")
-            p.drawString(50, 540, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
+            
+            # --- PDF Logo & Header Integration ---
+            if os.path.exists("logo.png"):
+                try:
+                    p.drawImage("logo.png", 50, 750, width=80, height=40, preserveAspectRatio=True, mask='auto')
+                except Exception:
+                    pass
+            
+            p.drawString(140, 780, comp["name"])
+            p.drawString(140, 765, f"Adress: {comp['address']}")
+            p.drawString(140, 750, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+            p.drawString(50, 735, "------------------------------------------------------------------------------------------------")
+            p.drawString(50, 715, "FAKTURA / INVOICE")
+            p.drawString(50, 695, f"Fakturanr / Invoice No: {invoice_no} | Datum / Date: {invoice_date} | Förfallodag / Due: {due_date}")
+            p.drawString(50, 675, f"Kund / Customer: {f_name} | Adress: {f_address}")
+            p.drawString(50, 655, "------------------------------------------------------------------------------------------------")
+            p.drawString(50, 625, f"Beskrivning / Description: {item_desc} (Antal / Qty: {item_qty})")
+            p.drawString(50, 595, f"Netto: {netto:.2f} Kr | Moms (25%): {moms:.2f} Kr")
+            p.drawString(50, 565, f"Att betala Totalt / Total: {total_amount:.2f} Kr")
+            p.drawString(50, 525, f"Betalning via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}")
             
             p.showPage()
             p.save()
@@ -583,7 +602,7 @@ elif menu == "📄 Faktura / Invoice":
             if f_email_inv:
                 success = send_email_with_attachment(
                     receiver_email=f_email_inv,
-                    subject=f"Faktura {invoice_no} från 30 Minutes Fix AB ({branch})",
+                    subject=f"Faktura {invoice_no} från 30 Minutes Phone Fix ({branch})",
                     body=f"Hej {f_name}!\n\nHär kommer faktura nr {invoice_no}.\nAtt betala: {total_amount:.2f} Kr.\nBetalning sker via Swish: {comp['swish']} eller Bankgiro: {comp['bankgiro']}.\n\nTack för din affär!\nTel: {comp['phone']}",
                     pdf_buffer=st.session_state['last_invoice_pdf'],
                     filename=f"{invoice_no}.pdf"
@@ -774,7 +793,7 @@ elif menu == "📤 E-post Utskick & Historik / Email Hub & History":
                     pdf_buf = st.session_state.get('last_quote_pdf', None) if "Quotes" in category else st.session_state.get('last_invoice_pdf', None)
                     success = send_email_with_attachment(
                         receiver_email=input_email,
-                        subject=f"Dokument från 30 Minutes Fix AB",
+                        subject=f"Dokument från 30 Minutes Phone Fix",
                         body=f"Hej {c_name}!\n\nHär kommer information och dokument gällande ditt ärende hos oss.\nVälkommen åter!\nTel: 0700122444",
                         pdf_buffer=pdf_buf,
                         filename="dokument.pdf"
