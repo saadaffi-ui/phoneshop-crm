@@ -33,6 +33,13 @@ def init_db():
         )
     """)
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS buybacks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT, customer_name TEXT, phone TEXT, person_nummer TEXT,
+            device TEXT, imei TEXT, purchase_price REAL, employee TEXT, created_at TEXT
+        )
+    """)
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS preorders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT,
@@ -66,7 +73,7 @@ def init_db():
         except Exception:
             pass
             
-    for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices"]:
+    for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices", "buybacks"]:
         try:
             cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN employee TEXT")
         except Exception:
@@ -96,6 +103,7 @@ st.markdown("""
     .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; }
     .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; }
     .sub-box { background-color: #fbeee6; padding: 20px; border-radius: 10px; border-left: 6px solid #d35400; }
+    .buyback-box { background-color: #eafaf1; padding: 20px; border-radius: 10px; border-left: 6px solid #27ae60; }
     .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; }
     .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
     .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
@@ -125,25 +133,25 @@ COMPANY_INFO = {
 TRANSLATIONS = {
     "Svenska": {
         "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ Nytt Ärende", "tab_quote": "💡 Kostnadsförslag",
-        "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_preorder": "🛒 Förbeställning",
-        "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Arkiv",
+        "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_buyback": "📱 Köp av Begagnad",
+        "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Arkiv",
         "employee": "Handläggare / Säljare", "phone": "Telefonnummer", "customer_name": "Kundens namn",
         "email": "E-post (Valfritt)", "device": "Enhet / Modell", "imei": "IMEI / Serienummer",
         "price": "Pris", "issue": "Beskrivning av fel", "save_repair": "Spara Ärende", "success_repair": "✅ Ärendet har sparats!"
     },
     "English": {
         "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ New Repair", "tab_quote": "💡 Quote",
-        "tab_invoice": "📄 Invoice", "tab_sub": "💳 Subscriptions", "tab_preorder": "🛒 Pre-order",
-        "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Archive",
+        "tab_invoice": "📄 Invoice", "tab_sub": "💳 Subscriptions", "tab_buyback": "📱 Buyback / Used",
+        "tab_preorder": "🛒 Pre-order", "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Archive",
         "employee": "Employee Name", "phone": "Phone Number", "customer_name": "Customer Name",
         "email": "Email (Optional)", "device": "Device Model", "imei": "IMEI / Serial Number",
         "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
     },
     "العربية (Arabic)": {
         "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
-        "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_preorder": "🛒 الطلب المسبق",
-        "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
-        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم العميل",
+        "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_buyback": "📱 شراء مستعمل (Kvitto)",
+        "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
+        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم البائع / العميل",
         "email": "البريد الإلكتروني (اختياري)", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو الرقم التسلسلي",
         "price": "السعر", "issue": "وصف العطل أو الإصلاح المطلوب", "save_repair": "حفظ بيانات الإصلاح", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
     }
@@ -293,30 +301,52 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, height - 385, "Garanti & Villkor / Warranty & Terms:")
         p.setFont("Helvetica", 7.5)
         p.drawString(50, height - 398, "- Garanti ges endast for det arbete/delar som har utforts/bytts ut.")
-        p.drawString(50, height - 410, "- Vi ansvarar ej for forlorad data (sarskilt vid vattenskadade, doeda eller enheter med svart skaerm),")
-        p.drawString(50, height - 422, "  da datan kan ha gått forlorad redan innan inlamning.")
-        p.drawString(50, height - 434, "- Detta kvitto maste uppvisas vid uthamtning. Vi ansvarar ej for ej uthamtade enheter efter 3 manader.")
-
-        p.setFont("Helvetica-Oblique", 7.5)
-        p.drawString(50, height - 455, "* Warranty applies only to the specific repair performed.")
-        p.drawString(50, height - 467, "* Not responsible for data loss (especially on water-damaged, dead or black-screen devices).")
+        p.drawString(50, height - 410, "- Vi ansvarar ej for forlorad data (sarskilt vid vattenskadade, doeda eller enheter med svart skaerm).")
 
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
-    elif record_type == "label_sticker":
-        p.setLineWidth(1)
-        p.rect(35, height - 165, 270, 140)
+    elif record_type == "buyback_receipt":
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET (PURCHASE RECEIPT)")
+        p.setFont("Helvetica", 10)
+        p.drawString(50, height - 135, f"Kvitto ID: #{data.get('buyback_id', '1')}")
+        p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
+        p.drawString(50, height - 155, f"Säljare / Seller: {data.get('customer_name', '')}")
+        p.drawString(300, height - 155, f"Personnummer: {data.get('person_nummer', 'Ej angivet')}")
+        p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
+        p.drawString(300, height - 175, f"Handläggare / Agent: {employee_name}")
+        p.drawString(50, height - 195, f"Enhet / Device: {data.get('device', '')}")
+        p.drawString(300, height - 195, f"IMEI / Serial: {data.get('imei', '')}")
+        
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(50, height - 235, width - 100, 20, fill=1, stroke=0)
+        p.setFillColorRGB(0, 0, 0)
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(60, height - 228, "Beskrivning / Item Specification")
+        p.drawString(400, height - 228, f"Inköpspris ({currency})")
+        
+        p.setFont("Helvetica", 10)
+        y_pos = height - 265
+        p.drawString(60, y_pos, f"- Begagnad mobiltelefon / Inköp från privatperson")
+        price_val = data.get('purchase_price', 0)
+        p.drawString(400, y_pos, f"{price_val:.2f} {currency}")
+        
+        p.line(50, height - 310, width - 50, height - 310)
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(45, height - 50, f"{comp['name']}")
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(45, height - 70, f"Arende ID: #{data.get('repair_id')}   |   Datum: {data.get('created_at')}")
-        p.setFont("Helvetica", 9)
-        p.drawString(45, height - 90, f"Kund / Customer: {data.get('customer_name')}")
-        p.drawString(45, height - 108, f"Enhet / Device: {data.get('device')}")
-        p.drawString(45, height - 126, f"IMEI: {data.get('imei', '---')}")
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(45, height - 146, f"Tel: {data.get('phone')}   |   Pris: {data.get('price')} SEK")
+        p.drawString(300, height - 325, f"Utbetalat belopp / Total: {price_val:.2f} {currency}")
+        
+        p.setFont("Helvetica-Bold", 8)
+        p.drawString(50, height - 365, "Säljarens försäkran & Villkor / Seller Declaration:")
+        p.setFont("Helvetica", 7.5)
+        p.drawString(50, height - 378, "- Säljaren intygar att enheten är hens lagliga egendom, inte är anmäld stulen,")
+        p.drawString(50, height - 390, "  samt att alla konton (t.ex. iCloud / Google Account) har raderats och loggats ut.")
+        p.drawString(50, height - 402, "- Butiken har full äganderätt till enheten från och med detta kvitto.")
+
+        p.drawString(50, height - 460, "Säljarens underskrift / Seller Signature: ______________________")
+        
+        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "quote":
         p.setFont("Helvetica-Bold", 12)
@@ -385,7 +415,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
             p.drawString(60, y_pos - 15, f"Referensnr / Order: {data.get('ref_no')}")
             
         p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
-        
         p.line(50, height - 330, width - 50, height - 330)
         p.setFont("Helvetica", 9)
         p.drawString(300, height - 350, f"Netto / Net: {netto_val:.2f} {currency}")
@@ -403,9 +432,9 @@ def generate_pdf_from_record(record_type, data, comp_info):
     buffer.seek(0)
     return buffer
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     t["tab_dash"], t["tab_repair"], t["tab_quote"], t["tab_invoice"], 
-    t["tab_sub"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
+    t["tab_sub"], t["tab_buyback"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
 ])
 
 # --- TAB 1: DASHBOARD ---
@@ -510,7 +539,7 @@ with tab2:
         display_pdf_preview(st.session_state['rep_label_pdf'], file_name="IMEI_Label.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 3: QUOTE WITH FULL COST/PRICE CALCULATION ---
+# --- TAB 3: QUOTE ---
 with tab3:
     st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
     st.header(f"💡 عرض سعر وحساب الأرباح / Price Quotation ({global_branch})")
@@ -639,7 +668,7 @@ with tab4:
         display_pdf_preview(st.session_state['inv_pdf'], file_name="invoice.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 5: SUBSCRIPTIONS ---
+# --- TAB 5: SUBSCRIPTIONS (FULL PLANS) ---
 with tab5:
     st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
     st.header(f"💳 الاشتراكات وضمان IMEI / Subscriptions ({global_branch})")
@@ -648,24 +677,78 @@ with tab5:
     sub_device = st.text_input(t["device"], key="sub_device")
     sub_name = st.text_input(t["customer_name"], key="sub_name")
     sub_phone = st.text_input(t["phone"], key="sub_phone")
-    plan_choice = st.selectbox("Välj Plan", ["Glass Protection Abonnemang (99 SEK/mån)", "Phone Shield Total Club (149 SEK/mån)"])
-    sub_price = 149.0 if "Phone Shield Total Club" in plan_choice else 99.0
-    agree_terms = st.checkbox("Kunden godkänner villkoren")
 
-    if st.button("Spara Abonnemang", type="primary", key="btn_save_sub"):
+    plan_choice = st.selectbox("Välj Plan / Subscription Plan", [
+        "Glass Protection Abonnemang (99 SEK/mån)",
+        "Case / Cover Abonnemang (399 SEK start + 99 SEK/mån)",
+        "Teknik, Mjukvara & Virus Help (99 SEK/mån)",
+        "Phone Shield Total Club (149 SEK/mån)"
+    ])
+    
+    sub_price = 149.0 if "Phone Shield Total Club" in plan_choice else 99.0
+    st.info("💡 **شروط الاشتراك / Terms:** مرتبط حصرياً برقم الـ IMEI للجهاز. فترة الإلغاء 3 أشهر.")
+    agree_terms = st.checkbox("Kunden godkänner villkoren / Customer agrees to terms")
+
+    if st.button("Spara Abonnemang / حفظ الاشتراك", type="primary", key="btn_save_sub"):
         if sub_imei and sub_name and agree_terms and sub_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, date.today().strftime('%Y-%m-%d'), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            start_date = datetime.now().strftime("%Y-%m-%d")
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at))
             conn.commit()
             conn.close()
-            st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI!")
+            st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI بنجاح!")
         else:
-            st.warning("⚠️ أدخل الحقول المطلوبة والموافقة على الشروط.")
+            st.warning("⚠️ أدخل اسم الموظف، رقم الـ IMEI، اسم العميل، والموافقة على الشروط.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 6: PRE-ORDERS ---
+# --- TAB 6: BUYBACK / Kvitto för begagnad mobil (NEW) ---
 with tab6:
+    st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
+    st.header(f"📱 شراء جهاز مستعمل وتحرير إيصال الشراء / Buyback & Purchase Receipt ({global_branch})")
+    bb_emp = st.text_input(t["employee"], key="bb_emp")
+    bb_name = st.text_input(t["customer_name"], key="bb_name")
+    bb_pnr = st.text_input("رقم الشخص أو الهوية / Personnummer (ÅÅMMDD-XXXX)", key="bb_pnr")
+    bb_phone = st.text_input(t["phone"], key="bb_phone")
+    bb_device = st.text_input(t["device"], key="bb_device")
+    bb_imei = st.text_input(t["imei"], key="bb_imei")
+    bb_price = st.number_input("مبلغ الشراء المدفوع للعميل / Purchase Price (SEK)", min_value=0.0, step=50.0, key="bb_price")
+
+    st.markdown("""
+    <div style="background-color: #d4edda; padding: 12px; border-radius: 8px; border-left: 5px solid #28a745; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
+        <b>📜 شروط إيصال شراء الأجهزة المستعملة (Buyback Terms):</b><br>
+        • يقر البائع بأن الجهاز هو ملكه الشرعي وغير مسروق، وأن جميع حسابات السحابة (iCloud / Google) قد أُزيلت بالكامل.<br>
+        • هذا المستند يعد إيصالاً نقدياً رسمياً لشراء الأجهزة من الأفراد لصالح الورشة.
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("حفظ وتوليد إيصال شراء مستعمل PDF", type="primary", key="btn_save_bb"):
+        if bb_name and bb_phone and bb_device and bb_imei and bb_emp:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("INSERT INTO buybacks (branch, customer_name, phone, person_nummer, device, imei, purchase_price, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, bb_name, bb_phone, bb_pnr, bb_device, bb_imei, bb_price, bb_emp, created_at))
+            conn.commit()
+            conn.close()
+            st.success("✅ تم حفظ إيصال شراء الجهاز المستعمل بنجاح!")
+            
+            bb_data = {
+                "branch": global_branch, "buyback_id": "501", "customer_name": bb_name,
+                "person_nummer": bb_pnr, "phone": bb_phone, "device": bb_device, "imei": bb_imei,
+                "purchase_price": bb_price, "employee": bb_emp, "created_at": date.today().strftime('%Y-%m-%d')
+            }
+            st.session_state['bb_pdf'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
+        else:
+            st.warning("⚠️ يرجى تعبئة بيانات البائع، الجهاز، رقم الـ IMEI، واسم الموظف.")
+
+    if 'bb_pdf' in st.session_state:
+        st.markdown("---")
+        display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 7: PRE-ORDERS ---
+with tab7:
     st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
     st.header(f"🛒 الطلب المسبق / Pre-orders ({global_branch})")
     pre_emp = st.text_input(t["employee"], key="pre_emp")
@@ -686,8 +769,8 @@ with tab6:
             st.warning("⚠️ أدخل اسم الموظف والعميل ورقم الهاتف.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 7: INVENTORY ---
-with tab7:
+# --- TAB 8: INVENTORY ---
+with tab8:
     st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
     st.header(f"📦 المخزون / Inventory ({global_branch})")
     part_name = st.text_input("اسم القطعة (e.g. iPhone Screen)")
@@ -707,17 +790,18 @@ with tab7:
             st.warning("⚠️ أدخل اسم القطعة.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 8: SEARCH & ARCHIVE ---
-with tab8:
+# --- TAB 9: SEARCH & ARCHIVE ---
+with tab9:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
     st.header(f"🔍 الأرشيف والبحث / Search & Archive ({global_branch})")
-    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"])
+    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "📱 شراء الأجهزة / Buybacks", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"])
     search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
     
     table_map = {
         "📝 الإصلاحات / Repairs": "repairs", "💳 الاشتراكات / Subscriptions": "subscriptions",
-        "🛒 الطلبات / Pre-orders": "preorders", "💡 عروض الأسعار / Quotes": "quotes",
-        "📄 الفواتير / Invoices": "invoices", "📦 المخزون / Inventory": "inventory"
+        "📱 شراء الأجهزة / Buybacks": "buybacks", "🛒 الطلبات / Pre-orders": "preorders",
+        "💡 عروض الأسعار / Quotes": "quotes", "📄 الفواتير / Invoices": "invoices",
+        "📦 المخزون / Inventory": "inventory"
     }
     cur_tbl = table_map[search_cat]
     
