@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import os
+import urllib.parse
 from datetime import datetime, date
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -748,7 +749,7 @@ with tab6:
         display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 7: BLACK FRIDAY & CHRISTMAS CAMPAIGNS (NEW) ---
+# --- TAB 7: BLACK FRIDAY & CHRISTMAS CAMPAIGNS (WITH WHATSAPP LINK) ---
 with tab7:
     st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
     st.header(f"🎄 عروض المواسم التسويقية (Black Friday & Christmas) - {global_branch}")
@@ -761,22 +762,38 @@ with tab7:
         * **عرض الشاشات:** خصم 20% على تغيير الشاشات الأصلية مع حماية زجاج مجانية.
         * **عرض البطاريات:** استبدال البطارية بسعر مخفض عند إصلاح عطل آخر.
         """)
-        bf_phone = st.text_input("رقم هاتف العميل:", "070...")
+        bf_phone = st.text_input("رقم هاتف العميل (مثال: 0701234567):", "")
         bf_text = f"🖤 BLACK FRIDAY hos 30 Minutes Phone Fix! Få 20% rabatt på alla skärmbyten + gratis skärmskydd. Välkommen till {global_branch}! Tel: {comp['phone']}"
         st.text_area("نص الرسالة الجاهز للإرسال:", value=bf_text)
-        if st.button("📤 نسخ رسالة Black Friday"):
-            st.success("✅ تم تجهيز الرسالة للنسخ وإرسالها للعميل!")
+        
+        if bf_phone:
+            formatted_phone = bf_phone.strip()
+            if formatted_phone.startswith("0"):
+                formatted_phone = "+46" + formatted_phone[1:]
+            whatsapp_url = f"https://wa.me/{formatted_phone}?text={urllib.parse.quote(bf_text)}"
+            st.markdown(f"👉 [🚀 اضغط هنا لإرسال العرض عبر WhatsApp للعميل مباشرة]({whatsapp_url})", unsafe_allow_html=True)
+        else:
+            st.info("💡 أدخل رقم هاتف العميل أعلاه ليظهر لك زر الواتساب المباشر.")
+            
     else:
         st.markdown("### 🎁 Jul- & Nyårskampanjer")
         st.markdown("""
         * **بطاقات هدايا (Presentkort):** متوفرة بقيمة (500 SEK / 1000 SEK) للإصلاح أو شراء الملحقات.
         * **حزمة الحماية:** خصم خاص 20% على إكسسوارات الحماية في شهر ديسمبر.
         """)
-        ch_phone = st.text_input("رقم هاتف العميل:", "070...", key="ch_ph")
+        ch_phone = st.text_input("رقم هاتف العميل (مثال: 0701234567):", "", key="ch_ph")
         ch_text = f"God Jul och Gott Nytt År önskar 30 Minutes Phone Fix ({global_branch})! 🎄 Skydda din mobil med 20% rabatt på tillbehör under hela December. Välkommen!"
         st.text_area("نص رسالة العيد للعميل:", value=ch_text, key="ch_tx")
-        if st.button("📤 نسخ رسالة الكريسماس"):
-            st.success("✅ جاهزة للإرسال!")
+        
+        if ch_phone:
+            formatted_ch_phone = ch_phone.strip()
+            if formatted_ch_phone.startswith("0"):
+                formatted_ch_phone = "+46" + formatted_ch_phone[1:]
+            whatsapp_ch_url = f"https://wa.me/{formatted_ch_phone}?text={urllib.parse.quote(ch_text)}"
+            st.markdown(f"👉 [🚀 اضغط هنا لإرسال تهنئة الكريسماس عبر WhatsApp للعميل مباشرة]({whatsapp_ch_url})", unsafe_allow_html=True)
+        else:
+            st.info("💡 أدخل رقم هاتف العميل أعلاه ليظهر لك زر الواتساب المباشر.")
+            
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 8: PRE-ORDERS ---
