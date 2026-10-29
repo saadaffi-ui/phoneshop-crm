@@ -9,9 +9,10 @@ import io
 import pandas as pd
 import base64
 
-# --- Local SQLite Database Setup (Stable 100%) ---
+# --- Local SQLite Database Setup & Migration (Robust) ---
 def get_db_connection():
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
@@ -68,12 +69,12 @@ def init_db():
         )
     """)
     
-    for col in ["profit", "employee"]:
-        try:
-            cursor.execute(f"ALTER TABLE quotes ADD COLUMN {col} TEXT")
-        except Exception:
-            pass
-            
+    # التأكد من أنواع البيانات الحسابية والصلاحيات
+    try:
+        cursor.execute("ALTER TABLE quotes ADD COLUMN profit REAL")
+    except Exception:
+        pass
+        
     for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices", "buybacks"]:
         try:
             cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN employee TEXT")
@@ -164,16 +165,15 @@ TRANSLATIONS = {
         "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
     },
     "العربية (Arabic)": {
-        "tab_dash": "📊 لوحة التحكم (Dashboard)", "tab_repair": "🛠️ إصلاح جديد (New Repair)", "tab_quote": "💡 عرض سعر (Quote)",
-        "tab_invoice": "📄 فاتورة (Invoice)", "tab_sub": "💳 الاشتراكات (Subscriptions)", "tab_buyback": "📱 شراء مستعمل (Buyback)",
-        "tab_campaign": "🎄 عروض المواسم (Campaigns)", "tab_preorder": "🛒 الطلب المسبق (Pre-order)", "tab_stock": "📦 المخزون (Inventory)", "tab_search": "🔍 الأرشيف والبحث (Search)",
-        "employee": "اسم الموظف المسؤول (Handläggare)", "phone": "رقم الهاتف (Telefonnummer)", "customer_name": "اسم البائع / العميل (Kund)",
-        "email": "البريد الإلكتروني (E-post)", "device": "نوع وطراز الجهاز (Enhet)", "imei": "رقم الـ IMEI أو التسلسلي (IMEI)",
-        "price": "السعر (Pris)", "issue": "وصف العطل أو الإصلاح (Felbeskrivning)", "save_repair": "حفظ بيانات الإصلاح (Spara)", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح! (Sparat!)"
+        "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
+        "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_buyback": "📱 شراء مستعمل",
+        "tab_campaign": "🎄 عروض المواسم", "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
+        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم البائع / العميل",
+        "email": "البريد الإلكتروني", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو التسلسلي",
+        "price": "السعر", "issue": "وصف العطل أو الإصلاح", "save_repair": "حفظ طلب الإصلاح", "success_repair": "✅ تم الحفظ بنجاح!"
     }
 }
 
-# --- Helper Function for WhatsApp URL ---
 def get_whatsapp_link(phone, text):
     if not phone:
         return "#"
@@ -202,22 +202,22 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Secure Authentication Login ---
+# --- Secure Authentication Login (Using Streamlit Secrets or Fallback Secure PIN) ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
 if not st.session_state['authenticated']:
     try:
-        default_pin = st.secrets.get("DELETE_PIN", "tunapark")
+        system_pin = st.secrets["auth"].get("SYSTEM_PIN", "30min2026")
     except Exception:
-        default_pin = "tunapark"
+        system_pin = "30min2026"
         
     st.markdown("<div class='login-container'>", unsafe_allow_html=True)
     st.markdown("### 🔒 System Login / Inloggning")
     st.markdown("Ange PIN-kod för att fortsätta / الرجاء إدخال رمز المرور:")
     login_pin = st.text_input("🔑 PIN Code / رمز المرور", type="password", key="login_pin_input")
     
-    if login_pin == default_pin:
+    if login_pin == system_pin:
         st.session_state['authenticated'] = True
         st.success("✅ Logged in successfully! / تم تسجيل الدخول بنجاح!")
         st.rerun()
@@ -234,7 +234,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    st.success("✅ Dokumentet är redo för utskrift! / Document is ready for print!")
+    st.success("✅ Dokumentet är redo för utskrift! / Document is ready!")
     
     b_col1, b_col2 = st.columns(2)
     with b_col1:
@@ -265,7 +265,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR (ALWAYS SWEDISH & ENGLISH FOR PRINT) ---
+# --- PDF GENERATOR (ALWAYS SWEDISH & ENGLISH) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -326,15 +326,15 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setFont("Helvetica-Bold", 8)
         p.drawString(50, height - 385, "Garanti & Villkor / Warranty & Terms:")
         p.setFont("Helvetica", 7.5)
-        p.drawString(50, height - 398, "- Garanti ges endast för det arbete/delar som har utförts/bytts ut. / Warranty covers only repaired parts.")
-        p.drawString(50, height - 410, "- Vi ansvarar ej för förlorad data (särskilt vid vattenskadade eller döda enheter). / No liability for lost data.")
+        p.drawString(50, height - 398, "- Garanti ges endast för det arbete/delar som har utförts. / Warranty covers repaired parts.")
+        p.drawString(50, height - 410, "- Vi ansvarar ej för förlorad data. / No liability for lost data.")
 
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "buyback_receipt":
         p.setFont("Helvetica-Bold", 12)
-        p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT - USED DEVICE")
+        p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT")
         p.setFont("Helvetica", 10)
         p.drawString(50, height - 135, f"Kvitto ID / Receipt ID: #{data.get('buyback_id', '1')}")
         p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
@@ -363,13 +363,12 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(300, height - 325, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
         
         p.setFont("Helvetica-Bold", 8)
-        p.drawString(50, height - 365, "Säljarens försäkran & Villkor / Seller Declaration & Terms:")
+        p.drawString(50, height - 365, "Säljarens försäkran / Seller Declaration:")
         p.setFont("Helvetica", 7.5)
-        p.drawString(50, height - 378, "- Säljaren intygar att enheten är hens lagliga egendom, inte är anmäld stulen,")
-        p.drawString(50, height - 390, "  samt att alla konton (t.ex. iCloud / Google Account) har raderats.")
-        p.drawString(50, height - 402, "- Butiken har full äganderätt till enheten från och med detta kvitto.")
+        p.drawString(50, height - 378, "- Säljaren intygar att enheten är hens lagliga egendom, inte anmäld stulen,")
+        p.drawString(50, height - 390, "  samt att alla konton (iCloud / Google) har raderats.")
 
-        p.drawString(50, height - 460, "Säljarens underskrift / Seller Signature: ______________________")
+        p.drawString(50, height - 460, "Säljarens underskrift / Signature: ______________________")
         
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
@@ -404,7 +403,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(300, height - 360, "(Inkl. moms / Incl. VAT)")
         
         p.setFont("Helvetica-Oblique", 8)
-        p.drawString(50, height - 420, "* Detta kostnadsförslag är giltigt i 30 dagar / Valid for 30 days.")
+        p.drawString(50, height - 420, "* Giltigt i 30 dagar / Valid for 30 days.")
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
@@ -417,7 +416,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, height - 165, f"Vår referens / Our ref: {employee_name}")
         
         p.setFont("Helvetica-Bold", 10)
-        p.drawString(300, height - 135, "Köpare / Buyer (Customer):")
+        p.drawString(300, height - 135, "Köpare / Buyer:")
         p.setFont("Helvetica", 10)
         p.drawString(300, height - 150, f"{data.get('customer_name', '')}")
         p.drawString(300, height - 165, f"{data.get('address', 'Ej angiven adress')}")
@@ -489,7 +488,7 @@ with tab1:
     c4.metric("📈 الأرباح / Profit", f"{total_prof:.2f} Kr")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR ---
+# --- TAB 2: NEW REPAIR (WITH AUTO INVENTORY DEDUCTION) ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
     st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام / New Repair ({global_branch})")
@@ -543,12 +542,18 @@ with tab2:
                 "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (global_branch, c_name, c_phone, c_email, device, imei, issue, price, "Under behandling", employee_name, created_at)
             )
+            repair_db_id = cursor.lastrowid # الحصول على معرف السجل الحقيقي بدل الرقم الثابت 99
+
+            # خصم تلقائي للمخزون للقطع المرتبطة
+            for selected_part in selected_rep_issues:
+                cursor.execute("UPDATE inventory SET stock_qty = stock_qty - 1 WHERE branch = ? AND part_name = ? AND stock_qty > 0", (global_branch, selected_part))
+
             conn.commit()
             conn.close()
             st.success(t["success_repair"])
             
             rec_data = {
-                "branch": global_branch, "repair_id": "99", "customer_name": c_name,
+                "branch": global_branch, "repair_id": str(repair_db_id), "customer_name": c_name,
                 "phone": c_phone, "device": device, "imei": imei, "issue": issue,
                 "price": price, "employee": employee_name, "created_at": date.today().strftime('%Y-%m-%d')
             }
@@ -599,7 +604,7 @@ with tab3:
             total_price += p_val
             total_cost += c_val
 
-    net_profit = total_price - total_cost
+    net_profit = float(total_price - total_cost)
     st.markdown(f"### 💰 الإجمالي / Total: **{total_price:.2f} SEK** | 📈 الربح / Net Profit: **{net_profit:.2f} SEK**")
 
     if st.button("حفظ وتوليد عرض سعر PDF / Save Quote PDF", type="primary", key="btn_save_q"):
@@ -624,13 +629,21 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name="quote.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE WITH FULL ADDRESS & REF + SWISH & SHOREPAY ---
+# --- TAB 4: INVOICE (DYNAMIC AUTO INVOICE NUMBER) ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
     st.header(f"📄 الفاتورة الرسمية وخيارات الدفع / Standard Invoice & Payments ({global_branch})")
     
+    # توليد رقم فاتورة تلقائي فريد لمنع التكرار
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM invoices WHERE branch = ?", (global_branch,))
+    inv_count_db = cursor.fetchone()[0]
+    conn.close()
+    default_inv_no = f"FAK-{date.today().year}-{inv_count_db + 1001}"
+
     inv_emp = st.text_input(t["employee"], key="inv_emp")
-    inv_no = st.text_input("رقم الفاتورة / Fakturanummer", value="FAK-2026-001", key="inv_no_in")
+    inv_no = st.text_input("رقم الفاتورة / Fakturanummer", value=default_inv_no, key="inv_no_in")
     ref_no = st.text_input("إشارة المرجع أو الطلب / Vår referens", value="", key="inv_ref_in")
 
     st.markdown("---")
@@ -666,8 +679,6 @@ with tab4:
             • Belopp: <b>{total_amount:.2f} {inv_curr}</b>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🚀 توليد تنبيه دفع Swish", key="btn_swish_pay"):
-            st.success(f"✅ أبلغ العميل بتحويل {total_amount:.2f} {inv_curr} على Swish رقم: {comp['swish']}")
 
     with pay_col2:
         payment_url = f"https://pay.30minutesphonefix.se/checkout?amount={total_amount}&ref={inv_no}"
@@ -677,12 +688,11 @@ with tab4:
             • Belopp: <b>{total_amount:.2f} {inv_curr}</b>
         </div>
         """, unsafe_allow_html=True)
-        st.info(f"🔗 **رابط العميل المباشر:**\n`{payment_url}`")
-        st.markdown(f"[اضغط هنا لفتح صفحة الدفع بالبطاقة]({payment_url})", unsafe_allow_html=True)
+        st.info(f"🔗 **رابط الدفع:** `{payment_url}`")
 
     if inv_phone:
         inv_wa_text = f"Hej {inv_name or 'Kunden'}! Din faktura ({inv_no}) från 30 Minutes Phone Fix ({global_branch}) på {total_amount:.2f} {inv_curr} är klar. Betala via Swish ({comp['swish']}) eller kortlänk: {payment_url}"
-        st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال الفاتورة ورابط الدفع عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     st.markdown("---")
     if st.button("حفظ وتوليد فاتورة PDF رسمية", type="primary", key="btn_save_inv"):
@@ -702,7 +712,7 @@ with tab4:
         display_pdf_preview(st.session_state['inv_pdf'], file_name="invoice.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 5: SUBSCRIPTIONS (FULL PLANS) ---
+# --- TAB 5: SUBSCRIPTIONS ---
 with tab5:
     st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
     st.header(f"💳 الاشتراكات وضمان IMEI / Subscriptions ({global_branch})")
@@ -742,7 +752,7 @@ with tab5:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 6: BUYBACK / Kvitto för begagnad mobil ---
+# --- TAB 6: BUYBACK (DYNAMIC REAL ID) ---
 with tab6:
     st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
     st.header(f"📱 شراء جهاز مستعمل وتحرير إيصال الشراء / Buyback & Purchase Receipt ({global_branch})")
@@ -768,12 +778,13 @@ with tab6:
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("INSERT INTO buybacks (branch, customer_name, phone, person_nummer, device, imei, purchase_price, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, bb_name, bb_phone, bb_pnr, bb_device, bb_imei, bb_price, bb_emp, created_at))
+            bb_db_id = cursor.lastrowid # الحصول على المعرف الحقيقي بدلاً من الرقم الثابت 501
             conn.commit()
             conn.close()
             st.success("✅ تم حفظ إيصال شراء الجهاز المستعمل بنجاح!")
             
             bb_data = {
-                "branch": global_branch, "buyback_id": "501", "customer_name": bb_name,
+                "branch": global_branch, "buyback_id": str(bb_db_id), "customer_name": bb_name,
                 "person_nummer": bb_pnr, "phone": bb_phone, "device": bb_device, "imei": bb_imei,
                 "purchase_price": bb_price, "employee": bb_emp, "created_at": date.today().strftime('%Y-%m-%d')
             }
@@ -790,7 +801,7 @@ with tab6:
         display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 7: BLACK FRIDAY & CHRISTMAS CAMPAIGNS ---
+# --- TAB 7: CAMPAIGNS ---
 with tab7:
     st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
     st.header(f"🎄 عروض المواسم التسويقية (Black Friday & Christmas) - {global_branch}")
@@ -860,7 +871,7 @@ with tab8:
 with tab9:
     st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
     st.header(f"📦 المخزون / Inventory ({global_branch})")
-    part_name = st.text_input("اسم القطعة (e.g. iPhone Screen)")
+    part_name = st.text_input("اسم القطعة (e.g. Skärmbyte (Original))")
     part_qty = st.number_input("العدد المتوفر", min_value=0, step=1, value=5)
     part_min = st.number_input("حد الإنذار الأدنى", min_value=0, step=1, value=2)
     
@@ -877,7 +888,7 @@ with tab9:
             st.warning("⚠️ أدخل اسم القطعة.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 10: SEARCH & ARCHIVE ---
+# --- TAB 10: SEARCH & ARCHIVE (POSTGRES-READY COMPATIBLE QUERY) ---
 with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
     st.header(f"🔍 الأرشيف والبحث / Search & Archive ({global_branch})")
@@ -893,11 +904,18 @@ with tab10:
     cur_tbl = table_map[search_cat]
     
     conn = get_db_connection()
-    df_search = pd.read_sql_query(f"SELECT * FROM {cur_tbl} WHERE branch = ? ORDER BY id DESC", conn, params=(global_branch,))
+    try:
+        df_search = pd.read_sql_query(f"SELECT * FROM {cur_tbl} WHERE branch = ? ORDER BY id DESC", conn, params=(global_branch,))
+    except Exception:
+        df_search = pd.DataFrame()
     conn.close()
     
     if not df_search.empty:
-        filtered_df = df_search[df_search.astype(str).apply(lambda x: x.str.lower().str.contains(search_term)).any(axis=1)] if search_term else df_search
+        if search_term:
+            mask = df_search.astype(str).apply(lambda row: row.str.lower().str.contains(search_term).any(), axis=1)
+            filtered_df = df_search[mask]
+        else:
+            filtered_df = df_search
         st.dataframe(filtered_df, use_container_width=True)
     else:
         st.info("لا توجد بيانات مطابقة.")
