@@ -104,6 +104,7 @@ st.markdown("""
     .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; }
     .sub-box { background-color: #fbeee6; padding: 20px; border-radius: 10px; border-left: 6px solid #d35400; }
     .buyback-box { background-color: #eafaf1; padding: 20px; border-radius: 10px; border-left: 6px solid #27ae60; }
+    .campaign-box { background-color: #fcf3cf; padding: 20px; border-radius: 10px; border-left: 6px solid #f39c12; }
     .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; }
     .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
     .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
@@ -134,7 +135,7 @@ TRANSLATIONS = {
     "Svenska": {
         "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ Nytt Ärende", "tab_quote": "💡 Kostnadsförslag",
         "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_buyback": "📱 Köp av Begagnad",
-        "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Arkiv",
+        "tab_campaign": "🎄 Kampanjer", "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Arkiv",
         "employee": "Handläggare / Säljare", "phone": "Telefonnummer", "customer_name": "Kundens namn",
         "email": "E-post (Valfritt)", "device": "Enhet / Modell", "imei": "IMEI / Serienummer",
         "price": "Pris", "issue": "Beskrivning av fel", "save_repair": "Spara Ärende", "success_repair": "✅ Ärendet har sparats!"
@@ -142,7 +143,7 @@ TRANSLATIONS = {
     "English": {
         "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ New Repair", "tab_quote": "💡 Quote",
         "tab_invoice": "📄 Invoice", "tab_sub": "💳 Subscriptions", "tab_buyback": "📱 Buyback / Used",
-        "tab_preorder": "🛒 Pre-order", "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Archive",
+        "tab_campaign": "🎄 Campaigns", "tab_preorder": "🛒 Pre-order", "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Archive",
         "employee": "Employee Name", "phone": "Phone Number", "customer_name": "Customer Name",
         "email": "Email (Optional)", "device": "Device Model", "imei": "IMEI / Serial Number",
         "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
@@ -150,7 +151,7 @@ TRANSLATIONS = {
     "العربية (Arabic)": {
         "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
         "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_buyback": "📱 شراء مستعمل (Kvitto)",
-        "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
+        "tab_campaign": "🎄 عروض المواسم (Black Friday / Jul)", "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
         "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم البائع / العميل",
         "email": "البريد الإلكتروني (اختياري)", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو الرقم التسلسلي",
         "price": "السعر", "issue": "وصف العطل أو الإصلاح المطلوب", "save_repair": "حفظ بيانات الإصلاح", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
@@ -432,9 +433,9 @@ def generate_pdf_from_record(record_type, data, comp_info):
     buffer.seek(0)
     return buffer
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     t["tab_dash"], t["tab_repair"], t["tab_quote"], t["tab_invoice"], 
-    t["tab_sub"], t["tab_buyback"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
+    t["tab_sub"], t["tab_buyback"], t["tab_campaign"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
 ])
 
 # --- TAB 1: DASHBOARD ---
@@ -703,7 +704,7 @@ with tab5:
             st.warning("⚠️ أدخل اسم الموظف، رقم الـ IMEI، اسم العميل، والموافقة على الشروط.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 6: BUYBACK / Kvitto för begagnad mobil (NEW) ---
+# --- TAB 6: BUYBACK / Kvitto för begagnad mobil ---
 with tab6:
     st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
     st.header(f"📱 شراء جهاز مستعمل وتحرير إيصال الشراء / Buyback & Purchase Receipt ({global_branch})")
@@ -747,8 +748,39 @@ with tab6:
         display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 7: PRE-ORDERS ---
+# --- TAB 7: BLACK FRIDAY & CHRISTMAS CAMPAIGNS (NEW) ---
 with tab7:
+    st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
+    st.header(f"🎄 عروض المواسم التسويقية (Black Friday & Christmas) - {global_branch}")
+    
+    camp_choice = st.selectbox("اختر الموسم التسويقي:", ["🖤 Black Friday Deals", "🎁 Christmas & New Year Specials"])
+    
+    if "Black Friday" in camp_choice:
+        st.markdown("### 🖤 Black Friday Kampanjer")
+        st.markdown("""
+        * **عرض الشاشات:** خصم 20% على تغيير الشاشات الأصلية مع حماية زجاج مجانية.
+        * **عرض البطاريات:** استبدال البطارية بسعر مخفض عند إصلاح عطل آخر.
+        """)
+        bf_phone = st.text_input("رقم هاتف العميل:", "070...")
+        bf_text = f"🖤 BLACK FRIDAY hos 30 Minutes Phone Fix! Få 20% rabatt på alla skärmbyten + gratis skärmskydd. Välkommen till {global_branch}! Tel: {comp['phone']}"
+        st.text_area("نص الرسالة الجاهز للإرسال:", value=bf_text)
+        if st.button("📤 نسخ رسالة Black Friday"):
+            st.success("✅ تم تجهيز الرسالة للنسخ وإرسالها للعميل!")
+    else:
+        st.markdown("### 🎁 Jul- & Nyårskampanjer")
+        st.markdown("""
+        * **بطاقات هدايا (Presentkort):** متوفرة بقيمة (500 SEK / 1000 SEK) للإصلاح أو شراء الملحقات.
+        * **حزمة الحماية:** خصم خاص 20% على إكسسوارات الحماية في شهر ديسمبر.
+        """)
+        ch_phone = st.text_input("رقم هاتف العميل:", "070...", key="ch_ph")
+        ch_text = f"God Jul och Gott Nytt År önskar 30 Minutes Phone Fix ({global_branch})! 🎄 Skydda din mobil med 20% rabatt på tillbehör under hela December. Välkommen!"
+        st.text_area("نص رسالة العيد للعميل:", value=ch_text, key="ch_tx")
+        if st.button("📤 نسخ رسالة الكريسماس"):
+            st.success("✅ جاهزة للإرسال!")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 8: PRE-ORDERS ---
+with tab8:
     st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
     st.header(f"🛒 الطلب المسبق / Pre-orders ({global_branch})")
     pre_emp = st.text_input(t["employee"], key="pre_emp")
@@ -769,8 +801,8 @@ with tab7:
             st.warning("⚠️ أدخل اسم الموظف والعميل ورقم الهاتف.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 8: INVENTORY ---
-with tab8:
+# --- TAB 9: INVENTORY ---
+with tab9:
     st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
     st.header(f"📦 المخزون / Inventory ({global_branch})")
     part_name = st.text_input("اسم القطعة (e.g. iPhone Screen)")
@@ -790,8 +822,8 @@ with tab8:
             st.warning("⚠️ أدخل اسم القطعة.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 9: SEARCH & ARCHIVE ---
-with tab9:
+# --- TAB 10: SEARCH & ARCHIVE ---
+with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
     st.header(f"🔍 الأرشيف والبحث / Search & Archive ({global_branch})")
     search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "📱 شراء الأجهزة / Buybacks", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"])
