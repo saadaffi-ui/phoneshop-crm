@@ -8,7 +8,6 @@ import io
 import pandas as pd
 import base64
 import threading
-import requests
 
 # --- Database Connection with Instant SQLite Fallback ---
 import libsql_client
@@ -219,29 +218,11 @@ except Exception:
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
-# --- Custom CSS Styling & Color Coding for Each Section ---
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #f4f6f9;
-        color: #2c3e50;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    h1, h2, h3 {
-        color: #1a252f;
-        font-weight: 700;
-    }
-    div.stButton > button {
-        border-radius: 8px;
-        font-weight: 600;
-        padding: 0.6rem 1.2rem;
-        width: 100%;
-        transition: all 0.3s ease;
-    }
-    div.stAlert {
-        border-radius: 8px;
-        border: none;
-    }
+    .stApp { background-color: #f4f6f9; color: #2c3e50; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    h1, h2, h3 { color: #1a252f; font-weight: 700; }
+    div.stButton > button { border-radius: 8px; font-weight: 600; padding: 0.6rem 1.2rem; width: 100%; }
     .dashboard-box { background-color: #eaf2f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; }
     .repair-box { background-color: #e8f8f5; padding: 20px; border-radius: 10px; border-left: 6px solid #1abc9c; }
     .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; }
@@ -250,16 +231,7 @@ st.markdown("""
     .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; }
     .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
     .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
-    
-    .login-container {
-        background: #ffffff;
-        padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        max-width: 450px;
-        margin: auto;
-        border-top: 5px solid #e74c3c;
-    }
+    .login-container { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 450px; margin: auto; border-top: 5px solid #e74c3c; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -284,68 +256,31 @@ COMPANY_INFO = {
 
 TRANSLATIONS = {
     "Svenska": {
-        "tab_dash": "📊 Dashboard",
-        "tab_repair": "🛠️ Nytt Ärende",
-        "tab_quote": "💡 Kostnadsförslag",
-        "tab_invoice": "📄 Faktura",
-        "tab_sub": "💳 Abonnemang",
-        "tab_preorder": "🛒 Förbeställning",
-        "tab_stock": "📦 Lager",
-        "tab_search": "🔍 Sök & Arkiv",
-        "employee": "Handläggare / Säljare",
-        "phone": "Telefonnummer",
-        "customer_name": "Kundens namn",
-        "email": "E-post (Valfritt)",
-        "device": "Enhet / Modell",
-        "imei": "IMEI / Serienummer",
-        "price": "Pris",
-        "issue": "Beskrivning av fel",
-        "save_repair": "Spara Ärende",
-        "success_repair": "✅ Ärendet har sparats!"
+        "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ Nytt Ärende", "tab_quote": "💡 Kostnadsförslag",
+        "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_preorder": "🛒 Förbeställning",
+        "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Arkiv",
+        "employee": "Handläggare / Säljare", "phone": "Telefonnummer", "customer_name": "Kundens namn",
+        "email": "E-post (Valfritt)", "device": "Enhet / Modell", "imei": "IMEI / Serienummer",
+        "price": "Pris", "issue": "Beskrivning av fel", "save_repair": "Spara Ärende", "success_repair": "✅ Ärendet har sparats!"
     },
     "English": {
-        "tab_dash": "📊 Dashboard",
-        "tab_repair": "🛠️ New Repair",
-        "tab_quote": "💡 Quote",
-        "tab_invoice": "📄 Invoice",
-        "tab_sub": "💳 Subscriptions",
-        "tab_preorder": "🛒 Pre-order",
-        "tab_stock": "📦 Inventory",
-        "tab_search": "🔍 Search & Archive",
-        "employee": "Employee Name",
-        "phone": "Phone Number",
-        "customer_name": "Customer Name",
-        "email": "Email (Optional)",
-        "device": "Device Model",
-        "imei": "IMEI / Serial Number",
-        "price": "Price",
-        "issue": "Issue Description",
-        "save_repair": "Save Repair",
-        "success_repair": "✅ Repair saved successfully!"
+        "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ New Repair", "tab_quote": "💡 Quote",
+        "tab_invoice": "📄 Invoice", "tab_sub": "💳 Subscriptions", "tab_preorder": "🛒 Pre-order",
+        "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Archive",
+        "employee": "Employee Name", "phone": "Phone Number", "customer_name": "Customer Name",
+        "email": "Email (Optional)", "device": "Device Model", "imei": "IMEI / Serial Number",
+        "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
     },
     "العربية (Arabic)": {
-        "tab_dash": "📊 لوحة التحكم",
-        "tab_repair": "🛠️ إصلاح جديد",
-        "tab_quote": "💡 عرض سعر",
-        "tab_invoice": "📄 فاتورة",
-        "tab_sub": "💳 الاشتراكات",
-        "tab_preorder": "🛒 الطلب المسبق",
-        "tab_stock": "📦 المخزون",
-        "tab_search": "🔍 الأرشيف والبحث",
-        "employee": "اسم الموظف المسؤول",
-        "phone": "رقم الهاتف",
-        "customer_name": "اسم العميل",
-        "email": "البريد الإلكتروني (اختياري)",
-        "device": "نوع وطراز الجهاز",
-        "imei": "رقم الـ IMEI أو الرقم التسلسلي",
-        "price": "السعر",
-        "issue": "وصف العطل أو الإصلاح المطلوب",
-        "save_repair": "حفظ بيانات الإصلاح",
-        "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
+        "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
+        "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_preorder": "🛒 الطلب المسبق",
+        "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
+        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم العميل",
+        "email": "البريد الإلكتروني (اختياري)", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو الرقم التسلسلي",
+        "price": "السعر", "issue": "وصف العطل أو الإصلاح المطلوب", "save_repair": "حفظ بيانات الإصلاح", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
     }
 }
 
-# --- TOP HEADER BAR: LANGUAGE & BRANCH SELECTION IN THE HEAD ---
 head_c1, head_c2, head_c3 = st.columns([1, 2, 2])
 with head_c1:
     if os.path.exists("logo.png"):
@@ -363,10 +298,8 @@ st.markdown(f"""
     <b>🏢 Active Branch / Aktiv Butik:</b> {comp['name']} - {comp['address']} | <b>Tel:</b> {comp['phone']} | <b>Org.nr:</b> {comp['org_nr']} | <b>Swish:</b> {comp['swish']}
 </div>
 """, unsafe_allow_html=True)
-
 st.markdown("---")
 
-# --- AUTHENTICATION / LOGIN SCREEN ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -402,18 +335,11 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    
     st.success("✅ Dokumentet är redo! / Document is ready!")
     
     b_col1, b_col2 = st.columns(2)
     with b_col1:
-        st.download_button(
-            label="📥 Ladda ner PDF / Download PDF",
-            data=pdf_bytes,
-            file_name=file_name,
-            mime="application/pdf",
-            type="primary"
-        )
+        st.download_button("📥 Ladda ner PDF / Download PDF", data=pdf_bytes, file_name=file_name, mime="application/pdf", type="primary")
     with b_col2:
         print_html = f"""
         <script>
@@ -439,43 +365,6 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     </object>
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
-
-def generate_shorepay_checkout_link(amount, invoice_ref):
-    """
-    دالة توليد رابط دفع حقيقي عبر ShorePay API
-    تقرأ المفتاح من Streamlit Secrets بأمان تام
-    """
-    try:
-        api_key = st.secrets.get("SHOREPAY_API_KEY", "")
-        if not api_key:
-            # رابط احتياطي ديناميكي في حال لم يتم إدخال المفتاح بعد
-            return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
-
-        url = "https://api.stripe.com/v1/checkout/sessions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-        amount_in_cents = int(amount * 100)
-        data = {
-            "payment_method_types[0]": "card",
-            "line_items[0][price_data][currency]": "sek",
-            "line_items[0][price_data][unit_amount]": str(amount_in_cents),
-            "line_items[0][price_data][product_data][name]": f"Faktura / Reparation #{invoice_ref}",
-            "line_items[0][quantity]": "1",
-            "mode": "payment",
-            "success_url": "https://30minutesphonefix.se/success",
-            "cancel_url": "https://30minutesphonefix.se/cancel",
-            "client_reference_id": str(invoice_ref)
-        }
-        response = requests.post(url, headers=headers, data=data)
-        if response.status_code == 200:
-            session_data = response.json()
-            return session_data.get("url", f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}")
-        else:
-            return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
-    except Exception:
-        return f"https://pay.30minutesphonefix.se/checkout?amount={amount}&ref={invoice_ref}"
 
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
@@ -552,18 +441,14 @@ def generate_pdf_from_record(record_type, data, comp_info):
     elif record_type == "label_sticker":
         p.setLineWidth(1)
         p.rect(35, height - 165, 270, 140)
-        
         p.setFont("Helvetica-Bold", 11)
         p.drawString(45, height - 50, f"{comp['name']}")
-        
         p.setFont("Helvetica-Bold", 9)
         p.drawString(45, height - 70, f"Arende ID: #{data.get('repair_id')}   |   Datum: {data.get('created_at')}")
-        
         p.setFont("Helvetica", 9)
         p.drawString(45, height - 90, f"Kund / Customer: {data.get('customer_name')}")
         p.drawString(45, height - 108, f"Enhet / Device: {data.get('device')}")
         p.drawString(45, height - 126, f"IMEI: {data.get('imei', '---')}")
-        
         p.setFont("Helvetica-Bold", 9)
         p.drawString(45, height - 146, f"Tel: {data.get('phone')}   |   Pris: {data.get('price')} SEK")
 
@@ -604,7 +489,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
     elif record_type == "invoice":
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "FAKTURA / INVOICE")
-        
         p.setFont("Helvetica", 10)
         p.drawString(50, height - 135, f"Fakturanr / Invoice No: {data.get('invoice_no', '')}")
         p.drawString(50, height - 150, f"Fakturadatum / Date: {data.get('created_at', '')}")
@@ -653,16 +537,9 @@ def generate_pdf_from_record(record_type, data, comp_info):
     buffer.seek(0)
     return buffer
 
-# --- TABS WITH ALL SECTIONS INCLUDED ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    t["tab_dash"], 
-    t["tab_repair"], 
-    t["tab_quote"], 
-    t["tab_invoice"], 
-    t["tab_sub"], 
-    t["tab_preorder"],
-    t["tab_stock"], 
-    t["tab_search"]
+    t["tab_dash"], t["tab_repair"], t["tab_quote"], t["tab_invoice"], 
+    t["tab_sub"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
 ])
 
 # --- TAB 1: DASHBOARD ---
@@ -726,7 +603,7 @@ with tab1:
         st.error(f"خطأ / Error: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR WITH RECEIPT & LABEL GENERATION ---
+# --- TAB 2: NEW REPAIR ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
     st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام / New Repair ({global_branch})")
@@ -754,21 +631,11 @@ with tab2:
     device = st.text_input(t["device"], key="rep_device")
     imei = st.text_input(t["imei"], key="rep_imei")
     
-    st.markdown("⚡ **اختر الأعطال الشاملة / Select common issues:**")
     repair_issues_options = [
-        "Skärmbyte (Original)",
-        "Skärmbyte (OLED / Kopia)",
-        "Batteribyte",
-        "Laddport",
-        "Baksida",
-        "Kamera bak",
-        "Kamera fram",
-        "Ljud / Högtalare",
-        "Vattenskada",
-        "Mjukvara / Software",
-        "Övrigt fel"
+        "Skärmbyte (Original)", "Skärmbyte (OLED / Kopia)", "Batteribyte",
+        "Laddport", "Baksida", "Kamera bak", "Kamera fram", "Ljud / Högtalare",
+        "Vattenskada", "Mjukvara / Software", "Övrigt fel"
     ]
-    
     selected_rep_issues = st.multiselect("قائمة الأعطال / Issue options:", repair_issues_options, key="multi_rep_issues")
     price = st.number_input(t["price"], min_value=0.0, step=50.0, key="rep_price")
     
@@ -779,8 +646,7 @@ with tab2:
     <div style="background-color: #fff3cd; padding: 12px; border-radius: 8px; border-left: 5px solid #ffc107; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
         <b>⚠️ شروط الضمان وإخلاء المسؤولية (Warranty & Disclaimer Terms on Receipt):</b><br>
         • الضمان يغطي فقط الإصلاح أو القطعة التي تم استبدالها.<br>
-        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات (خصوصاً في الأجهزة التالفة بسبب الماء، الأجهزة الميتة، أو ذات الشاشة السوداء)، حيث قد تكون البيانات تالفة مسبقاً.<br>
-        <i>• Warranty covers only the specific repair/part. No liability for data loss on water-damaged, dead, or black-screen devices.</i>
+        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات في الأجهزة التالفة بسبب الماء أو الأجهزة الميتة.
     </div>
     """, unsafe_allow_html=True)
     
@@ -791,20 +657,10 @@ with tab2:
             status = "Under behandling / In Progress"
             try:
                 if db_type == "turso":
-                    try:
-                        cursor_res = conn.execute(
-                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
-                        )
-                    except Exception:
-                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute(
-                            "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
-                        )
-                        local_conn.commit()
-                        local_conn.close()
+                    conn.execute(
+                        "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (global_branch, c_name, c_phone, c_email, device, imei, issue, price, status, employee_name, created_at)
+                    )
                 else:
                     cursor = conn.cursor()
                     cursor.execute(
@@ -816,16 +672,9 @@ with tab2:
                 st.success(t["success_repair"])
                 
                 rec_data = {
-                    "branch": global_branch,
-                    "repair_id": "99",
-                    "customer_name": c_name,
-                    "phone": c_phone,
-                    "device": device,
-                    "imei": imei,
-                    "issue": issue,
-                    "price": price,
-                    "employee": employee_name,
-                    "created_at": date.today().strftime('%Y-%m-%d')
+                    "branch": global_branch, "repair_id": "99", "customer_name": c_name,
+                    "phone": c_phone, "device": device, "imei": imei, "issue": issue,
+                    "price": price, "employee": employee_name, "created_at": date.today().strftime('%Y-%m-%d')
                 }
                 st.session_state['rep_receipt_pdf'] = generate_pdf_from_record("repair_receipt", rec_data, COMPANY_INFO)
                 st.session_state['rep_label_pdf'] = generate_pdf_from_record("label_sticker", rec_data, COMPANY_INFO)
@@ -843,10 +692,9 @@ with tab2:
         st.markdown("---")
         st.subheader("🏷️ ملصق الجهاز والـ IMEI / IMEI Label Sticker")
         display_pdf_preview(st.session_state['rep_label_pdf'], file_name="IMEI_Label.pdf")
-        
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 3: QUOTE / PRICE QUOTATION WITH FULL OPTIONS ---
+# --- TAB 3: QUOTE ---
 with tab3:
     st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
     st.header(f"💡 عرض سعر وحساب الأرباح / Price Quotation ({global_branch})")
@@ -855,28 +703,14 @@ with tab3:
     q_phone = st.text_input(t["phone"], key="q_phone")
     q_device = st.text_input(t["device"], key="q_device")
 
-    st.markdown("---")
-    st.subheader("🛠️ اختر قطع الغيار / Select parts & calculation")
-    
-    quote_items = [
-        ("Skärmbyte", "qp_s", "qc_s"),
-        ("Batteribyte", "qp_b", "qc_b"),
-        ("Laddport", "qp_l", "qc_l"),
-        ("Baksida", "qp_bk", "qc_bk"),
-        ("Övrigt / Utförande", "qp_o", "qc_o")
-    ]
-    
-    issues_list = []
-    total_price = 0.0
-    total_cost = 0.0
+    quote_items = [("Skärmbyte", "qp_s", "qc_s"), ("Batteribyte", "qp_b", "qc_b"), ("Laddport", "qp_l", "qc_l"), ("Baksida", "qp_bk", "qc_bk")]
+    issues_list, total_price, total_cost = [], 0.0, 0.0
 
     for label, p_key, c_key in quote_items:
         if st.checkbox(label, key=f"chk_{p_key}"):
             col_p, col_c = st.columns(2)
-            with col_p:
-                p_val = st.number_input(f"Kundpris / Customer price ({label})", min_value=0.0, step=50.0, key=p_key)
-            with col_c:
-                c_val = st.number_input(f"Vår kostnad / Our cost ({label})", min_value=0.0, step=10.0, key=c_key)
+            with col_p: p_val = st.number_input(f"Kundpris ({label})", min_value=0.0, step=50.0, key=p_key)
+            with col_c: c_val = st.number_input(f"Vår kostnad ({label})", min_value=0.0, step=10.0, key=c_key)
             issues_list.append(f"{label}: {p_val} SEK")
             total_price += p_val
             total_cost += c_val
@@ -891,176 +725,101 @@ with tab3:
             issues_str = ", ".join(issues_list)
             try:
                 if db_type == "turso":
-                    try:
-                        conn.execute(
-                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
-                        )
-                    except Exception:
-                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute(
-                            "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
-                        )
-                        local_conn.commit()
-                        local_conn.close()
+                    conn.execute("INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at))
                 else:
                     cursor = conn.cursor()
-                    cursor.execute(
-                        "INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at)
-                    )
+                    cursor.execute("INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at))
                     conn.commit()
                     conn.close()
                 st.success("✅ تم حفظ عرض السعر! / Saved!")
             except Exception as e:
                 st.error(f"❌ خطأ / Error: {e}")
 
-            record_data = {
-                "branch": global_branch,
-                "customer_name": q_name,
-                "phone": q_phone,
-                "device": q_device,
-                "issues": issues_str,
-                "total": total_price,
-                "currency": "SEK",
-                "employee": q_emp,
-                "created_at": date.today().strftime('%Y-%m-%d')
-            }
-            pdf_buf = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
-            st.session_state['q_pdf'] = pdf_buf
-            safe_dev = q_device.replace(' ', '_')
-            safe_cust = q_name.replace(' ', '_')
-            st.session_state['q_pdf_name'] = f"Kostnadsforslag_{safe_dev}_-_{safe_cust}.pdf"
-            st.success("✅ تم تجهيز ملف PDF! / PDF ready!")
+            record_data = {"branch": global_branch, "customer_name": q_name, "phone": q_phone, "device": q_device, "issues": issues_str, "total": total_price, "currency": "SEK", "employee": q_emp, "created_at": date.today().strftime('%Y-%m-%d')}
+            st.session_state['q_pdf'] = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
+            st.session_state['q_pdf_name'] = f"Kostnadsforslag_{q_device.replace(' ', '_')}.pdf"
 
     if 'q_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['q_pdf'], file_name=st.session_state.get('q_pdf_name', 'quote.pdf'))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE (SVENSK STANDARD WITH FULL CUSTOMER ADDRESS & REF + SHOREPAY INTEGRATION) ---
+# --- TAB 4: INVOICE WITH SWISH & LINK GENERATOR ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
-    st.header(f"📄 الفاتورة الرسمية القياسية وخيارات الدفع الإلكتروني / Standard Invoice & Payments ({global_branch})")
+    st.header(f"📄 الفاتورة الرسمية وخيارات الدفع / Standard Invoice & Payments ({global_branch})")
     
     inv_emp = st.text_input(t["employee"], key="inv_emp")
     inv_no = st.text_input("رقم الفاتورة / Fakturanummer", value="FAK-2026-001", key="inv_no_in")
     ref_no = st.text_input("إشارة المرجع أو الطلب / Vår referens", value="", key="inv_ref_in")
-
-    st.markdown("---")
-    st.subheader("👤 بيانات العميل وعنوان الإرسال / Buyer Address")
-    inv_name = st.text_input("اسم العميل أو الشركة / Kund / Företag", key="inv_name")
-    inv_address = st.text_input("عنوان الشارع والمدينة / Gatuadress, Postnummer Ort", value="Drottninggatan 1, 632 20 Eskilstuna", key="inv_addr_in")
+    inv_name = st.text_input("اسم العميل / Kund / Företag", key="inv_name")
+    inv_address = st.text_input("عنوان الشارع والمدينة / Gatuadress", value="Drottninggatan 1, Eskilstuna", key="inv_addr_in")
     inv_phone = st.text_input(t["phone"], key="inv_phone")
-    inv_date = st.date_input("تاريخ الفاتورة / Fakturadatum", value=date.today(), key="inv_date")
-
-    st.markdown("---")
+    
     inv_curr = st.selectbox("العملة / Currency", ["SEK", "EUR"], key="inv_curr")
     inv_moms = st.selectbox("نسبة الضريبة / Moms (VAT)", ["25%", "12%", "6%", "0%"], key="inv_moms_sel")
-
     item_desc = st.text_input("وصف البند / Beskrivning", value="Reparation och reservdelar", key="inv_desc")
-    item_qty = st.number_input("الكمية / Antal", min_value=1, value=1, key="inv_qty")
-    item_price = st.number_input("السعر الإجمالي inkl. moms / Á-pris", min_value=0.0, step=50.0, key="inv_price")
+    item_price = st.number_input("السعر الإجمالي inkl. moms / Pris", min_value=0.0, step=50.0, key="inv_price")
     
-    total_amount = item_qty * item_price
     moms_div = 1.25 if "25%" in inv_moms else (1.12 if "12%" in inv_moms else (1.06 if "6%" in inv_moms else 1.0))
-    netto = total_amount / moms_div if moms_div > 1 else total_amount
-    moms = total_amount - netto
+    netto = item_price / moms_div if moms_div > 1 else item_price
+    moms = item_price - netto
 
-    st.markdown(f"**المبلغ الإجمالي / Att betala:** **{total_amount:.2f} {inv_curr}** (Netto: {netto:.2f} | Moms: {moms:.2f})")
+    st.markdown(f"**المبلغ الإجمالي / Att betala:** **{item_price:.2f} {inv_curr}** (Netto: {netto:.2f} | Moms: {moms:.2f})")
 
-    # --- INTEGRATED PAYMENT GATEWAY BUTTONS (SWISH & SHOREPAY) ---
     st.markdown("---")
-    st.subheader("💳 وسائل وسداد الدفع الإلكتروني المباشر / Direct Payment Gateways")
-    
+    st.subheader("💳 وسائل وسداد الدفع الإلكتروني / Direct Payment Gateways")
     pay_col1, pay_col2 = st.columns(2)
     with pay_col1:
         st.markdown(f"""
         <div style="background-color: #e8f8f5; padding: 15px; border-radius: 8px; border: 1px solid #1abc9c;">
             <b>📱 Swish Direct Pay</b><br>
             • Nummer: <b>{comp['swish']}</b><br>
-            • Belopp: <b>{total_amount:.2f} {inv_curr}</b><br>
-            <span style="color: #16a085; font-size: 12px;">امسح كود الـ Swish أو ادفع فوراً على الرقم التجاري.</span>
+            • Belopp: <b>{item_price:.2f} {inv_curr}</b>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🚀 توليد تنبيه دفع Swish / Trigger Swish Payment", key="btn_swish_pay"):
-            st.success(f"✅ جاهز! أبلغ العميل بتحويل {total_amount:.2f} {inv_curr} على Swish رقم: {comp['swish']}")
+        if st.button("🚀 توليد تنبيه دفع Swish", key="btn_swish_pay"):
+            st.success(f"✅ أبلغ العميل بتحويل {item_price:.2f} {inv_curr} على Swish رقم: {comp['swish']}")
 
     with pay_col2:
         st.markdown(f"""
         <div style="background-color: #fef9e7; padding: 15px; border-radius: 8px; border: 1px solid #f1c40f;">
-            <b>💳 ShorePay Card Payment Link</b><br>
-            • Belopp: <b>{total_amount:.2f} {inv_curr}</b><br>
-            <span style="color: #d68910; font-size: 12px;">إنشاء رابط دفع آمن بالبطاقة عبر ShorePay.</span>
+            <b>💳 Payment Link</b><br>
+            • Belopp: <b>{item_price:.2f} {inv_curr}</b>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🔗 إنشاء رابط دفع ShorePay الحقيقي", key="btn_shorepay_pay"):
-            real_payment_url = generate_shorepay_checkout_link(total_amount, inv_no)
-            st.info(f"🔗 **رابط الدفع الحقيقي للعميل:**\n`{real_payment_url}`")
-            st.markdown(f"[اضغط هنا لفتح بوابة الدفع]({real_payment_url})", unsafe_allow_html=True)
+        if st.button("🔗 إنشاء رابط الدفع", key="btn_pay_link"):
+            payment_url = f"https://pay.30minutesphonefix.se/checkout?amount={item_price}&ref={inv_no}"
+            st.info(f"🔗 **رابط العميل:**\n`{payment_url}`")
+            st.markdown(f"[اضغط هنا لفتح صفحة الدفع]({payment_url})", unsafe_allow_html=True)
 
     st.markdown("---")
-    if st.button("حفظ وتوليد فاتورة PDF رسمية / Save Invoice PDF", type="primary", key="btn_save_inv"):
+    if st.button("حفظ وتوليد فاتورة PDF رسمية", type="primary", key="btn_save_inv"):
         if inv_name and inv_emp:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 if db_type == "turso":
-                    try:
-                        conn.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
-                        )
-                    except Exception:
-                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute(
-                            "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
-                        )
-                        local_conn.commit()
-                        local_conn.close()
+                    conn.execute("INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, item_price, moms, inv_curr, inv_moms, inv_emp, created_at))
                 else:
                     cursor = conn.cursor()
-                    cursor.execute(
-                        "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at)
-                    )
+                    cursor.execute("INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, item_price, moms, inv_curr, inv_moms, inv_emp, created_at))
                     conn.commit()
                     conn.close()
-                st.success("✅ تم حفظ الفاتورة بنجاح! / Saved!")
+                st.success("✅ تم حفظ الفاتورة بنجاح!")
             except Exception as e:
-                st.error(f"❌ خطأ / Error: {e}")
+                st.error(f"❌ خطأ: {e}")
 
-            record_data = {
-                "branch": global_branch,
-                "customer_name": inv_name,
-                "address": inv_address,
-                "phone": inv_phone,
-                "ref_no": ref_no,
-                "invoice_no": inv_no,
-                "amount": total_amount,
-                "moms": moms,
-                "currency": inv_curr,
-                "moms_rate": inv_moms,
-                "item_desc": item_desc,
-                "employee": inv_emp,
-                "created_at": inv_date.strftime('%Y-%m-%d')
-            }
-            pdf_buf = generate_pdf_from_record("invoice", record_data, COMPANY_INFO)
-            st.session_state['inv_pdf'] = pdf_buf
-            safe_cust = inv_name.replace(' ', '_')
-            st.session_state['inv_pdf_name'] = f"Faktura_{inv_no}_-_{safe_cust}.pdf"
-            st.success("✅ تم تجهيز فاتورة PDF الرسمية! / Invoice PDF ready!")
+            record_data = {"branch": global_branch, "customer_name": inv_name, "address": inv_address, "phone": inv_phone, "ref_no": ref_no, "invoice_no": inv_no, "amount": item_price, "moms": moms, "currency": inv_curr, "moms_rate": inv_moms, "item_desc": item_desc, "employee": inv_emp, "created_at": date.today().strftime('%Y-%m-%d')}
+            st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", record_data, COMPANY_INFO)
+            st.session_state['inv_pdf_name'] = f"Faktura_{inv_no}.pdf"
 
     if 'inv_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['inv_pdf'], file_name=st.session_state.get('inv_pdf_name', 'invoice.pdf'))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 5: SUBSCRIPTIONS (IMEI LINKED) ---
+# --- TAB 5: SUBSCRIPTIONS ---
 with tab5:
     st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
     st.header(f"💳 الاشتراكات وضمان IMEI / Subscriptions ({global_branch})")
@@ -1069,52 +828,27 @@ with tab5:
     sub_device = st.text_input(t["device"], key="sub_device")
     sub_name = st.text_input(t["customer_name"], key="sub_name")
     sub_phone = st.text_input(t["phone"], key="sub_phone")
-
-    plan_choice = st.selectbox("Välj Plan / Subscription Plan", [
-        "Glass Protection Abonnemang (99 SEK/mån)",
-        "Case / Cover Abonnemang (399 SEK start + 99 SEK/mån)",
-        "Teknik, Mjukvara & Virus Help (99 SEK/mån)",
-        "Phone Shield Total Club (149 SEK/mån)"
-    ])
-    
+    plan_choice = st.selectbox("Välj Plan", ["Glass Protection Abonnemang (99 SEK/mån)", "Phone Shield Total Club (149 SEK/mån)"])
     sub_price = 149.0 if "Phone Shield Total Club" in plan_choice else 99.0
-    st.info("💡 **شروط الاشتراك / Terms:** مرتبط حصرياً برقم الـ IMEI للجهاز. فترة الإلغاء 3 أشهر.")
-    agree_terms = st.checkbox("Kunden godkänner villkoren / Customer agrees to terms")
+    agree_terms = st.checkbox("Kunden godkänner villkoren")
 
-    if st.button("Spara Abonnemang / حفظ الاشتراك", type="primary", key="btn_save_sub"):
+    if st.button("Spara Abonnemang", type="primary", key="btn_save_sub"):
         if sub_imei and sub_name and agree_terms and sub_emp:
             conn, db_type = get_db_connection()
-            start_date = datetime.now().strftime("%Y-%m-%d")
-            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            start_date, created_at = datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 if db_type == "turso":
-                    try:
-                        conn.execute(
-                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
-                        )
-                    except Exception:
-                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute(
-                            "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, sub_name, sub_phone, sub_device, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
-                        )
-                        local_conn.commit()
-                        local_conn.close()
+                    conn.execute("INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at))
                 else:
                     cursor = conn.cursor()
-                    cursor.execute(
-                        "INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at)
-                    )
+                    cursor.execute("INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at))
                     conn.commit()
                     conn.close()
-                st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI بنجاح! / Saved!")
+                st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI!")
             except Exception as e:
-                st.error(f"❌ خطأ / Error: {e}")
+                st.error(f"❌ خطأ: {e}")
         else:
-            st.warning("⚠️ يرجى إدخال اسم الموظف، رقم الـ IMEI، اسم العميل، والموافقة على الشروط.")
+            st.warning("⚠️ يرجى إدخال الحقول المطلوبة والموافقة على الشروط.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 6: PRE-ORDERS ---
@@ -1124,42 +858,26 @@ with tab6:
     pre_emp = st.text_input(t["employee"], key="pre_emp")
     pre_name = st.text_input(t["customer_name"], key="pre_name")
     pre_phone = st.text_input(t["phone"], key="pre_phone")
-    pre_details = st.text_area("تفاصيل القطعة المطلوبة / Part details")
-    pre_deposit = st.number_input("العربون المدفوع / Deposit (SEK)", min_value=0.0, step=50.0)
+    pre_details = st.text_area("تفاصيل القطعة المطلوبة")
+    pre_deposit = st.number_input("العربون المدفوع (SEK)", min_value=0.0, step=50.0)
 
-    if st.button("حفظ الطلب المسبق / Save Pre-order", type="primary", key="btn_save_pre"):
+    if st.button("حفظ الطلب المسبق", type="primary", key="btn_save_pre"):
         if pre_name and pre_phone and pre_emp:
             conn, db_type = get_db_connection()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 if db_type == "turso":
-                    try:
-                        conn.execute(
-                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at)
-                        )
-                    except Exception:
-                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute(
-                            "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at)
-                        )
-                        local_conn.commit()
-                        local_conn.close()
+                    conn.execute("INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at))
                 else:
                     cursor = conn.cursor()
-                    cursor.execute(
-                        "INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at)
-                    )
+                    cursor.execute("INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, created_at))
                     conn.commit()
                     conn.close()
-                st.success("✅ تم حفظ الطلب المسبق بنجاح! / Saved!")
+                st.success("✅ تم حفظ الطلب المسبق!")
             except Exception as e:
-                st.error(f"❌ خطأ / Error: {e}")
+                st.error(f"❌ خطأ: {e}")
         else:
-            st.warning("⚠️ أدخل اسم الموظف واسم العميل ورقم الهاتف.")
+            st.warning("⚠️ أدخل اسم الموظف والعميل ورقم الهاتف.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 7: INVENTORY ---
@@ -1168,32 +886,24 @@ with tab7:
     st.header(f"📦 إدارة المخزون / Inventory ({global_branch})")
     conn, db_type = get_db_connection()
     
-    st.subheader("➕ إضافة قطعة جديدة للمخزون / Add Part")
-    part_name = st.text_input("اسم القطعة / Part Name (e.g. iPhone 15 Screen)")
-    part_qty = st.number_input("العدد المتوفر / Quantity", min_value=0, step=1, value=5)
-    part_min = st.number_input("حد الإنذار الأدنى / Min Limit", min_value=0, step=1, value=2)
+    part_name = st.text_input("اسم القطعة (e.g. iPhone 15 Screen)")
+    part_qty = st.number_input("العدد المتوفر", min_value=0, step=1, value=5)
+    part_min = st.number_input("حد الإنذار الأدنى", min_value=0, step=1, value=2)
     
-    if st.button("حفظ في المخزون / Save to Inventory", type="primary", key="btn_add_stock"):
+    if st.button("حفظ في المخزون", type="primary", key="btn_add_stock"):
         if part_name:
             try:
                 if db_type == "turso":
-                    try:
-                        conn.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
-                    except Exception:
-                        local_conn = sqlite3.connect("local_crm.db", check_same_thread=False)
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
-                        local_conn.commit()
-                        local_conn.close()
+                    conn.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
                 else:
                     cursor = conn.cursor()
                     cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
                     conn.commit()
                     conn.close()
-                st.success("✅ تمت الإضافة للمخزون! / Added!")
+                st.success("✅ تمت الإضافة للمخزون!")
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ خطأ / Error: {e}")
+                st.error(f"❌ خطأ: {e}")
         else:
             st.warning("⚠️ أدخل اسم القطعة.")
 
@@ -1209,25 +919,22 @@ with tab7:
         if not df_inv.empty:
             st.dataframe(df_inv, use_container_width=True)
         else:
-            st.info("لا توجد قطع مسجلة حالياً. / No parts found.")
+            st.info("لا توجد قطع مسجلة.")
     except Exception:
         pass
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 8: SEARCH, ARCHIVE & ADVANCED PRINTING OPTION ---
+# --- TAB 8: SEARCH & ARCHIVE ---
 with tab8:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 الأرشيف والبحث وإدارة الطباعة / Search & Archive ({global_branch})")
-    search_cat = st.selectbox("اختر القسم / Select Category", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"])
-    search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI / Search by name, phone or IMEI", "").lower()
+    st.header(f"🔍 الأرشيف والبحث / Search & Archive ({global_branch})")
+    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"])
+    search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
     
     table_map = {
-        "📝 الإصلاحات / Repairs": "repairs",
-        "💳 الاشتراكات / Subscriptions": "subscriptions",
-        "🛒 الطلبات / Pre-orders": "preorders",
-        "💡 عروض الأسعار / Quotes": "quotes",
-        "📄 الفواتير / Invoices": "invoices",
-        "📦 المخزون / Inventory": "inventory"
+        "📝 الإصلاحات / Repairs": "repairs", "💳 الاشتراكات / Subscriptions": "subscriptions",
+        "🛒 الطلبات / Pre-orders": "preorders", "💡 عروض الأسعار / Quotes": "quotes",
+        "📄 الفواتير / Invoices": "invoices", "📦 المخزون / Inventory": "inventory"
     }
     cur_tbl = table_map[search_cat]
     
@@ -1245,63 +952,30 @@ with tab8:
         df_search = pd.DataFrame()
         
     if not df_search.empty:
-        if search_term:
-            mask = df_search.astype(str).apply(lambda x: x.str.lower().str.contains(search_term)).any(axis=1)
-            filtered_df = df_search[mask]
-        else:
-            filtered_df = df_search
-            
+        filtered_df = df_search[df_search.astype(str).apply(lambda x: x.str.lower().str.contains(search_term)).any(axis=1)] if search_term else df_search
         st.dataframe(filtered_df, use_container_width=True)
 
         if cur_tbl == "repairs":
             st.markdown("---")
-            st.subheader("🖨️ طباعة إيصال أو ملصق للعميل المحدد / Print Receipt or Label from Archive")
             repair_opts = [f"ID: {r['id']} | 👤 {r['customer_name']} ({r['device']})" for _, r in filtered_df.iterrows()]
-            selected_rep_to_print = st.selectbox("اختر الإصلاح للطباعة / Select repair to print", repair_opts, key="sel_rep_print")
-            
+            selected_rep_to_print = st.selectbox("اختر الإصلاح للطباعة", repair_opts, key="sel_rep_print")
             if selected_rep_to_print:
                 sel_id = int(selected_rep_to_print.split("|")[0].replace("ID:", "").strip())
                 row_data = filtered_df[filtered_df['id'] == sel_id].iloc[0]
-                
-                col_pr1, col_pr2 = st.columns(2)
-                with col_pr1:
-                    if st.button("📄 طباعة إيصال الاستلام / Print Receipt", key="btn_print_rec_arch"):
-                        r_data = {
-                            "branch": global_branch,
-                            "repair_id": str(row_data['id']),
-                            "customer_name": row_data['customer_name'],
-                            "phone": row_data['phone'],
-                            "device": row_data['device'],
-                            "imei": row_data['imei'],
-                            "issue": row_data['issue'],
-                            "price": row_data['price'],
-                            "employee": row_data.get('employee', 'Admin'),
-                            "created_at": str(row_data['created_at'])[:10]
-                        }
-                        pdf_buf = generate_pdf_from_record("repair_receipt", r_data, COMPANY_INFO)
-                        display_pdf_preview(pdf_buf, file_name=f"Inlamningskvitto_{sel_id}.pdf")
-                        
-                with col_pr2:
-                    if st.button("🏷️ طباعة ملصق الجهاز / Print IMEI Label", key="btn_print_lbl_arch"):
-                        r_data = {
-                            "branch": global_branch,
-                            "repair_id": str(row_data['id']),
-                            "customer_name": row_data['customer_name'],
-                            "phone": row_data['phone'],
-                            "device": row_data['device'],
-                            "imei": row_data['imei'],
-                            "price": row_data['price'],
-                            "created_at": str(row_data['created_at'])[:10]
-                        }
-                        pdf_buf = generate_pdf_from_record("label_sticker", r_data, COMPANY_INFO)
-                        display_pdf_preview(pdf_buf, file_name=f"IMEI_Label_{sel_id}.pdf")
+                c_pr1, c_pr2 = st.columns(2)
+                with c_pr1:
+                    if st.button("📄 طباعة إيصال الاستلام", key="btn_print_rec_arch"):
+                        r_data = {"branch": global_branch, "repair_id": str(row_data['id']), "customer_name": row_data['customer_name'], "phone": row_data['phone'], "device": row_data['device'], "imei": row_data['imei'], "issue": row_data['issue'], "price": row_data['price'], "employee": row_data.get('employee', 'Admin'), "created_at": str(row_data['created_at'])[:10]}
+                        display_pdf_preview(generate_pdf_from_record("repair_receipt", r_data, COMPANY_INFO), file_name=f"Inlamningskvitto_{sel_id}.pdf")
+                with c_pr2:
+                    if st.button("🏷️ طباعة ملصق IMEI", key="btn_print_lbl_arch"):
+                        r_data = {"branch": global_branch, "repair_id": str(row_data['id']), "customer_name": row_data['customer_name'], "phone": row_data['phone'], "device": row_data['device'], "imei": row_data['imei'], "price": row_data['price'], "created_at": str(row_data['created_at'])[:10]}
+                        display_pdf_preview(generate_pdf_from_record("label_sticker", r_data, COMPANY_INFO), file_name=f"IMEI_Label_{sel_id}.pdf")
 
         st.markdown("---")
-        st.subheader("🗑️ حذف بند نهائياً / Permanent Delete")
         del_opts = [f"ID: {r['id']} | 👤 {r.get('customer_name', r.get('part_name', 'Okänd'))}" for _, r in filtered_df.iterrows()]
-        sel_del = st.selectbox("اختر البند للحذف / Select item to delete", del_opts, key="del_sb")
-        
-        if st.button("حذف نهائي / Delete permanently", type="secondary"):
+        sel_del = st.selectbox("اختر البند للحذف", del_opts, key="del_sb")
+        if st.button("حذف نهائي", type="secondary"):
             if sel_del:
                 d_id = int(sel_del.split("|")[0].replace("ID:", "").strip())
                 try:
@@ -1312,10 +986,10 @@ with tab8:
                         local_conn.execute(f"DELETE FROM {cur_tbl} WHERE id = ?", (d_id,))
                         local_conn.commit()
                         local_conn.close()
-                    st.success(f"✅ تم حذف البند #{d_id} بنجاح! / Deleted!")
+                    st.success(f"✅ تم الحذف بنجاح!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ خطأ / Error: {e}")
+                    st.error(f"❌ خطأ: {e}")
     else:
-        st.info("لا توجد بيانات مطابقة لهذا الفرع. / No data found.")
+        st.info("لا توجد بيانات مطابقة.")
     st.markdown("</div>", unsafe_allow_html=True)
