@@ -69,7 +69,6 @@ def init_db():
         )
     """)
     
-    # التأكد من أنواع البيانات الحسابية والصلاحيات
     try:
         cursor.execute("ALTER TABLE quotes ADD COLUMN profit REAL")
     except Exception:
@@ -151,7 +150,7 @@ TRANSLATIONS = {
     "Svenska": {
         "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ Nytt Ärende", "tab_quote": "💡 Kostnadsförslag",
         "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_buyback": "📱 Köp av Begagnad",
-        "tab_campaign": "🎄 Kampanjer", "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Arkiv",
+        "tab_campaign": "🎄 Kampanjer", "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Ärenden",
         "employee": "Handläggare / Säljare", "phone": "Telefonnummer", "customer_name": "Kundens namn",
         "email": "E-post (Valfritt)", "device": "Enhet / Modell", "imei": "IMEI / Serienummer",
         "price": "Pris", "issue": "Beskrivning av fel", "save_repair": "Spara Ärende", "success_repair": "✅ Ärendet har sparats!"
@@ -159,7 +158,7 @@ TRANSLATIONS = {
     "English": {
         "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ New Repair", "tab_quote": "💡 Quote",
         "tab_invoice": "📄 Invoice", "tab_sub": "💳 Subscriptions", "tab_buyback": "📱 Buyback / Used",
-        "tab_campaign": "🎄 Campaigns", "tab_preorder": "🛒 Pre-order", "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Archive",
+        "tab_campaign": "🎄 Campaigns", "tab_preorder": "🛒 Pre-order", "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Repairs",
         "employee": "Employee Name", "phone": "Phone Number", "customer_name": "Customer Name",
         "email": "Email (Optional)", "device": "Device Model", "imei": "IMEI / Serial Number",
         "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
@@ -167,7 +166,7 @@ TRANSLATIONS = {
     "العربية (Arabic)": {
         "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
         "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_buyback": "📱 شراء مستعمل",
-        "tab_campaign": "🎄 عروض المواسم", "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
+        "tab_campaign": "🎄 عروض المواسم", "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والحالات",
         "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم البائع / العميل",
         "email": "البريد الإلكتروني", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو التسلسلي",
         "price": "السعر", "issue": "وصف العطل أو الإصلاح", "save_repair": "حفظ طلب الإصلاح", "success_repair": "✅ تم الحفظ بنجاح!"
@@ -202,7 +201,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Secure Authentication Login (Using Streamlit Secrets or Fallback Secure PIN) ---
+# --- Secure Authentication Login ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -542,9 +541,8 @@ with tab2:
                 "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (global_branch, c_name, c_phone, c_email, device, imei, issue, price, "Under behandling", employee_name, created_at)
             )
-            repair_db_id = cursor.lastrowid # الحصول على معرف السجل الحقيقي بدل الرقم الثابت 99
+            repair_db_id = cursor.lastrowid
 
-            # خصم تلقائي للمخزون للقطع المرتبطة
             for selected_part in selected_rep_issues:
                 cursor.execute("UPDATE inventory SET stock_qty = stock_qty - 1 WHERE branch = ? AND part_name = ? AND stock_qty > 0", (global_branch, selected_part))
 
@@ -629,12 +627,11 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name="quote.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE (DYNAMIC AUTO INVOICE NUMBER) ---
+# --- TAB 4: INVOICE ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
     st.header(f"📄 الفاتورة الرسمية وخيارات الدفع / Standard Invoice & Payments ({global_branch})")
     
-    # توليد رقم فاتورة تلقائي فريد لمنع التكرار
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM invoices WHERE branch = ?", (global_branch,))
@@ -752,7 +749,7 @@ with tab5:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 6: BUYBACK (DYNAMIC REAL ID) ---
+# --- TAB 6: BUYBACK ---
 with tab6:
     st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
     st.header(f"📱 شراء جهاز مستعمل وتحرير إيصال الشراء / Buyback & Purchase Receipt ({global_branch})")
@@ -778,7 +775,7 @@ with tab6:
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("INSERT INTO buybacks (branch, customer_name, phone, person_nummer, device, imei, purchase_price, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, bb_name, bb_phone, bb_pnr, bb_device, bb_imei, bb_price, bb_emp, created_at))
-            bb_db_id = cursor.lastrowid # الحصول على المعرف الحقيقي بدلاً من الرقم الثابت 501
+            bb_db_id = cursor.lastrowid
             conn.commit()
             conn.close()
             st.success("✅ تم حفظ إيصال شراء الجهاز المستعمل بنجاح!")
@@ -888,12 +885,13 @@ with tab9:
             st.warning("⚠️ أدخل اسم القطعة.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 10: SEARCH & ARCHIVE (POSTGRES-READY COMPATIBLE QUERY) ---
+# --- TAB 10: SEARCH, ARCHIVE & REPAIR STATUS MANAGER ---
 with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 الأرشيف والبحث / Search & Archive ({global_branch})")
-    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "📱 شراء الأجهزة / Buybacks", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"])
-    search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "").lower()
+    st.header(f"🔍 الأرشيف، البحث وإدارة حالة الإصلاحات / Archive & Repair Status ({global_branch})")
+    
+    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "📱 شراء الأجهزة / Buybacks", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"], key="arch_cat")
+    search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "", key="arch_term").lower()
     
     table_map = {
         "📝 الإصلاحات / Repairs": "repairs", "💳 الاشتراكات / Subscriptions": "subscriptions",
@@ -916,7 +914,54 @@ with tab10:
             filtered_df = df_search[mask]
         else:
             filtered_df = df_search
+            
         st.dataframe(filtered_df, use_container_width=True)
+        
+        # --- قسم تحديث حالة الإصلاحات حصرياً ---
+        if cur_tbl == "repairs":
+            st.markdown("---")
+            st.subheader("⚙️ تحديث حالة جهاز تحت الإصلاح / Update Repair Status")
+            
+            repair_ids = filtered_df['id'].tolist() if 'id' in filtered_df.columns else []
+            if repair_ids:
+                selected_repair_id = st.selectbox("اختر رقم معرف الإصلاح (Repair ID) للتحديث:", repair_ids, key="upd_rep_id")
+                
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT * FROM repairs WHERE id = ?", (selected_repair_id,))
+                repair_record = cur.fetchone()
+                conn.close()
+                
+                if repair_record:
+                    st.info(f"📌 **العميل:** {repair_record['customer_name']} | **الجهاز:** {repair_record['device']} | **الحالة الحالية:** `{repair_record['status']}`")
+                    
+                    status_options = [
+                        "Under behandling (قيد الفحص والإصلاح)",
+                        "Väntar på reservdel (في انتظار قطع الغيار)",
+                        "Klar för avhämtning (جاهز للاستلام)",
+                        "Utlämnad / Avslutad (تم التسليم للعميل)"
+                    ]
+                    
+                    new_status = st.selectbox("اختر الحالة الجديدة:", status_options, key="new_status_sel")
+                    
+                    if st.button("💾 تحديث الحالة في النظام", type="primary", key="btn_update_status"):
+                        conn = get_db_connection()
+                        cur = conn.cursor()
+                        cur.execute("UPDATE repairs SET status = ? WHERE id = ?", (new_status, selected_repair_id))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"✅ تم تحديث حالة الجهاز رقم #{selected_repair_id} بنجاح إلى: **{new_status}**")
+                        st.rerun()
+                        
+                    cust_phone = repair_record['phone']
+                    cust_name = repair_record['customer_name']
+                    dev_name = repair_record['device']
+                    
+                    status_wa_text = f"Hej {cust_name}! Status för din enhet ({dev_name}) hos 30 Minutes Phone Fix ({global_branch}) har uppdaterats till: {new_status}. Välkommen!"
+                    st.markdown(f'<a href="{get_whatsapp_link(cust_phone, status_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تحديث الحالة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+            else:
+                st.warning("لا توجد سجلات إصلاح مطابقة لتحديث حالتها.")
     else:
-        st.info("لا توجد بيانات مطابقة.")
+        st.info("لا توجد بيانات مطابقة في هذا القسم.")
+        
     st.markdown("</div>", unsafe_allow_html=True)
