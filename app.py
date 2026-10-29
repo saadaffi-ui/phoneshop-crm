@@ -164,12 +164,12 @@ TRANSLATIONS = {
         "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
     },
     "العربية (Arabic)": {
-        "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
-        "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_buyback": "📱 شراء مستعمل (Kvitto)",
-        "tab_campaign": "🎄 عروض المواسم (Black Friday / Jul)", "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والبحث",
-        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم البائع / العميل",
-        "email": "البريد الإلكتروني (اختياري)", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو الرقم التسلسلي",
-        "price": "السعر", "issue": "وصف العطل أو الإصلاح المطلوب", "save_repair": "حفظ بيانات الإصلاح", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
+        "tab_dash": "📊 لوحة التحكم (Dashboard)", "tab_repair": "🛠️ إصلاح جديد (New Repair)", "tab_quote": "💡 عرض سعر (Quote)",
+        "tab_invoice": "📄 فاتورة (Invoice)", "tab_sub": "💳 الاشتراكات (Subscriptions)", "tab_buyback": "📱 شراء مستعمل (Buyback)",
+        "tab_campaign": "🎄 عروض المواسم (Campaigns)", "tab_preorder": "🛒 الطلب المسبق (Pre-order)", "tab_stock": "📦 المخزون (Inventory)", "tab_search": "🔍 الأرشيف والبحث (Search)",
+        "employee": "اسم الموظف المسؤول (Handläggare)", "phone": "رقم الهاتف (Telefonnummer)", "customer_name": "اسم البائع / العميل (Kund)",
+        "email": "البريد الإلكتروني (E-post)", "device": "نوع وطراز الجهاز (Enhet)", "imei": "رقم الـ IMEI أو التسلسلي (IMEI)",
+        "price": "السعر (Pris)", "issue": "وصف العطل أو الإصلاح (Felbeskrivning)", "save_repair": "حفظ بيانات الإصلاح (Spara)", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح! (Sparat!)"
     }
 }
 
@@ -234,7 +234,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    st.success("✅ Dokumentet är redo! / Document is ready!")
+    st.success("✅ Dokumentet är redo för utskrift! / Document is ready for print!")
     
     b_col1, b_col2 = st.columns(2)
     with b_col1:
@@ -257,7 +257,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
         st.markdown(print_html, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 👁️ Förhandsgranskning / Preview")
+    st.markdown("### 👁️ Förhandsgranskning / Preview (Svenska & English)")
     pdf_display = f"""
     <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="500px" style="border: 1px solid #ccc; border-radius: 8px;">
         <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="500px" />
@@ -265,6 +265,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
+# --- PDF GENERATOR (ALWAYS SWEDISH & ENGLISH FOR PRINT) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -272,7 +273,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
     
     branch = data.get('branch', 'Eskilstuna')
     comp = comp_info.get(branch, comp_info['Eskilstuna'])
-    employee_name = data.get('employee', 'Ej angiven')
+    employee_name = data.get('employee', 'Ej angiven / Not specified')
     currency = data.get('currency', 'SEK')
     moms_rate_str = data.get('moms_rate', '25%')
 
@@ -285,7 +286,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
     p.setFont("Helvetica-Bold", 14)
     p.drawString(150, height - 40, comp["name"])
     p.setFont("Helvetica", 9)
-    p.drawString(150, height - 55, f"Adress: {comp['address']}")
+    p.drawString(150, height - 55, f"Adress / Address: {comp['address']}")
     p.drawString(150, height - 70, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
     
     p.setLineWidth(1)
@@ -295,20 +296,20 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "INLÄMNINGSKVITTO / REPAIR RECEIPT")
         p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Ärende ID: #{data.get('repair_id', '1')}")
+        p.drawString(50, height - 135, f"Ärende ID / Repair ID: #{data.get('repair_id', '1')}")
         p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
         p.drawString(50, height - 155, f"Kund / Customer: {data.get('customer_name', '')}")
         p.drawString(300, height - 155, f"Handläggare / Agent: {employee_name}")
         p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
         p.drawString(300, height - 175, f"Enhet / Device: {data.get('device', '')}")
-        p.drawString(50, height - 195, f"IMEI / Serial: {data.get('imei', 'Ej angivet')}")
+        p.drawString(50, height - 195, f"IMEI / Serial: {data.get('imei', 'Ej angivet / None')}")
         
         p.setFillColorRGB(0.9, 0.9, 0.9)
         p.rect(50, height - 235, width - 100, 20, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
         p.setFont("Helvetica-Bold", 9)
         p.drawString(60, height - 228, "Beskrivning av fel / Repair Description")
-        p.drawString(400, height - 228, f"Pris ({currency})")
+        p.drawString(400, height - 228, f"Pris / Price ({currency})")
         
         p.setFont("Helvetica", 10)
         y_pos = height - 265
@@ -325,17 +326,17 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setFont("Helvetica-Bold", 8)
         p.drawString(50, height - 385, "Garanti & Villkor / Warranty & Terms:")
         p.setFont("Helvetica", 7.5)
-        p.drawString(50, height - 398, "- Garanti ges endast for det arbete/delar som har utforts/bytts ut.")
-        p.drawString(50, height - 410, "- Vi ansvarar ej for forlorad data (sarskilt vid vattenskadade, doeda eller enheter med svart skaerm).")
+        p.drawString(50, height - 398, "- Garanti ges endast för det arbete/delar som har utförts/bytts ut. / Warranty covers only repaired parts.")
+        p.drawString(50, height - 410, "- Vi ansvarar ej för förlorad data (särskilt vid vattenskadade eller döda enheter). / No liability for lost data.")
 
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
         p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "buyback_receipt":
         p.setFont("Helvetica-Bold", 12)
-        p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET (PURCHASE RECEIPT)")
+        p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT - USED DEVICE")
         p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Kvitto ID: #{data.get('buyback_id', '1')}")
+        p.drawString(50, height - 135, f"Kvitto ID / Receipt ID: #{data.get('buyback_id', '1')}")
         p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
         p.drawString(50, height - 155, f"Säljare / Seller: {data.get('customer_name', '')}")
         p.drawString(300, height - 155, f"Personnummer: {data.get('person_nummer', 'Ej angivet')}")
@@ -349,23 +350,23 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setFillColorRGB(0, 0, 0)
         p.setFont("Helvetica-Bold", 9)
         p.drawString(60, height - 228, "Beskrivning / Item Specification")
-        p.drawString(400, height - 228, f"Inköpspris ({currency})")
+        p.drawString(400, height - 228, f"Inköpspris / Purchase Price ({currency})")
         
         p.setFont("Helvetica", 10)
         y_pos = height - 265
-        p.drawString(60, y_pos, f"- Begagnad mobiltelefon / Inköp från privatperson")
+        p.drawString(60, y_pos, f"- Begagnad mobiltelefon / Used mobile phone purchase")
         price_val = data.get('purchase_price', 0)
         p.drawString(400, y_pos, f"{price_val:.2f} {currency}")
         
         p.line(50, height - 310, width - 50, height - 310)
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 325, f"Utbetalat belopp / Total: {price_val:.2f} {currency}")
+        p.drawString(300, height - 325, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
         
         p.setFont("Helvetica-Bold", 8)
-        p.drawString(50, height - 365, "Säljarens försäkran & Villkor / Seller Declaration:")
+        p.drawString(50, height - 365, "Säljarens försäkran & Villkor / Seller Declaration & Terms:")
         p.setFont("Helvetica", 7.5)
         p.drawString(50, height - 378, "- Säljaren intygar att enheten är hens lagliga egendom, inte är anmäld stulen,")
-        p.drawString(50, height - 390, "  samt att alla konton (t.ex. iCloud / Google Account) har raderats och loggats ut.")
+        p.drawString(50, height - 390, "  samt att alla konton (t.ex. iCloud / Google Account) har raderats.")
         p.drawString(50, height - 402, "- Butiken har full äganderätt till enheten från och med detta kvitto.")
 
         p.drawString(50, height - 460, "Säljarens underskrift / Seller Signature: ______________________")
@@ -426,7 +427,7 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.rect(50, height - 225, width - 100, 20, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(60, height - 218, "Beskrivning av tjänst / vara / Description")
+        p.drawString(60, height - 218, "Beskrivning / Description")
         p.drawString(400, height - 218, f"Belopp / Amount ({currency})")
         
         y_pos = height - 255
@@ -435,9 +436,9 @@ def generate_pdf_from_record(record_type, data, comp_info):
         netto_val = amount_val - moms_val
         
         p.setFont("Helvetica", 10)
-        p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation')}")
+        p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation / Repair')}")
         if data.get('ref_no'):
-            p.drawString(60, y_pos - 15, f"Referensnr / Order: {data.get('ref_no')}")
+            p.drawString(60, y_pos - 15, f"Referensnr / Ref: {data.get('ref_no')}")
             
         p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
         p.line(50, height - 330, width - 50, height - 330)
@@ -527,9 +528,9 @@ with tab2:
 
     st.markdown("""
     <div style="background-color: #fff3cd; padding: 12px; border-radius: 8px; border-left: 5px solid #ffc107; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
-        <b>⚠️ شروط الضمان وإخلاء المسؤولية (Warranty & Disclaimer Terms on Receipt):</b><br>
+        <b>⚠️ شروط الضمان وإخلاء المسؤولية (Warranty & Disclaimer Terms):</b><br>
         • الضمان يغطي فقط الإصلاح أو القطعة التي تم استبدالها.<br>
-        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات (خصوصاً في الأجهزة التالفة بسبب الماء، الأجهزة الميتة، أو ذات الشاشة السوداء).
+        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات.
     </div>
     """, unsafe_allow_html=True)
     
@@ -552,7 +553,6 @@ with tab2:
                 "price": price, "employee": employee_name, "created_at": date.today().strftime('%Y-%m-%d')
             }
             st.session_state['rep_receipt_pdf'] = generate_pdf_from_record("repair_receipt", rec_data, COMPANY_INFO)
-            st.session_state['rep_label_pdf'] = generate_pdf_from_record("label_sticker", rec_data, COMPANY_INFO)
         else:
             st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
 
@@ -563,9 +563,6 @@ with tab2:
     if 'rep_receipt_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto.pdf")
-    if 'rep_label_pdf' in st.session_state:
-        st.markdown("---")
-        display_pdf_preview(st.session_state['rep_label_pdf'], file_name="IMEI_Label.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 3: QUOTE ---
@@ -760,8 +757,8 @@ with tab6:
     st.markdown("""
     <div style="background-color: #d4edda; padding: 12px; border-radius: 8px; border-left: 5px solid #28a745; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
         <b>📜 شروط إيصال شراء الأجهزة المستعملة (Buyback Terms):</b><br>
-        • يقر البائع بأن الجهاز هو ملكه الشرعي وغير مسروق، وأن جميع حسابات السحابة (iCloud / Google) قد أُزيلت بالكامل.<br>
-        • هذا المستند يعد إيصالاً نقدياً رسمياً لشراء الأجهزة من الأفراد لصالح الورشة.
+        • يقر البائع بأن الجهاز هو ملكه الشرعي وغير مسروق، وأن جميع حسابات السحابة قد أُزيلت بالكامل.<br>
+        • هذا المستند يعد إيصالاً نقدياً رسمياً لشراء الأجهزة.
     </div>
     """, unsafe_allow_html=True)
 
@@ -793,7 +790,7 @@ with tab6:
         display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 7: BLACK FRIDAY & CHRISTMAS CAMPAIGNS (WITH WHATSAPP LINK) ---
+# --- TAB 7: BLACK FRIDAY & CHRISTMAS CAMPAIGNS ---
 with tab7:
     st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
     st.header(f"🎄 عروض المواسم التسويقية (Black Friday & Christmas) - {global_branch}")
