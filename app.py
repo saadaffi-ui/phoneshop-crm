@@ -110,6 +110,20 @@ st.markdown("""
     .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
     .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
     .login-container { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 450px; margin: auto; border-top: 5px solid #e74c3c; }
+    
+    .whatsapp-btn {
+        display: inline-block;
+        background-color: #25D366;
+        color: white !important;
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+        width: 100%;
+        margin-top: 10px;
+    }
+    .whatsapp-btn:hover { background-color: #20ba5a; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -158,6 +172,15 @@ TRANSLATIONS = {
         "price": "السعر", "issue": "وصف العطل أو الإصلاح المطلوب", "save_repair": "حفظ بيانات الإصلاح", "success_repair": "✅ تم حفظ طلب الإصلاح بنجاح!"
     }
 }
+
+# --- Helper Function for WhatsApp URL ---
+def get_whatsapp_link(phone, text):
+    if not phone:
+        return "#"
+    clean_phone = phone.strip()
+    if clean_phone.startswith("0"):
+        clean_phone = "+46" + clean_phone[1:]
+    return f"https://wa.me/{clean_phone}?text={urllib.parse.quote(text)}"
 
 # --- Top Header Bar ---
 head_c1, head_c2, head_c3 = st.columns([1, 2, 2])
@@ -533,6 +556,10 @@ with tab2:
         else:
             st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
 
+    if c_phone:
+        rep_wa_text = f"Hej {c_name or 'Kunden'}! Ditt ärende för {device or 'enhet'} hos 30 Minutes Phone Fix ({global_branch}) har registrerats. Pris: {price} SEK. Välkommen!"
+        st.markdown(f'<a href="{get_whatsapp_link(c_phone, rep_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الإصلاح عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+
     if 'rep_receipt_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto.pdf")
@@ -591,6 +618,10 @@ with tab3:
             
             record_data = {"branch": global_branch, "customer_name": q_name, "phone": q_phone, "device": q_device, "issues": issues_str, "total": total_price, "currency": "SEK", "employee": q_emp, "created_at": date.today().strftime('%Y-%m-%d')}
             st.session_state['q_pdf'] = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
+
+    if q_phone:
+        q_wa_text = f"Hej {q_name or 'Kunden'}! Här är kostnadsförslag för {q_device or 'enhet'} hos 30 Minutes Phone Fix ({global_branch}). Totalt: {total_price:.2f} SEK. Välkommen!"
+        st.markdown(f'<a href="{get_whatsapp_link(q_phone, q_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال عرض السعر عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     if 'q_pdf' in st.session_state:
         display_pdf_preview(st.session_state['q_pdf'], file_name="quote.pdf")
@@ -652,6 +683,10 @@ with tab4:
         st.info(f"🔗 **رابط العميل المباشر:**\n`{payment_url}`")
         st.markdown(f"[اضغط هنا لفتح صفحة الدفع بالبطاقة]({payment_url})", unsafe_allow_html=True)
 
+    if inv_phone:
+        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Din faktura ({inv_no}) från 30 Minutes Phone Fix ({global_branch}) på {total_amount:.2f} {inv_curr} är klar. Betala via Swish ({comp['swish']}) eller kortlänk: {payment_url}"
+        st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال الفاتورة ورابط الدفع عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+
     st.markdown("---")
     if st.button("حفظ وتوليد فاتورة PDF رسمية", type="primary", key="btn_save_inv"):
         if inv_name and inv_emp:
@@ -703,6 +738,11 @@ with tab5:
             st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI بنجاح!")
         else:
             st.warning("⚠️ أدخل اسم الموظف، رقم الـ IMEI، اسم العميل، والموافقة على الشروط.")
+
+    if sub_phone:
+        sub_wa_text = f"Hej {sub_name or 'Kunden'}! Tack för att du tecknade {plan_choice} för enhet {sub_device or 'mobil'} (IMEI: {sub_imei}) hos 30 Minutes Phone Fix ({global_branch}). Välkommen!"
+        st.markdown(f'<a href="{get_whatsapp_link(sub_phone, sub_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الاشتراك عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 6: BUYBACK / Kvitto för begagnad mobil ---
@@ -744,6 +784,10 @@ with tab6:
         else:
             st.warning("⚠️ يرجى تعبئة بيانات البائع، الجهاز، رقم الـ IMEI، واسم الموظف.")
 
+    if bb_phone:
+        bb_wa_text = f"Hej {bb_name or 'Säljaren'}! Tack för försäljningen av din {bb_device or 'enhet'} till 30 Minutes Phone Fix ({global_branch}). Utbetalt belopp: {bb_price} SEK."
+        st.markdown(f'<a href="{get_whatsapp_link(bb_phone, bb_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تأكيد الشراء عبر WhatsApp للبائع</a>', unsafe_allow_html=True)
+
     if 'bb_pdf' in st.session_state:
         st.markdown("---")
         display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
@@ -767,11 +811,7 @@ with tab7:
         st.text_area("نص الرسالة الجاهز للإرسال:", value=bf_text)
         
         if bf_phone:
-            formatted_phone = bf_phone.strip()
-            if formatted_phone.startswith("0"):
-                formatted_phone = "+46" + formatted_phone[1:]
-            whatsapp_url = f"https://wa.me/{formatted_phone}?text={urllib.parse.quote(bf_text)}"
-            st.markdown(f"👉 [🚀 اضغط هنا لإرسال العرض عبر WhatsApp للعميل مباشرة]({whatsapp_url})", unsafe_allow_html=True)
+            st.markdown(f'<a href="{get_whatsapp_link(bf_phone, bf_text)}" target="_blank" class="whatsapp-btn">💬 إرسال عروض Black Friday عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
         else:
             st.info("💡 أدخل رقم هاتف العميل أعلاه ليظهر لك زر الواتساب المباشر.")
             
@@ -786,11 +826,7 @@ with tab7:
         st.text_area("نص رسالة العيد للعميل:", value=ch_text, key="ch_tx")
         
         if ch_phone:
-            formatted_ch_phone = ch_phone.strip()
-            if formatted_ch_phone.startswith("0"):
-                formatted_ch_phone = "+46" + formatted_ch_phone[1:]
-            whatsapp_ch_url = f"https://wa.me/{formatted_ch_phone}?text={urllib.parse.quote(ch_text)}"
-            st.markdown(f"👉 [🚀 اضغط هنا لإرسال تهنئة الكريسماس عبر WhatsApp للعميل مباشرة]({whatsapp_ch_url})", unsafe_allow_html=True)
+            st.markdown(f'<a href="{get_whatsapp_link(ch_phone, ch_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تهنئة الكريسماس عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
         else:
             st.info("💡 أدخل رقم هاتف العميل أعلاه ليظهر لك زر الواتساب المباشر.")
             
@@ -816,6 +852,11 @@ with tab8:
             st.success("✅ تم حفظ الطلب المسبق!")
         else:
             st.warning("⚠️ أدخل اسم الموظف والعميل ورقم الهاتف.")
+
+    if pre_phone:
+        pre_wa_text = f"Hej {pre_name or 'Kunden'}! Din förbeställning av {pre_details or 'del'} hos 30 Minutes Phone Fix ({global_branch}) har registrerats. Handpenning: {pre_deposit} SEK."
+        st.markdown(f'<a href="{get_whatsapp_link(pre_phone, pre_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الطلب المسبق عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 9: INVENTORY ---
