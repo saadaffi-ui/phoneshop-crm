@@ -342,21 +342,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(300, height - 325, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
-    elif record_type == "quote":
-        p.setFont("Helvetica-Bold", 12)
-        p.drawString(50, height - 110, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
-        p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Datum: {data.get('created_at', '')}")
-        p.drawString(300, height - 135, f"Handläggare: {employee_name}")
-        p.drawString(50, height - 155, f"Kund: {data.get('customer_name', '')}")
-        p.drawString(50, height - 175, f"Telefon: {data.get('phone', '')}")
-        p.drawString(300, height - 155, f"Enhet: {data.get('device', '')}")
-        
-        total_val = data.get('total', 0)
-        p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 345, f"Att betala / Total: {total_val:.2f} {currency} (Inkl. moms)")
-        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
-
     elif record_type == "invoice":
         p.setFont("Helvetica-Bold", 16)
         p.drawString(50, height - 50, "FAKTURA")
@@ -830,12 +815,14 @@ with tab9:
         st.info("المخزون فارغ حالياً في هذا الفرع.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 10: SEARCH & INTERACTIVE RECORD ACTIONS ---
+# --- TAB 10: SEARCH & INTERACTIVE RECORD ACTIONS WITH PREVIEW CHECKBOX ---
 with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
     st.header(f"🔍 البحث والأرشيف وإجراءات الطباعة والإرسال / Search & Actions ({global_branch})")
     search_query = st.text_input("بحث بالاسم، رقم الهاتف، نوع الجهاز أو رقم الفاتورة / Search by Name, Phone, Device, Invoice No", key="global_search_input")
     
+    show_preview_chk = st.checkbox("👁️ عرض معاينة المستند قبل الطباعة أو الحفظ (Show Document Preview before print/save)", value=True, key="search_preview_toggle")
+
     conn = get_db_connection()
     q_like = f"%{search_query}%" if search_query else "%"
     
@@ -847,14 +834,19 @@ with tab10:
         selected_rep_id = st.selectbox("🖨️ اختر رقم إصلاح (ID) لطباعة أو إرسال الإيصال:", rep_res['id'].tolist(), key="sel_rep_id")
         if selected_rep_id:
             r_row = rep_res[rep_res['id'] == selected_rep_id].iloc[0]
-            if st.button("📄 توليد وعرض إيصال الإصلاح المختار", key=f"btn_gen_rep_{selected_rep_id}"):
+            if st.button("📄 توليد إيصال الإصلاح المختار", key=f"btn_gen_rep_{selected_rep_id}"):
                 rec_data = {
                     "branch": global_branch, "repair_id": str(r_row['id']), "customer_name": r_row['customer_name'],
                     "phone": r_row['phone'], "device": r_row['device'], "imei": "N/A", "issue": r_row['issue'],
                     "price": r_row['price'], "employee": r_row['employee'], "created_at": str(r_row['created_at'])[:10]
                 }
                 pdf_buf = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
-                display_pdf_preview(pdf_buf, file_name=f"Inlamningskvitto_{selected_rep_id}.pdf")
+                if show_preview_chk:
+                    display_pdf_preview(pdf_buf, file_name=f"Inlamningskvitto_{selected_rep_id}.pdf")
+                else:
+                    st.success("✅ تم توليد المستند بنجاح!")
+                    st.download_button("📥 لadda ner PDF", data=pdf_buf, file_name=f"Inlamningskvitto_{selected_rep_id}.pdf", mime="application/pdf")
+                
                 if r_row['phone']:
                     wa_t = f"Hej {r_row['customer_name']}! Här är ditt inlämningskvitto för {r_row['device']} hos 30 Minutes Phone Fix ({global_branch}). Välkommen!"
                     st.markdown(f'<a href="{get_whatsapp_link(r_row["phone"], wa_t)}" target="_blank" class="whatsapp-btn">💬 إرسال الكвитتو عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
@@ -867,7 +859,7 @@ with tab10:
         selected_inv_id = st.selectbox("🖨️ اختر رقم فاتورة (ID) لطباعة أو إرسال الفاتورة:", inv_res['id'].tolist(), key="sel_inv_id")
         if selected_inv_id:
             i_row = inv_res[inv_res['id'] == selected_inv_id].iloc[0]
-            if st.button("📄 توليد وعرض الفاتورة المكتوبة", key=f"btn_gen_inv_{selected_inv_id}"):
+            if st.button("📄 توليد الفاتورة المكتوبة", key=f"btn_gen_inv_{selected_inv_id}"):
                 inv_data = {
                     "branch": global_branch, "invoice_no": i_row['invoice_no'], "customer_name": i_row['customer_name'],
                     "address": i_row['address'], "phone": i_row['phone'], "item_desc": "Reparation och reservdelar",
@@ -875,12 +867,17 @@ with tab10:
                     "employee": i_row['employee'], "created_at": str(i_row['created_at'])[:10], "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
                 }
                 pdf_buf = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
-                display_pdf_preview(pdf_buf, file_name=f"{i_row['invoice_no']}.pdf")
+                if show_preview_chk:
+                    display_pdf_preview(pdf_buf, file_name=f"{i_row['invoice_no']}.pdf")
+                else:
+                    st.success("✅ تم توليد الفاتورة بنجاح!")
+                    st.download_button("📥 Ladda ner PDF", data=pdf_buf, file_name=f"{i_row['invoice_no']}.pdf", mime="application/pdf")
+
                 if i_row['phone']:
                     wa_t = f"Hej {i_row['customer_name']}! Här är er faktura {i_row['invoice_no']} på {i_row['amount']} SEK från 30 Minutes Phone Fix ({global_branch}). Tack!"
                     st.markdown(f'<a href="{get_whatsapp_link(i_row["phone"], wa_t)}" target="_blank" class="whatsapp-btn">💬 إرسال الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
-    # 3. QUOTES SEARCH & ACTION
+    # 3. QUOTES SEARCH
     st.subheader("💡 عروض الأسعار (Quotes)")
     quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, profit, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
     st.dataframe(quote_res, use_container_width=True)
@@ -898,14 +895,18 @@ with tab10:
         selected_bb_id = st.selectbox("🖨️ اختر رقم شراء (ID) لإيصال الشراء:", bb_res['id'].tolist(), key="sel_bb_id")
         if selected_bb_id:
             b_row = bb_res[bb_res['id'] == selected_bb_id].iloc[0]
-            if st.button("📄 توليد وعرض إيصال الشراء المختار", key=f"btn_gen_bb_{selected_bb_id}"):
+            if st.button("📄 توليد إيصال الشراء المختار", key=f"btn_gen_bb_{selected_bb_id}"):
                 bb_data = {
                     "branch": global_branch, "buyback_id": str(b_row['id']), "customer_name": b_row['customer_name'],
                     "phone": b_row['phone'], "person_nummer": b_row['person_nummer'], "device": b_row['device'], "imei": "N/A",
                     "purchase_price": b_row['purchase_price'], "currency": "SEK", "employee": b_row['employee'], "created_at": str(b_row['created_at'])[:10]
                 }
                 pdf_buf = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
-                display_pdf_preview(pdf_buf, file_name=f"Inkopskvitto_{selected_bb_id}.pdf")
+                if show_preview_chk:
+                    display_pdf_preview(pdf_buf, file_name=f"Inkopskvitto_{selected_bb_id}.pdf")
+                else:
+                    st.success("✅ تم توليد إيصال الشراء بنجاح!")
+                    st.download_button("📥 Ladda ner PDF", data=pdf_buf, file_name=f"Inkopskvitto_{selected_bb_id}.pdf", mime="application/pdf")
 
     conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
