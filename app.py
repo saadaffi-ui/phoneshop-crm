@@ -2,14 +2,14 @@ import streamlit as st
 import sqlite3
 import os
 import urllib.parse
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
 import pandas as pd
 import base64
 
-# --- Local SQLite Database Setup & Migration (Robust) ---
+# --- Local SQLite Database Setup & Migration ---
 def get_db_connection():
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -125,7 +125,6 @@ st.markdown("""
     }
     .whatsapp-btn:hover { background-color: #20ba5a; }
 
-    /* Responsive adjustments for iPad and Mobile */
     @media only screen and (max-width: 1024px) {
         .stColumns { flex-direction: column !important; }
     }
@@ -269,7 +268,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR (DUAL COPY FOR REPAIR & STANDARD FOR OTHERS) ---
+# --- PDF GENERATOR (SWEDISH STANDARD INVOICE & DUAL COPY REPAIR) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -277,12 +276,11 @@ def generate_pdf_from_record(record_type, data, comp_info):
     
     branch = data.get('branch', 'Eskilstuna')
     comp = comp_info.get(branch, comp_info['Eskilstuna'])
-    employee_name = data.get('employee', 'Ej angiven / Not specified')
+    employee_name = data.get('employee', 'Ej angiven')
     currency = data.get('currency', 'SEK')
     moms_rate_str = data.get('moms_rate', '25%')
 
     if record_type == "repair_receipt_dual":
-        # Draw 2 copies on one A4 page: Top Copy (Store Copy) & Bottom Copy (Customer Copy)
         def draw_repair_section(start_y, copy_title):
             p.setFont("Helvetica-Bold", 10)
             p.drawString(50, start_y, f"{comp['name']} - {copy_title}")
@@ -360,25 +358,76 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     elif record_type == "invoice":
-        p.setFont("Helvetica-Bold", 12)
-        p.drawString(50, height - 110, "FAKTURA / INVOICE")
-        p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Fakturanr: {data.get('invoice_no', '')}")
-        p.drawString(50, height - 150, f"Fakturadatum: {data.get('created_at', '')}")
-        p.drawString(50, height - 165, f"Vår referens: {employee_name}")
+        # --- SWEDISH STANDARD INVOICE FORMAT ---
+        p.setFont("Helvetica-Bold", 16)
+        p.drawString(50, height - 50, "FAKTURA")
         
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(300, height - 135, "Köpare / Buyer:")
-        p.setFont("Helvetica", 10)
-        p.drawString(300, height - 150, f"{data.get('customer_name', '')}")
-        p.drawString(300, height - 165, f"{data.get('address', 'Ej angiven adress')}")
-        
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(400, height - 40, comp["name"])
+        p.setFont("Helvetica", 8)
+        p.drawString(400, height - 52, comp["address"])
+        p.drawString(400, height - 64, f"Org.nr: {comp['org_nr']}")
+        p.drawString(400, height - 76, f"Tel: {comp['phone']}")
+        p.drawString(400, height - 88, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+
+        p.setLineWidth(0.5)
+        p.line(50, height - 105, width - 50, height - 105)
+
+        # Invoice metadata box
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(50, height - 125, "Fakturainformation")
+        p.setFont("Helvetica", 9)
+        p.drawString(50, height - 140, f"Fakturanummer: {data.get('invoice_no', '')}")
+        p.drawString(50, height - 155, f"Fakturadatum: {data.get('created_at', '')}")
+        p.drawString(50, height - 170, f"Förfallodatum: {data.get('due_date', '')}")
+        p.drawString(50, height - 185, f"Vår referens: {employee_name}")
+        p.drawString(50, height - 200, f"Er referens: {data.get('ref_no', 'Ej angiven')}")
+
+        # Buyer info box
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(320, height - 125, "Köpare / Kund")
+        p.setFont("Helvetica", 9)
+        p.drawString(320, height - 140, f"{data.get('customer_name', '')}")
+        p.drawString(320, height - 155, f"{data.get('address', '')}")
+        p.drawString(320, height - 170, f"Tel: {data.get('phone', '')}")
+
+        # Table Header
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(50, height - 235, width - 100, 18, fill=1, stroke=0)
+        p.setFillColorRGB(0, 0, 0)
+        p.setFont("Helvetica-Bold", 8)
+        p.drawString(60, height - 228, "Artikel / Beskrivning")
+        p.drawString(320, height - 228, "Moms")
+        p.drawString(390, height - 228, f"Pris ({currency})")
+        p.drawString(470, height - 228, f"Totalt ({currency})")
+
         amount_val = data.get('amount', 0)
         moms_val = data.get('moms', 0)
         netto_val = amount_val - moms_val
+
+        p.setFont("Helvetica", 9)
+        p.drawString(60, height - 260, data.get('item_desc', 'Reparation och reservdelar'))
+        p.drawString(320, height - 260, moms_rate_str)
+        p.drawString(390, height - 260, f"{netto_val:.2f}")
+        p.drawString(470, height - 260, f"{amount_val:.2f}")
+
+        # Summary box at bottom right
+        p.line(320, height - 330, width - 50, height - 330)
+        p.setFont("Helvetica", 9)
+        p.drawString(320, height - 345, "Netto / Exkl. moms:")
+        p.drawString(470, height - 345, f"{netto_val:.2f} {currency}")
+        
+        p.drawString(320, height - 362, f"Moms ({moms_rate_str}):")
+        p.drawString(470, height - 362, f"{moms_val:.2f} {currency}")
+
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 395, f"Att betala / Total: {amount_val:.2f} {currency}")
-        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(320, height - 385, "Att betala / Total:")
+        p.drawString(470, height - 385, f"{amount_val:.2f} {currency}")
+
+        # Footer payment info
+        p.setFont("Helvetica-Bold", 8)
+        p.drawString(50, 60, f"Betalning sker via Bankgiro: {comp['bankgiro']} eller Swish: {comp['swish']}.")
+        p.drawString(50, 48, f"Innehar F-skattsedel | Org.nr: {comp['org_nr']}")
 
     p.showPage()
     p.save()
@@ -560,10 +609,10 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name="quote.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE ---
+# --- TAB 4: INVOICE (SWEDISH STANDARD) ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
-    st.header(f"📄 الفاتورة الرسمية وخيارات الدفع / Standard Invoice & Payments ({global_branch})")
+    st.header(f"📄 فاتورة بمعيار الفوترة السويدي / Swedish Standard Invoice ({global_branch})")
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -574,7 +623,7 @@ with tab4:
 
     inv_emp = st.text_input(t["employee"], key="inv_emp")
     inv_no = st.text_input("رقم الفاتورة / Fakturanummer", value=default_inv_no, key="inv_no_in")
-    ref_no = st.text_input("إشارة المرجع أو الطلب / Vår referens", value="", key="inv_ref_in")
+    ref_no = st.text_input("إشارة المرجع أو طلب العميل / Er referens", value="", key="inv_ref_in")
 
     st.markdown("---")
     st.subheader("👤 بيانات العميل وعنوان الإرسال / Buyer Address")
@@ -590,10 +639,11 @@ with tab4:
     
     rate_val = float(moms_rate_choice.replace("%", "")) / 100.0
     calc_moms = inv_amount - (inv_amount / (1.0 + rate_val)) if rate_val > 0 else 0.0
+    due_date_val = (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
 
-    st.markdown(f"**المبلغ صافي بدون ضريبة (Netto):** {(inv_amount - calc_moms):.2f} SEK | **مبلغ الضريبة (Moms):** {calc_moms:.2f} SEK")
+    st.markdown(f"**المبلغ صافي بدون ضريبة (Netto):** {(inv_amount - calc_moms):.2f} SEK | **مبلغ الضريبة (Moms):** {calc_moms:.2f} SEK | **تاريخ الاستحقاق (30 يوم):** {due_date_val}")
 
-    if st.button("حفظ وتوليد الفاتورة PDF / Save & Generate Invoice PDF", type="primary", key="btn_save_inv"):
+    if st.button("حفظ وتوليد الفاتورة بالسعي السويدي PDF / Save & Generate Invoice PDF", type="primary", key="btn_save_inv"):
         if inv_name and inv_amount > 0 and inv_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -604,18 +654,18 @@ with tab4:
             """, (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, inv_item_desc, inv_amount, calc_moms, "SEK", moms_rate_choice, inv_emp, created_at))
             conn.commit()
             conn.close()
-            st.success("✅ تم حفظ الفاتورة بنجاح!")
+            st.success("✅ تم حفظ الفاتورة بنجاح وفقاً للمعايير السويدية!")
 
             inv_data = {
                 "branch": global_branch, "invoice_no": inv_no, "customer_name": inv_name,
                 "address": inv_address, "phone": inv_phone, "item_desc": inv_item_desc,
                 "amount": inv_amount, "moms": calc_moms, "currency": "SEK", "moms_rate": moms_rate_choice,
-                "employee": inv_emp, "created_at": date.today().strftime('%Y-%m-%d'), "ref_no": ref_no
+                "employee": inv_emp, "created_at": date.today().strftime('%Y-%m-%d'), "due_date": due_date_val, "ref_no": ref_no
             }
             st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
 
     if inv_phone:
-        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Här är er faktura ({inv_no}) från 30 Minutes Phone Fix ({global_branch}). Att betala: {inv_amount:.2f} SEK. Tack för besöket!"
+        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Här är er faktura ({inv_no}) från 30 Minutes Phone Fix ({global_branch}). Att betala: {inv_amount:.2f} SEK. Förfallodatum: {due_date_val}. Tack!"
         st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     if 'inv_pdf' in st.session_state:
@@ -786,29 +836,42 @@ with tab9:
         st.info("المخزون فارغ حالياً في هذا الفرع.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 10: SEARCH & REPAIRS ---
+# --- TAB 10: SEARCH & ALL RECORDS ---
 with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 البحث والأرشيف الشامل / Search & Records ({global_branch})")
-    search_query = st.text_input("بحث بالاسم، رقم الهاتف أو نوع الجهاز / Search by Name, Phone, Device", key="global_search_input")
+    st.header(f"🔍 البحث والأرشيف الشامل لكافة السجلات / Search & All Saved Records ({global_branch})")
+    search_query = st.text_input("بحث بالاسم، رقم الهاتف، نوع الجهاز أو رقم الفاتورة / Search by Name, Phone, Device, Invoice No", key="global_search_input")
     
-    if search_query:
-        conn = get_db_connection()
-        q_like = f"%{search_query}%"
-        
-        st.subheader("📝 الإصلاحات (Repairs)")
-        rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, status, employee, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
-        st.dataframe(rep_res, use_container_width=True)
+    conn = get_db_connection()
+    q_like = f"%{search_query}%" if search_query else "%"
+    
+    st.subheader("📝 الإصلاحات (Repairs)")
+    rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, status, employee, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+    st.dataframe(rep_res, use_container_width=True)
 
-        st.subheader("💡 عروض الأسعار (Quotes)")
-        quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, profit, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
-        st.dataframe(quote_res, use_container_width=True)
+    st.subheader("💡 عروض الأسعار (Quotes)")
+    quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, profit, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+    st.dataframe(quote_res, use_container_width=True)
 
-        st.subheader("📄 الفواتير (Invoices)")
-        inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, phone, address, amount, moms, employee, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
-        st.dataframe(inv_res, use_container_width=True)
-        
-        conn.close()
-    else:
-        st.info("الرجاء إدخال نص في حقل البحث أعلاه للعثور على السجلات.")
+    st.subheader("📄 الفواتير (Invoices)")
+    inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, phone, address, amount, moms, employee, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+    st.dataframe(inv_res, use_container_width=True)
+
+    st.subheader("💳 الاشتراكات (Subscriptions)")
+    sub_res = pd.read_sql_query("SELECT id, customer_name, phone, device, plan_type, price, employee, start_date FROM subscriptions WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+    st.dataframe(sub_res, use_container_width=True)
+
+    st.subheader("📱 شراء الأجهزة (Buybacks)")
+    bb_res = pd.read_sql_query("SELECT id, customer_name, phone, person_nummer, device, purchase_price, employee, created_at FROM buybacks WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+    st.dataframe(bb_res, use_container_width=True)
+
+    st.subheader("🛒 الطلبات المسبقة (Pre-orders)")
+    po_res = pd.read_sql_query("SELECT id, customer_name, phone, item_details, deposit, employee, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like))
+    st.dataframe(po_res, use_container_width=True)
+
+    st.subheader("📦 المخزون (Inventory)")
+    inv_search = pd.read_sql_query("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
+    st.dataframe(inv_search, use_container_width=True)
+    
+    conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
