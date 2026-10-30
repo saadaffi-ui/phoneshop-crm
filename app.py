@@ -59,7 +59,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, address TEXT, ref_no TEXT, invoice_no TEXT,
-            amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
+            item_desc TEXT, amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
@@ -80,7 +80,7 @@ def init_db():
         except Exception:
             pass
 
-    for col in ["address", "ref_no"]:
+    for col in ["address", "ref_no", "item_desc", "moms", "currency", "moms_rate"]:
         try:
             cursor.execute(f"ALTER TABLE invoices ADD COLUMN {col} TEXT")
         except Exception:
@@ -93,27 +93,22 @@ init_db()
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
-# --- Custom Styling & Responsive CSS for Mobile / iPad / Laptop ---
+# --- Custom Responsive Styling ---
 st.markdown("""
 <style>
     .stApp { background-color: #f4f6f9; color: #2c3e50; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     h1, h2, h3 { color: #1a252f; font-weight: 700; }
     div.stButton > button { border-radius: 8px; font-weight: 600; padding: 0.6rem 1.2rem; width: 100%; }
-    
-    /* Responsive Box Container Padding */
-    .dashboard-box, .repair-box, .quote-box, .invoice-box, .sub-box, .buyback-box, .campaign-box, .preorder-box, .inventory-box, .search-box {
-        padding: 20px; border-radius: 10px; margin-bottom: 15px;
-    }
-    .dashboard-box { background-color: #eaf2f8; border-left: 6px solid #2980b9; }
-    .repair-box { background-color: #e8f8f5; border-left: 6px solid #1abc9c; }
-    .quote-box { background-color: #fef9e7; border-left: 6px solid #f1c40f; }
-    .invoice-box { background-color: #f5eef8; border-left: 6px solid #8e44ad; }
-    .sub-box { background-color: #fbeee6; border-left: 6px solid #d35400; }
-    .buyback-box { background-color: #eafaf1; border-left: 6px solid #27ae60; }
-    .campaign-box { background-color: #fcf3cf; border-left: 6px solid #f39c12; }
-    .preorder-box { background-color: #e8f6f3; border-left: 6px solid #16a085; }
-    .inventory-box { background-color: #fbfcfe; border-left: 6px solid #e67e22; }
-    .search-box { background-color: #ebedef; border-left: 6px solid #34495e; }
+    .dashboard-box { background-color: #eaf2f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; margin-bottom: 15px;}
+    .repair-box { background-color: #e8f8f5; padding: 20px; border-radius: 10px; border-left: 6px solid #1abc9c; margin-bottom: 15px;}
+    .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; margin-bottom: 15px;}
+    .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; margin-bottom: 15px;}
+    .sub-box { background-color: #fbeee6; padding: 20px; border-radius: 10px; border-left: 6px solid #d35400; margin-bottom: 15px;}
+    .buyback-box { background-color: #eafaf1; padding: 20px; border-radius: 10px; border-left: 6px solid #27ae60; margin-bottom: 15px;}
+    .campaign-box { background-color: #fcf3cf; padding: 20px; border-radius: 10px; border-left: 6px solid #f39c12; margin-bottom: 15px;}
+    .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; margin-bottom: 15px;}
+    .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; margin-bottom: 15px;}
+    .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; margin-bottom: 15px;}
     .login-container { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 450px; margin: auto; border-top: 5px solid #e74c3c; }
     
     .whatsapp-btn {
@@ -130,11 +125,9 @@ st.markdown("""
     }
     .whatsapp-btn:hover { background-color: #20ba5a; }
 
-    /* Mobile & iPad Viewport Optimizations */
+    /* Responsive adjustments for iPad and Mobile */
     @media only screen and (max-width: 1024px) {
         .stColumns { flex-direction: column !important; }
-        div[data-testid="column"] { width: 100% !important; flex: 100% !important; min-width: auto !important; }
-        .stButton > button { width: 100% !important; margin-bottom: 8px; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -276,7 +269,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR (DUAL COPY: STORE COPY & CUSTOMER COPY WITH TERMS CHECK) ---
+# --- PDF GENERATOR (DUAL COPY FOR REPAIR & STANDARD FOR OTHERS) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -289,161 +282,103 @@ def generate_pdf_from_record(record_type, data, comp_info):
     moms_rate_str = data.get('moms_rate', '25%')
 
     if record_type == "repair_receipt_dual":
-        # Draw Store Copy (Top Half) & Customer Copy (Bottom Half) on a single A4 page
-        for copy_title, y_offset in [("BUTIKSEXEMPLAR / STORE COPY", height - 30), ("KUNDEXEMPLAR / CUSTOMER COPY", height / 2 - 20)]:
+        # Draw 2 copies on one A4 page: Top Copy (Store Copy) & Bottom Copy (Customer Copy)
+        def draw_repair_section(start_y, copy_title):
             p.setFont("Helvetica-Bold", 10)
-            p.drawString(50, y_offset, f"{comp['name']} - {copy_title}")
+            p.drawString(50, start_y, f"{comp['name']} - {copy_title}")
             p.setFont("Helvetica", 8)
-            p.drawString(50, y_offset - 12, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+            p.drawString(50, start_y - 12, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
             
             p.setFont("Helvetica-Bold", 9)
-            p.drawString(50, y_offset - 28, f"Inlämningskvitto ID: #{data.get('repair_id', '1')} | Datum: {data.get('created_at', '')}")
+            p.drawString(50, start_y - 28, f"ÄRENDEKVITTO / REPAIR RECEIPT #{data.get('repair_id', '1')}")
             p.setFont("Helvetica", 8)
-            p.drawString(50, y_offset - 40, f"Kund: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
-            p.drawString(300, y_offset - 40, f"Handläggare: {employee_name}")
-            p.drawString(50, y_offset - 52, f"Enhet: {data.get('device', '')} | IMEI: {data.get('imei', 'Ej angivet')}")
+            p.drawString(320, start_y - 28, f"Datum: {data.get('created_at', '')}")
             
-            p.setFillColorRGB(0.9, 0.9, 0.9)
-            p.rect(50, y_offset - 75, width - 100, 15, fill=1, stroke=0)
+            p.drawString(50, start_y - 42, f"Kund: {data.get('customer_name', '')}")
+            p.drawString(320, start_y - 42, f"Handläggare: {employee_name}")
+            p.drawString(50, start_y - 56, f"Tel: {data.get('phone', '')}")
+            p.drawString(320, start_y - 56, f"Enhet: {data.get('device', '')}")
+            p.drawString(50, start_y - 70, f"IMEI: {data.get('imei', 'Ej angivet')}")
+            
+            p.setFillColorRGB(0.92, 0.92, 0.92)
+            p.rect(50, start_y - 92, width - 100, 14, fill=1, stroke=0)
             p.setFillColorRGB(0, 0, 0)
             p.setFont("Helvetica-Bold", 8)
-            p.drawString(55, y_offset - 70, "Beskrivning av fel / Repair Description")
-            p.drawString(420, y_offset - 70, f"Pris ({currency})")
+            p.drawString(55, start_y - 88, "Beskrivning av fel / Repair Description")
+            p.drawString(420, start_y - 88, f"Pris ({currency})")
             
             p.setFont("Helvetica", 8)
-            p.drawString(55, y_offset - 90, f"- {data.get('issue', '')}")
+            p.drawString(55, start_y - 108, f"- {data.get('issue', '')}")
             price_val = data.get('price', 0)
-            p.drawString(420, y_offset - 90, f"{price_val:.2f} {currency}")
+            p.drawString(420, start_y - 108, f"{price_val:.2f} {currency}")
             
-            p.setFont("Helvetica", 7.5)
-            p.drawString(50, y_offset - 110, "Garanti & Villkor: Garanti lämnas endast för utfört arbete/delar. Inget ansvar för förlorad data.")
-            p.drawString(50, y_offset - 122, "✓ Villkor godkända av kund / Terms & Conditions accepted by customer.")
-            p.drawString(50, y_offset - 138, "Signatur Kund / Customer Signature: _______________________")
+            p.setFont("Helvetica-Bold", 8)
+            p.drawString(320, start_y - 124, f"Att betala / Total: {price_val:.2f} {currency} (Inkl. moms)")
+            
+            p.setFont("Helvetica", 7)
+            p.drawString(50, start_y - 140, "Villkor: Garanti gäller endast utfört arbete. Vi ansvarar ej för förlorad data.")
+            p.drawString(50, start_y - 150, f"Godkänt av kund / Terms Accepted (Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']})")
+            p.drawString(320, start_y - 150, "Kundens underskrift: _________________")
 
-            if y_offset > height / 2:
-                p.setDash(3, 3)
-                p.line(50, height / 2, width - 50, height / 2)
-                p.setDash()
+        draw_repair_section(height - 40, "BUTIKENS KOPIA / STORE COPY")
+        p.setDash(3, 3)
+        p.line(30, height / 2, width - 30, height / 2)
+        p.setDash()
+        draw_repair_section(height / 2 - 20, "KUNDENS KOPIA / CUSTOMER COPY")
 
     elif record_type == "buyback_receipt":
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT")
         p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Kvitto ID / Receipt ID: #{data.get('buyback_id', '1')}")
-        p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
-        p.drawString(50, height - 155, f"Säljare / Seller: {data.get('customer_name', '')}")
+        p.drawString(50, height - 135, f"Kvitto ID: #{data.get('buyback_id', '1')}")
+        p.drawString(300, height - 135, f"Datum: {data.get('created_at', '')}")
+        p.drawString(50, height - 155, f"Säljare: {data.get('customer_name', '')}")
         p.drawString(300, height - 155, f"Personnummer: {data.get('person_nummer', 'Ej angivet')}")
-        p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
-        p.drawString(300, height - 175, f"Handläggare / Agent: {employee_name}")
-        p.drawString(50, height - 195, f"Enhet / Device: {data.get('device', '')}")
-        p.drawString(300, height - 195, f"IMEI / Serial: {data.get('imei', '')}")
+        p.drawString(50, height - 175, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 175, f"Handläggare: {employee_name}")
+        p.drawString(50, height - 195, f"Enhet: {data.get('device', '')}")
+        p.drawString(300, height - 195, f"IMEI: {data.get('imei', '')}")
         
-        p.setFillColorRGB(0.9, 0.9, 0.9)
-        p.rect(50, height - 235, width - 100, 20, fill=1, stroke=0)
-        p.setFillColorRGB(0, 0, 0)
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(60, height - 228, "Beskrivning / Item Specification")
-        p.drawString(400, height - 228, f"Inköpspris / Purchase Price ({currency})")
-        
-        p.setFont("Helvetica", 10)
-        y_pos = height - 265
-        p.drawString(60, y_pos, f"- Begagnad mobiltelefon / Used mobile phone purchase")
         price_val = data.get('purchase_price', 0)
-        p.drawString(400, y_pos, f"{price_val:.2f} {currency}")
-        
-        p.line(50, height - 310, width - 50, height - 310)
         p.setFont("Helvetica-Bold", 11)
         p.drawString(300, height - 325, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
-        
-        p.setFont("Helvetica-Bold", 8)
-        p.drawString(50, height - 365, "Säljarens försäkran / Seller Declaration:")
-        p.setFont("Helvetica", 7.5)
-        p.drawString(50, height - 378, "- Säljaren intygar att enheten är hens lagliga egendom, inte anmäld stulen,")
-        p.drawString(50, height - 390, "  samt att alla konton (iCloud / Google) har raderats.")
-
-        p.drawString(50, height - 460, "Säljarens underskrift / Signature: ______________________")
-        
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
-        p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "quote":
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
         p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Datum / Date: {data.get('created_at', '')}")
-        p.drawString(300, height - 135, f"Handläggare / Agent: {employee_name}")
-        p.drawString(50, height - 155, f"Kund / Customer: {data.get('customer_name', '')}")
-        p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
-        p.drawString(300, height - 155, f"Enhet / Device: {data.get('device', '')}")
+        p.drawString(50, height - 135, f"Datum: {data.get('created_at', '')}")
+        p.drawString(300, height - 135, f"Handläggare: {employee_name}")
+        p.drawString(50, height - 155, f"Kund: {data.get('customer_name', '')}")
+        p.drawString(50, height - 175, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 155, f"Enhet: {data.get('device', '')}")
         
-        p.setFillColorRGB(0.9, 0.9, 0.9)
-        p.rect(50, height - 215, width - 100, 20, fill=1, stroke=0)
-        p.setFillColorRGB(0, 0, 0)
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(60, height - 208, "Beskrivning av reparation / Repair description")
-        p.drawString(400, height - 208, f"Belopp / Amount ({currency})")
-        
-        p.setFont("Helvetica", 10)
-        y_pos = height - 245
-        p.drawString(60, y_pos, f"- {data.get('issues', '')}")
         total_val = data.get('total', 0)
-        p.drawString(400, y_pos, f"{total_val:.2f} {currency}")
-        
-        p.line(50, height - 320, width - 50, height - 320)
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 345, f"Att betala / Total: {total_val:.2f} {currency}")
-        p.setFont("Helvetica", 8)
-        p.drawString(300, height - 360, "(Inkl. moms / Incl. VAT)")
-        
-        p.setFont("Helvetica-Oblique", 8)
-        p.drawString(50, height - 420, "* Giltigt i 30 dagar / Valid for 30 days.")
+        p.drawString(300, height - 345, f"Att betala / Total: {total_val:.2f} {currency} (Inkl. moms)")
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
-        p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
 
     elif record_type == "invoice":
         p.setFont("Helvetica-Bold", 12)
         p.drawString(50, height - 110, "FAKTURA / INVOICE")
         p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Fakturanr / Invoice No: {data.get('invoice_no', '')}")
-        p.drawString(50, height - 150, f"Fakturadatum / Date: {data.get('created_at', '')}")
-        p.drawString(50, height - 165, f"Vår referens / Our ref: {employee_name}")
+        p.drawString(50, height - 135, f"Fakturanr: {data.get('invoice_no', '')}")
+        p.drawString(50, height - 150, f"Fakturadatum: {data.get('created_at', '')}")
+        p.drawString(50, height - 165, f"Vår referens: {employee_name}")
         
         p.setFont("Helvetica-Bold", 10)
         p.drawString(300, height - 135, "Köpare / Buyer:")
         p.setFont("Helvetica", 10)
         p.drawString(300, height - 150, f"{data.get('customer_name', '')}")
         p.drawString(300, height - 165, f"{data.get('address', 'Ej angiven adress')}")
-        p.drawString(300, height - 180, f"Tel: {data.get('phone', '')}")
         
-        p.setFillColorRGB(0.9, 0.9, 0.9)
-        p.rect(50, height - 225, width - 100, 20, fill=1, stroke=0)
-        p.setFillColorRGB(0, 0, 0)
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(60, height - 218, "Beskrivning / Description")
-        p.drawString(400, height - 218, f"Belopp / Amount ({currency})")
-        
-        y_pos = height - 255
         amount_val = data.get('amount', 0)
         moms_val = data.get('moms', 0)
         netto_val = amount_val - moms_val
-        
-        p.setFont("Helvetica", 10)
-        p.drawString(60, y_pos, f"{data.get('item_desc', 'Reparation / Repair')}")
-        if data.get('ref_no'):
-            p.drawString(60, y_pos - 15, f"Referensnr / Ref: {data.get('ref_no')}")
-            
-        p.drawString(400, y_pos, f"{netto_val:.2f} {currency}")
-        p.line(50, height - 330, width - 50, height - 330)
-        p.setFont("Helvetica", 9)
-        p.drawString(300, height - 350, f"Netto / Net: {netto_val:.2f} {currency}")
-        p.drawString(300, height - 368, f"Moms / VAT ({moms_rate_str}): {moms_val:.2f} {currency}")
         p.setFont("Helvetica-Bold", 11)
         p.drawString(300, height - 395, f"Att betala / Total: {amount_val:.2f} {currency}")
-        
-        p.setFont("Helvetica", 9)
-        p.drawString(50, 65, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
-        p.drawString(50, 50, f"Org.nr: {comp['org_nr']} | Adress: {comp['address']}")
-        p.drawString(50, 35, f"Butik / Branch: {branch} | Tel: {comp['phone']}")
+        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     p.showPage()
     p.save()
@@ -481,10 +416,10 @@ with tab1:
     c4.metric("📈 الأرباح / Profit", f"{total_prof:.2f} Kr")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR (DUAL COPY & TERMS CHECKBOX) ---
+# --- TAB 2: NEW REPAIR (DUAL COPY & TERMS ACCEPTANCE) ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
-    st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام / New Repair ({global_branch})")
+    st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام (نسختان) / New Repair ({global_branch})")
     employee_name = st.text_input(t["employee"], key="rep_emp")
     c_phone = st.text_input(t["phone"], key="rep_phone")
     
@@ -522,15 +457,15 @@ with tab2:
     <div style="background-color: #fff3cd; padding: 12px; border-radius: 8px; border-left: 5px solid #ffc107; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
         <b>⚠️ شروط الضمان وإخلاء المسؤولية (Warranty & Disclaimer Terms):</b><br>
         • الضمان يغطي فقط الإصلاح أو القطعة التي تم استبدالها.<br>
-        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات.
+        • لا تتحمل الورشة أي مسؤولية عن ضياع البيانات أو محتويات الهاتف.
     </div>
     """, unsafe_allow_html=True)
     
-    terms_accepted = st.checkbox("✅ أوافق على شروط الضمان وإصلاح الجهاز / Jag godkänner villkoren och garantivillkoren", key="rep_terms_checkbox")
+    terms_accepted = st.checkbox("✅ أوافق على شروط الضمان وإصلاح الجهاز (Accept Terms & Conditions)", key="rep_terms_chk")
 
     if st.button(t["save_repair"], type="primary", key="btn_save_rep"):
         if not terms_accepted:
-            st.warning("⚠️ يجب الموافقة على الشروط والأحكام للمتابعة! / You must accept the terms and conditions!")
+            st.error("❌ يجب الموافقة على شروط الضمان أولاً لحفظ Ärende!")
         elif c_name and c_phone and device and employee_name:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -648,44 +583,232 @@ with tab4:
     inv_phone = st.text_input(t["phone"], key="inv_phone")
     
     st.markdown("---")
-    st.subheader("💰 تفاصيل المبالغ والضرائب / Amount & VAT")
-    col_amt, col_moms_rate = st.columns(2)
-    with col_amt:
-        inv_amount = st.number_input("المبلغ الإجمالي (شامل الضريبة) / Total Amount (Incl. VAT)", min_value=0.0, step=50.0, value=500.0, key="inv_amt_in")
-    with col_moms_rate:
-        moms_rate_choice = st.selectbox("نسبة ضريبة القيمة المضافة / VAT Rate", ["25%", "12%", "6%", "0% (Momsfri)"], key="inv_moms_rate_sel")
+    st.subheader("💰 تفاصيل المبلغ والضريبة / Amount & VAT")
+    inv_item_desc = st.text_input("وصف الخدمة أو البند / Item Description", value="Reparation och reservdelar / Repair & parts", key="inv_item_desc_in")
+    inv_amount = st.number_input("المبلغ الإجمالي شامل الضريبة / Total Amount (SEK)", min_value=0.0, step=50.0, key="inv_amount_in")
+    moms_rate_choice = st.selectbox("نسبة ضريبة القيمة المضافة / Moms rate", ["25%", "12%", "6%", "0%"], key="inv_moms_rate_in")
+    
+    rate_val = float(moms_rate_choice.replace("%", "")) / 100.0
+    calc_moms = inv_amount - (inv_amount / (1.0 + rate_val)) if rate_val > 0 else 0.0
 
-    item_desc = st.text_input("وصف الخدمة أو المنتج / Item Description", value="Mobilreparation / Reservdelar", key="inv_item_desc_in")
-
-    rate_val = 0.25 if "25%" in moms_rate_choice else (0.12 if "12%" in moms_rate_choice else (0.06 if "6%" in moms_rate_choice else 0.0))
-    moms_val = float(inv_amount - (inv_amount / (1.0 + rate_val))) if rate_val > 0 else 0.0
-
-    st.markdown(f"**المبلغ الصافي (Netto):** {(inv_amount - moms_val):.2f} SEK | **قيمة الضريبة (Moms):** {moms_val:.2f} SEK")
+    st.markdown(f"**المبلغ صافي بدون ضريبة (Netto):** {(inv_amount - calc_moms):.2f} SEK | **مبلغ الضريبة (Moms):** {calc_moms:.2f} SEK")
 
     if st.button("حفظ وتوليد الفاتورة PDF / Save & Generate Invoice PDF", type="primary", key="btn_save_inv"):
-        if inv_name and inv_emp and inv_no:
+        if inv_name and inv_amount > 0 and inv_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute(
-                "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, inv_amount, moms_val, "SEK", moms_rate_choice, inv_emp, created_at)
-            )
+            cursor.execute("""
+                INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, item_desc, amount, moms, currency, moms_rate, employee, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, inv_item_desc, inv_amount, calc_moms, "SEK", moms_rate_choice, inv_emp, created_at))
             conn.commit()
             conn.close()
             st.success("✅ تم حفظ الفاتورة بنجاح!")
 
             inv_data = {
-                "branch": global_branch, "invoice_no": inv_no, "created_id": date.today().strftime('%Y-%m-%d'),
-                "customer_name": inv_name, "address": inv_address, "phone": inv_phone, "item_desc": item_desc,
-                "ref_no": ref_no, "amount": inv_amount, "moms": moms_val, "currency": "SEK", "moms_rate": moms_rate_choice, "employee": inv_emp
+                "branch": global_branch, "invoice_no": inv_no, "customer_name": inv_name,
+                "address": inv_address, "phone": inv_phone, "item_desc": inv_item_desc,
+                "amount": inv_amount, "moms": calc_moms, "currency": "SEK", "moms_rate": moms_rate_choice,
+                "employee": inv_emp, "created_at": date.today().strftime('%Y-%m-%d'), "ref_no": ref_no
             }
             st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
 
     if inv_phone:
-        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Här är din faktura {inv_no} från 30 Minutes Phone Fix ({global_branch}). Att betala: {inv_amount:.2f} SEK. Swish: {comp['swish']}. Tack!"
+        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Här är er faktura ({inv_no}) från 30 Minutes Phone Fix ({global_branch}). Att betala: {inv_amount:.2f} SEK. Tack för besöket!"
         st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     if 'inv_pdf' in st.session_state:
         display_pdf_preview(st.session_state['inv_pdf'], file_name=f"{inv_no}.pdf")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 5: SUBSCRIPTIONS ---
+with tab5:
+    st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
+    st.header(f"💳 إدارة الاشتراكات وخدمات الحماية / Subscriptions ({global_branch})")
+    sub_emp = st.text_input(t["employee"], key="sub_emp")
+    sub_name = st.text_input(t["customer_name"], key="sub_name")
+    sub_phone = st.text_input(t["phone"], key="sub_phone")
+    sub_device = st.text_input(t["device"], key="sub_device")
+    sub_imei = st.text_input(t["imei"], key="sub_imei")
+    
+    plan_types = ["Skärmskydd + Fodral (Månad)", "Företagsavtal / Service", "Mobilförsäkring Basic", "Mobilförsäkring Premium"]
+    sub_plan = st.selectbox("نوع الاشتراك / Plan Type", plan_types, key="sub_plan_sel")
+    sub_price = st.number_input("قيمة الاشتراك الشهري / Monthly Price (SEK)", min_value=0.0, step=20.0, key="sub_price_in")
+
+    if st.button("حفظ الاشتراك / Save Subscription", type="primary", key="btn_save_sub"):
+        if sub_name and sub_phone and sub_emp:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, sub_name, sub_phone, sub_device, sub_imei, sub_plan, sub_price, sub_emp, date.today().strftime('%Y-%m-%d'), created_at))
+            conn.commit()
+            conn.close()
+            st.success("✅ تم تسجيل الاشتراك بنجاح!")
+
+    st.markdown("---")
+    st.subheader("📋 قائمة الاشتراكات النشطة / Active Subscriptions")
+    conn = get_db_connection()
+    sub_df = pd.read_sql_query("SELECT id, customer_name, phone, device, plan_type, price, employee, start_date FROM subscriptions WHERE branch = ?", conn, params=(global_branch,))
+    conn.close()
+    if not sub_df.empty:
+        st.dataframe(sub_df, use_container_width=True)
+    else:
+        st.info("لا توجد اشتراكات مسجلة بعد في هذا الفرع.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 6: BUYBACK / BEGAGNAD ---
+with tab6:
+    st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
+    st.header(f"📱 شراء الأجهزة المستعملة وإيصال الشراء / Buyback & Used Phones ({global_branch})")
+    bb_emp = st.text_input(t["employee"], key="bb_emp")
+    bb_name = st.text_input(t["customer_name"], key="bb_name")
+    bb_phone = st.text_input(t["phone"], key="bb_phone")
+    bb_person = st.text_input("الرقم الشخصي للبائع / Personnummer (YYYYMMDD-XXXX)", key="bb_person_in")
+    bb_device = st.text_input(t["device"], key="bb_device")
+    bb_imei = st.text_input(t["imei"], key="bb_imei")
+    bb_price = st.number_input("مبلغ الشراء المدفوع للعميل / Purchase Price (SEK)", min_value=0.0, step=50.0, key="bb_price_in")
+
+    st.markdown("""
+    <div style="background-color: #e8faf1; padding: 12px; border-radius: 8px; border-left: 5px solid #27ae60; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
+        <b>📜 إقرار البائع (Seller Declaration):</b><br>
+        أقر أنا البائع بأن الجهاز ملكي القانوني وليس مسروقاً، وأنه تم تسجيل خروج حسابات (iCloud / Google).
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("حفظ وتوليد إيصال الشراء PDF / Save Buyback Receipt", type="primary", key="btn_save_bb"):
+        if bb_name and bb_phone and bb_person and bb_device and bb_emp:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO buybacks (branch, customer_name, phone, person_nummer, device, imei, purchase_price, employee, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, bb_name, bb_phone, bb_person, bb_device, bb_imei, bb_price, bb_emp, created_at))
+            bb_db_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            st.success("✅ تم حفظ عملية الشراء بنجاح!")
+
+            bb_data = {
+                "branch": global_branch, "buyback_id": str(bb_db_id), "customer_name": bb_name,
+                "phone": bb_phone, "person_nummer": bb_person, "device": bb_device, "imei": bb_imei,
+                "purchase_price": bb_price, "currency": "SEK", "employee": bb_emp, "created_at": date.today().strftime('%Y-%m-%d')
+            }
+            st.session_state['bb_pdf'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
+
+    if 'bb_pdf' in st.session_state:
+        display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkopskvitto.pdf")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 7: CAMPAIGNS ---
+with tab7:
+    st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
+    st.header(f"🎄 عروض المواسم والحملات التسويقية / Campaigns & Promotions ({global_branch})")
+    st.markdown("""
+    ### 🌟 عروض الشهر الحالي (Current Active Campaigns)
+    - **🎄 عروض العيد والربيع (Spring & Holiday Special):** خصم 15% على جميع خدمات استبدال الشاشات الأصلية.
+    - **📱 عرض الحماية المتكاملة:** شاشة حماية مع غطاء حماية أصلي بسعر مخفض عند إصلاح هاتفك.
+    - **🎓 خصم الطلاب (Student Discount):** 10% خصم إضافي لجميع الطلاب عند إبراز بطاقة الطالب.
+    """)
+    st.info("💡 يمكنك إبلاغ العميل بهذه العروض أثناء تسجيل الإصلاح أو عرض السعر لزيادة المبيعات!")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 8: PRE-ORDERS ---
+with tab8:
+    st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
+    st.header(f"🛒 الطلبات المسبقة وحجز القطع / Pre-orders ({global_branch})")
+    po_emp = st.text_input(t["employee"], key="po_emp")
+    po_name = st.text_input(t["customer_name"], key="po_name")
+    po_phone = st.text_input(t["phone"], key="po_phone")
+    po_details = st.text_area("تفاصيل القطعة أو الجهاز المحجوز / Item Details", key="po_details_in")
+    po_deposit = st.number_input("العربون المدفوع / Deposit (SEK)", min_value=0.0, step=50.0, key="po_deposit_in")
+
+    if st.button("حفظ الطلب المسبق / Save Pre-order", type="primary", key="btn_save_po"):
+        if po_name and po_phone and po_details and po_emp:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, po_name, po_phone, po_details, po_deposit, po_emp, created_at))
+            conn.commit()
+            conn.close()
+            st.success("✅ تم حفظ الطلب المسبق بنجاح!")
+
+    st.markdown("---")
+    st.subheader("📋 قائمة الطلبات المسبقة / Pre-orders List")
+    conn = get_db_connection()
+    po_df = pd.read_sql_query("SELECT id, customer_name, phone, item_details, deposit, employee, created_at FROM preorders WHERE branch = ?", conn, params=(global_branch,))
+    conn.close()
+    if not po_df.empty:
+        st.dataframe(po_df, use_container_width=True)
+    else:
+        st.info("لا توجد طلبات مسبقة حالياً.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 9: INVENTORY ---
+with tab9:
+    st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
+    st.header(f"📦 إدارة المخزون وقطع الغيار / Inventory ({global_branch})")
+    
+    with st.form("add_inventory_form"):
+        st.subheader("إضافة / تحديث قطع الغيار في المخزن")
+        new_part = st.text_input("اسم القطعة أو الخدمة / Part Name", value="Skärmbyte (Original)")
+        add_qty = st.number_input("الكمية المضافة / Quantity", min_value=1, value=5)
+        min_lim = st.number_input("حد التنبيه الأدنى / Min Limit", min_value=1, value=2)
+        submit_inv = st.form_submit_button("حفظ في المخزون / Save Inventory")
+        if submit_inv and new_part:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, stock_qty FROM inventory WHERE branch = ? AND part_name = ?", (global_branch, new_part))
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute("UPDATE inventory SET stock_qty = stock_qty + ? WHERE id = ?", (add_qty, existing[0]))
+            else:
+                cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (new_part, add_qty, min_lim, global_branch))
+            conn.commit()
+            conn.close()
+            st.success(f"✅ تم تحديث مخزون {new_part} بنجاح!")
+
+    st.markdown("---")
+    st.subheader("📊 حالة المخزون الحالي / Current Stock Levels")
+    conn = get_db_connection()
+    inv_df = pd.read_sql_query("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ?", conn, params=(global_branch,))
+    conn.close()
+    if not inv_df.empty:
+        st.dataframe(inv_df, use_container_width=True)
+    else:
+        st.info("المخزون فارغ حالياً في هذا الفرع.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- TAB 10: SEARCH & REPAIRS ---
+with tab10:
+    st.markdown("<div class='search-box'>", unsafe_allow_html=True)
+    st.header(f"🔍 البحث والأرشيف الشامل / Search & Records ({global_branch})")
+    search_query = st.text_input("بحث بالاسم، رقم الهاتف أو نوع الجهاز / Search by Name, Phone, Device", key="global_search_input")
+    
+    if search_query:
+        conn = get_db_connection()
+        q_like = f"%{search_query}%"
+        
+        st.subheader("📝 الإصلاحات (Repairs)")
+        rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, status, employee, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+        st.dataframe(rep_res, use_container_width=True)
+
+        st.subheader("💡 عروض الأسعار (Quotes)")
+        quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, profit, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+        st.dataframe(quote_res, use_container_width=True)
+
+        st.subheader("📄 الفواتير (Invoices)")
+        inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, phone, address, amount, moms, employee, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+        st.dataframe(inv_res, use_container_width=True)
+        
+        conn.close()
+    else:
+        st.info("الرجاء إدخال نص في حقل البحث أعلاه للعثور على السجلات.")
     st.markdown("</div>", unsafe_allow_html=True)
