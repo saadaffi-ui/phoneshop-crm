@@ -241,11 +241,11 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     
     b_col1, b_col2 = st.columns(2)
     with b_col1:
-        st.download_button("📥 Ladda ner PDF / Download PDF", data=pdf_bytes, file_name=file_name, mime="application/pdf", type="primary")
+        st.download_button("📥 Ladda ner PDF / Download PDF", data=pdf_bytes, file_name=file_name, mime="application/pdf", type="primary", key=f"dl_{file_name}")
     with b_col2:
         print_html = f"""
         <script>
-        function printPDF() {{
+        function printPDF_{file_name.replace('.', '_')}() {{
             var iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = "data:application/pdf;base64,{b64_pdf}";
@@ -253,7 +253,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
             iframe.contentWindow.print();
         }}
         </script>
-        <button onclick="printPDF()" style="background-color: #2ecc71; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; width: 100%; cursor: pointer;">
+        <button onclick="printPDF_{file_name.replace('.', '_')}()" style="background-color: #2ecc71; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; width: 100%; cursor: pointer;">
             🖨️ Skriv ut / Print
         </button>
         """
@@ -262,13 +262,13 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     st.markdown("---")
     st.markdown("### 👁️ Förhandsgranskning / Preview")
     pdf_display = f"""
-    <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="500px" style="border: 1px solid #ccc; border-radius: 8px;">
-        <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="500px" />
+    <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="450px" style="border: 1px solid #ccc; border-radius: 8px;">
+        <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="450px" />
     </object>
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR (SWEDISH STANDARD INVOICE & DUAL COPY REPAIR) ---
+# --- PDF GENERATOR ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -358,7 +358,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     elif record_type == "invoice":
-        # --- SWEDISH STANDARD INVOICE FORMAT ---
         p.setFont("Helvetica-Bold", 16)
         p.drawString(50, height - 50, "FAKTURA")
         
@@ -373,7 +372,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.setLineWidth(0.5)
         p.line(50, height - 105, width - 50, height - 105)
 
-        # Invoice metadata box
         p.setFont("Helvetica-Bold", 9)
         p.drawString(50, height - 125, "Fakturainformation")
         p.setFont("Helvetica", 9)
@@ -383,7 +381,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, height - 185, f"Vår referens: {employee_name}")
         p.drawString(50, height - 200, f"Er referens: {data.get('ref_no', 'Ej angiven')}")
 
-        # Buyer info box
         p.setFont("Helvetica-Bold", 9)
         p.drawString(320, height - 125, "Köpare / Kund")
         p.setFont("Helvetica", 9)
@@ -391,7 +388,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(320, height - 155, f"{data.get('address', '')}")
         p.drawString(320, height - 170, f"Tel: {data.get('phone', '')}")
 
-        # Table Header
         p.setFillColorRGB(0.9, 0.9, 0.9)
         p.rect(50, height - 235, width - 100, 18, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
@@ -411,7 +407,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(390, height - 260, f"{netto_val:.2f}")
         p.drawString(470, height - 260, f"{amount_val:.2f}")
 
-        # Summary box at bottom right
         p.line(320, height - 330, width - 50, height - 330)
         p.setFont("Helvetica", 9)
         p.drawString(320, height - 345, "Netto / Exkl. moms:")
@@ -424,7 +419,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(320, height - 385, "Att betala / Total:")
         p.drawString(470, height - 385, f"{amount_val:.2f} {currency}")
 
-        # Footer payment info
         p.setFont("Helvetica-Bold", 8)
         p.drawString(50, 60, f"Betalning sker via Bankgiro: {comp['bankgiro']} eller Swish: {comp['swish']}.")
         p.drawString(50, 48, f"Innehar F-skattsedel | Org.nr: {comp['org_nr']}")
@@ -465,7 +459,7 @@ with tab1:
     c4.metric("📈 الأرباح / Profit", f"{total_prof:.2f} Kr")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR (DUAL COPY & TERMS ACCEPTANCE) ---
+# --- TAB 2: NEW REPAIR ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
     st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام (نسختان) / New Repair ({global_branch})")
@@ -609,7 +603,7 @@ with tab3:
         display_pdf_preview(st.session_state['q_pdf'], file_name="quote.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 4: INVOICE (SWEDISH STANDARD) ---
+# --- TAB 4: INVOICE ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
     st.header(f"📄 فاتورة بمعيار الفوترة السويدي / Swedish Standard Invoice ({global_branch})")
@@ -836,42 +830,82 @@ with tab9:
         st.info("المخزون فارغ حالياً في هذا الفرع.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 10: SEARCH & ALL RECORDS ---
+# --- TAB 10: SEARCH & INTERACTIVE RECORD ACTIONS ---
 with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 البحث والأرشيف الشامل لكافة السجلات / Search & All Saved Records ({global_branch})")
+    st.header(f"🔍 البحث والأرشيف وإجراءات الطباعة والإرسال / Search & Actions ({global_branch})")
     search_query = st.text_input("بحث بالاسم، رقم الهاتف، نوع الجهاز أو رقم الفاتورة / Search by Name, Phone, Device, Invoice No", key="global_search_input")
     
     conn = get_db_connection()
     q_like = f"%{search_query}%" if search_query else "%"
     
-    st.subheader("📝 الإصلاحات (Repairs)")
+    # 1. REPAIRS SEARCH & ACTION
+    st.subheader("📝 الإصلاحات المسجلة (Repairs)")
     rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, status, employee, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
     st.dataframe(rep_res, use_container_width=True)
+    if not rep_res.empty:
+        selected_rep_id = st.selectbox("🖨️ اختر رقم إصلاح (ID) لطباعة أو إرسال الإيصال:", rep_res['id'].tolist(), key="sel_rep_id")
+        if selected_rep_id:
+            r_row = rep_res[rep_res['id'] == selected_rep_id].iloc[0]
+            if st.button("📄 توليد وعرض إيصال الإصلاح المختار", key=f"btn_gen_rep_{selected_rep_id}"):
+                rec_data = {
+                    "branch": global_branch, "repair_id": str(r_row['id']), "customer_name": r_row['customer_name'],
+                    "phone": r_row['phone'], "device": r_row['device'], "imei": "N/A", "issue": r_row['issue'],
+                    "price": r_row['price'], "employee": r_row['employee'], "created_at": str(r_row['created_at'])[:10]
+                }
+                pdf_buf = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
+                display_pdf_preview(pdf_buf, file_name=f"Inlamningskvitto_{selected_rep_id}.pdf")
+                if r_row['phone']:
+                    wa_t = f"Hej {r_row['customer_name']}! Här är ditt inlämningskvitto för {r_row['device']} hos 30 Minutes Phone Fix ({global_branch}). Välkommen!"
+                    st.markdown(f'<a href="{get_whatsapp_link(r_row["phone"], wa_t)}" target="_blank" class="whatsapp-btn">💬 إرسال الكвитتو عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
+    # 2. INVOICES SEARCH & ACTION
+    st.subheader("📄 الفواتير المسجلة (Invoices)")
+    inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, phone, address, amount, moms, employee, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+    st.dataframe(inv_res, use_container_width=True)
+    if not inv_res.empty:
+        selected_inv_id = st.selectbox("🖨️ اختر رقم فاتورة (ID) لطباعة أو إرسال الفاتورة:", inv_res['id'].tolist(), key="sel_inv_id")
+        if selected_inv_id:
+            i_row = inv_res[inv_res['id'] == selected_inv_id].iloc[0]
+            if st.button("📄 توليد وعرض الفاتورة المكتوبة", key=f"btn_gen_inv_{selected_inv_id}"):
+                inv_data = {
+                    "branch": global_branch, "invoice_no": i_row['invoice_no'], "customer_name": i_row['customer_name'],
+                    "address": i_row['address'], "phone": i_row['phone'], "item_desc": "Reparation och reservdelar",
+                    "amount": i_row['amount'], "moms": i_row['moms'], "currency": "SEK", "moms_rate": "25%",
+                    "employee": i_row['employee'], "created_at": str(i_row['created_at'])[:10], "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
+                }
+                pdf_buf = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                display_pdf_preview(pdf_buf, file_name=f"{i_row['invoice_no']}.pdf")
+                if i_row['phone']:
+                    wa_t = f"Hej {i_row['customer_name']}! Här är er faktura {i_row['invoice_no']} på {i_row['amount']} SEK från 30 Minutes Phone Fix ({global_branch}). Tack!"
+                    st.markdown(f'<a href="{get_whatsapp_link(i_row["phone"], wa_t)}" target="_blank" class="whatsapp-btn">💬 إرسال الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+
+    # 3. QUOTES SEARCH & ACTION
     st.subheader("💡 عروض الأسعار (Quotes)")
     quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, profit, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
     st.dataframe(quote_res, use_container_width=True)
 
-    st.subheader("📄 الفواتير (Invoices)")
-    inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, phone, address, amount, moms, employee, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
-    st.dataframe(inv_res, use_container_width=True)
-
+    # 4. SUBSCRIPTIONS
     st.subheader("💳 الاشتراكات (Subscriptions)")
     sub_res = pd.read_sql_query("SELECT id, customer_name, phone, device, plan_type, price, employee, start_date FROM subscriptions WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
     st.dataframe(sub_res, use_container_width=True)
 
+    # 5. BUYBACKS & ACTION
     st.subheader("📱 شراء الأجهزة (Buybacks)")
     bb_res = pd.read_sql_query("SELECT id, customer_name, phone, person_nummer, device, purchase_price, employee, created_at FROM buybacks WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
     st.dataframe(bb_res, use_container_width=True)
+    if not bb_res.empty:
+        selected_bb_id = st.selectbox("🖨️ اختر رقم شراء (ID) لإيصال الشراء:", bb_res['id'].tolist(), key="sel_bb_id")
+        if selected_bb_id:
+            b_row = bb_res[bb_res['id'] == selected_bb_id].iloc[0]
+            if st.button("📄 توليد وعرض إيصال الشراء المختار", key=f"btn_gen_bb_{selected_bb_id}"):
+                bb_data = {
+                    "branch": global_branch, "buyback_id": str(b_row['id']), "customer_name": b_row['customer_name'],
+                    "phone": b_row['phone'], "person_nummer": b_row['person_nummer'], "device": b_row['device'], "imei": "N/A",
+                    "purchase_price": b_row['purchase_price'], "currency": "SEK", "employee": b_row['employee'], "created_at": str(b_row['created_at'])[:10]
+                }
+                pdf_buf = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
+                display_pdf_preview(pdf_buf, file_name=f"Inkopskvitto_{selected_bb_id}.pdf")
 
-    st.subheader("🛒 الطلبات المسبقة (Pre-orders)")
-    po_res = pd.read_sql_query("SELECT id, customer_name, phone, item_details, deposit, employee, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like))
-    st.dataframe(po_res, use_container_width=True)
-
-    st.subheader("📦 المخزون (Inventory)")
-    inv_search = pd.read_sql_query("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
-    st.dataframe(inv_search, use_container_width=True)
-    
     conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
