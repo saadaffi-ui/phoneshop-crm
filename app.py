@@ -205,24 +205,24 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Secure Authentication Login & Device Session Memory ---
+# --- Secure Authentication Login ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
 if not st.session_state['authenticated']:
-    system_pin = "Tunapark"
-        
     st.markdown("<div class='login-container'>", unsafe_allow_html=True)
     st.markdown("### 🔒 System Login / Inloggning")
     st.markdown("Ange PIN-kod för att fortsätta / الرجاء إدخال رمز المرور:")
     login_pin = st.text_input("🔑 PIN Code / رمز المرور", type="password", key="login_pin_input")
     
-    if login_pin == system_pin:
-        st.session_state['authenticated'] = True
-        st.success("✅ Logged in successfully! / تم تسجيل الدخول بنجاح!")
-        st.rerun()
-    elif login_pin:
-        st.error("❌ Fel PIN-kod! / رمز المرور غير صحيح!")
+    if login_pin:
+        if login_pin.strip() == "Tunapark":
+            st.session_state['authenticated'] = True
+            st.success("✅ Logged in successfully! / تم تسجيل الدخول بنجاح!")
+            st.rerun()
+        else:
+            st.error("❌ Fel PIN-kod! / رمز المرور غير صحيح!")
+            
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
@@ -236,10 +236,14 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
     st.success("✅ Dokumentet är redo! / Document is ready!")
     
-    b_col1, b_col2 = st.columns(2)
+    b_col1, b_col2, b_col3 = st.columns(3)
     with b_col1:
-        st.download_button("📥 Ladda ner PDF / Download PDF", data=pdf_bytes, file_name=file_name, mime="application/pdf", type="primary", key=f"dl_{file_name}")
+        st.download_button("📥 Ladda ner PDF / Download", data=pdf_bytes, file_name=file_name, mime="application/pdf", type="primary", key=f"dl_{file_name}")
     with b_col2:
+        # Direct open link in new tab to bypass any browser iframe restrictions
+        pdf_data_uri = f"data:application/pdf;base64,{b64_pdf}"
+        st.markdown(f'<a href="{pdf_data_uri}" target="_blank" style="display:inline-block; background-color:#2980b9; color:white; padding:0.6rem 1.2rem; border-radius:8px; font-weight:600; text-align:center; text-decoration:none; width:100%;">🌐 Öppna i ny flik / Open</a>', unsafe_allow_html=True)
+    with b_col3:
         print_html = f"""
         <script>
         function printPDF_{file_name.replace('.', '_')}() {{
@@ -259,12 +263,16 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     st.markdown("---")
     st.markdown("### 👁️ Förhandsgranskning / Preview")
     
-    pdf_iframe = f"""
-    <iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600px" style="border: 1px solid #dcdde1; border-radius: 8px;">
-        <p>Din webbläsare stöder inte inbäddade PDF-filer. Använd ladda ner-knappen ovan.</p>
-    </iframe>
+    # Robust multi-fallback object/embed container
+    pdf_display = f"""
+    <div style="text-align: center; border: 1px solid #dcdde1; border-radius: 8px; padding: 10px; background: #fff;">
+        <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="600px">
+            <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="600px" />
+            <p style="padding: 20px;">Din webbläsare blockerar direkt förhandsgranskning. Klicka på knappen ovan <b>"Öppna i ny flik"</b> för att se och skriva ut dokumentet perfekt.</p>
+        </object>
+    </div>
     """
-    st.markdown(pdf_iframe, unsafe_allow_html=True)
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
 # --- PDF GENERATOR (WITH FULL COMPANY INFORMATION ON EVERY DOCUMENT) ---
 def generate_pdf_from_record(record_type, data, comp_info):
