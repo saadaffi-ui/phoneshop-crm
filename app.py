@@ -205,15 +205,12 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Secure Authentication Login ---
+# --- Secure Authentication Login & Device Session Memory ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
 if not st.session_state['authenticated']:
-    try:
-        system_pin = st.secrets["auth"].get("SYSTEM_PIN", "30min2026")
-    except Exception:
-        system_pin = "30min2026"
+    system_pin = "Tunapark"
         
     st.markdown("<div class='login-container'>", unsafe_allow_html=True)
     st.markdown("### 🔒 System Login / Inloggning")
@@ -237,7 +234,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    st.success("✅ Dokumentet är redo för utskrift! / Document is ready!")
+    st.success("✅ Dokumentet är redo! / Document is ready!")
     
     b_col1, b_col2 = st.columns(2)
     with b_col1:
@@ -261,12 +258,13 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
 
     st.markdown("---")
     st.markdown("### 👁️ Förhandsgranskning / Preview")
-    pdf_display = f"""
-    <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="450px" style="border: 1px solid #ccc; border-radius: 8px;">
-        <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="450px" />
-    </object>
+    
+    pdf_iframe = f"""
+    <iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600px" style="border: 1px solid #dcdde1; border-radius: 8px;">
+        <p>Din webbläsare stöder inte inbäddade PDF-filer. Använd ladda ner-knappen ovan.</p>
+    </iframe>
     """
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    st.markdown(pdf_iframe, unsafe_allow_html=True)
 
 # --- PDF GENERATOR (WITH FULL COMPANY INFORMATION ON EVERY DOCUMENT) ---
 def generate_pdf_from_record(record_type, data, comp_info):
