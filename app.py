@@ -93,22 +93,27 @@ init_db()
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
-# --- Custom Styling ---
+# --- Custom Styling & Responsive CSS for Mobile / iPad / Laptop ---
 st.markdown("""
 <style>
     .stApp { background-color: #f4f6f9; color: #2c3e50; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     h1, h2, h3 { color: #1a252f; font-weight: 700; }
     div.stButton > button { border-radius: 8px; font-weight: 600; padding: 0.6rem 1.2rem; width: 100%; }
-    .dashboard-box { background-color: #eaf2f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; }
-    .repair-box { background-color: #e8f8f5; padding: 20px; border-radius: 10px; border-left: 6px solid #1abc9c; }
-    .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; }
-    .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; }
-    .sub-box { background-color: #fbeee6; padding: 20px; border-radius: 10px; border-left: 6px solid #d35400; }
-    .buyback-box { background-color: #eafaf1; padding: 20px; border-radius: 10px; border-left: 6px solid #27ae60; }
-    .campaign-box { background-color: #fcf3cf; padding: 20px; border-radius: 10px; border-left: 6px solid #f39c12; }
-    .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; }
-    .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; }
-    .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; }
+    
+    /* Responsive Box Container Padding */
+    .dashboard-box, .repair-box, .quote-box, .invoice-box, .sub-box, .buyback-box, .campaign-box, .preorder-box, .inventory-box, .search-box {
+        padding: 20px; border-radius: 10px; margin-bottom: 15px;
+    }
+    .dashboard-box { background-color: #eaf2f8; border-left: 6px solid #2980b9; }
+    .repair-box { background-color: #e8f8f5; border-left: 6px solid #1abc9c; }
+    .quote-box { background-color: #fef9e7; border-left: 6px solid #f1c40f; }
+    .invoice-box { background-color: #f5eef8; border-left: 6px solid #8e44ad; }
+    .sub-box { background-color: #fbeee6; border-left: 6px solid #d35400; }
+    .buyback-box { background-color: #eafaf1; border-left: 6px solid #27ae60; }
+    .campaign-box { background-color: #fcf3cf; border-left: 6px solid #f39c12; }
+    .preorder-box { background-color: #e8f6f3; border-left: 6px solid #16a085; }
+    .inventory-box { background-color: #fbfcfe; border-left: 6px solid #e67e22; }
+    .search-box { background-color: #ebedef; border-left: 6px solid #34495e; }
     .login-container { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 450px; margin: auto; border-top: 5px solid #e74c3c; }
     
     .whatsapp-btn {
@@ -124,6 +129,13 @@ st.markdown("""
         margin-top: 10px;
     }
     .whatsapp-btn:hover { background-color: #20ba5a; }
+
+    /* Mobile & iPad Viewport Optimizations */
+    @media only screen and (max-width: 1024px) {
+        .stColumns { flex-direction: column !important; }
+        div[data-testid="column"] { width: 100% !important; flex: 100% !important; min-width: auto !important; }
+        .stButton > button { width: 100% !important; margin-bottom: 8px; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -256,7 +268,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
         st.markdown(print_html, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 👁️ Förhandsgranskning / Preview (Svenska & English)")
+    st.markdown("### 👁️ Förhandsgranskning / Preview")
     pdf_display = f"""
     <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="500px" style="border: 1px solid #ccc; border-radius: 8px;">
         <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="500px" />
@@ -264,7 +276,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR (ALWAYS SWEDISH & ENGLISH) ---
+# --- PDF GENERATOR (DUAL COPY: STORE COPY & CUSTOMER COPY WITH TERMS CHECK) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -276,60 +288,42 @@ def generate_pdf_from_record(record_type, data, comp_info):
     currency = data.get('currency', 'SEK')
     moms_rate_str = data.get('moms_rate', '25%')
 
-    if os.path.exists("logo.png"):
-        try:
-            p.drawImage("logo.png", 50, height - 75, width=90, height=50, preserveAspectRatio=True, mask='auto')
-        except Exception:
-            pass
+    if record_type == "repair_receipt_dual":
+        # Draw Store Copy (Top Half) & Customer Copy (Bottom Half) on a single A4 page
+        for copy_title, y_offset in [("BUTIKSEXEMPLAR / STORE COPY", height - 30), ("KUNDEXEMPLAR / CUSTOMER COPY", height / 2 - 20)]:
+            p.setFont("Helvetica-Bold", 10)
+            p.drawString(50, y_offset, f"{comp['name']} - {copy_title}")
+            p.setFont("Helvetica", 8)
+            p.drawString(50, y_offset - 12, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
             
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(150, height - 40, comp["name"])
-    p.setFont("Helvetica", 9)
-    p.drawString(150, height - 55, f"Adress / Address: {comp['address']}")
-    p.drawString(150, height - 70, f"Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
-    
-    p.setLineWidth(1)
-    p.line(50, height - 85, width - 50, height - 85)
+            p.setFont("Helvetica-Bold", 9)
+            p.drawString(50, y_offset - 28, f"Inlämningskvitto ID: #{data.get('repair_id', '1')} | Datum: {data.get('created_at', '')}")
+            p.setFont("Helvetica", 8)
+            p.drawString(50, y_offset - 40, f"Kund: {data.get('customer_name', '')} | Tel: {data.get('phone', '')}")
+            p.drawString(300, y_offset - 40, f"Handläggare: {employee_name}")
+            p.drawString(50, y_offset - 52, f"Enhet: {data.get('device', '')} | IMEI: {data.get('imei', 'Ej angivet')}")
+            
+            p.setFillColorRGB(0.9, 0.9, 0.9)
+            p.rect(50, y_offset - 75, width - 100, 15, fill=1, stroke=0)
+            p.setFillColorRGB(0, 0, 0)
+            p.setFont("Helvetica-Bold", 8)
+            p.drawString(55, y_offset - 70, "Beskrivning av fel / Repair Description")
+            p.drawString(420, y_offset - 70, f"Pris ({currency})")
+            
+            p.setFont("Helvetica", 8)
+            p.drawString(55, y_offset - 90, f"- {data.get('issue', '')}")
+            price_val = data.get('price', 0)
+            p.drawString(420, y_offset - 90, f"{price_val:.2f} {currency}")
+            
+            p.setFont("Helvetica", 7.5)
+            p.drawString(50, y_offset - 110, "Garanti & Villkor: Garanti lämnas endast för utfört arbete/delar. Inget ansvar för förlorad data.")
+            p.drawString(50, y_offset - 122, "✓ Villkor godkända av kund / Terms & Conditions accepted by customer.")
+            p.drawString(50, y_offset - 138, "Signatur Kund / Customer Signature: _______________________")
 
-    if record_type == "repair_receipt":
-        p.setFont("Helvetica-Bold", 12)
-        p.drawString(50, height - 110, "INLÄMNINGSKVITTO / REPAIR RECEIPT")
-        p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Ärende ID / Repair ID: #{data.get('repair_id', '1')}")
-        p.drawString(300, height - 135, f"Datum / Date: {data.get('created_at', '')}")
-        p.drawString(50, height - 155, f"Kund / Customer: {data.get('customer_name', '')}")
-        p.drawString(300, height - 155, f"Handläggare / Agent: {employee_name}")
-        p.drawString(50, height - 175, f"Telefon / Phone: {data.get('phone', '')}")
-        p.drawString(300, height - 175, f"Enhet / Device: {data.get('device', '')}")
-        p.drawString(50, height - 195, f"IMEI / Serial: {data.get('imei', 'Ej angivet / None')}")
-        
-        p.setFillColorRGB(0.9, 0.9, 0.9)
-        p.rect(50, height - 235, width - 100, 20, fill=1, stroke=0)
-        p.setFillColorRGB(0, 0, 0)
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(60, height - 228, "Beskrivning av fel / Repair Description")
-        p.drawString(400, height - 228, f"Pris / Price ({currency})")
-        
-        p.setFont("Helvetica", 10)
-        y_pos = height - 265
-        p.drawString(60, y_pos, f"- {data.get('issue', '')}")
-        price_val = data.get('price', 0)
-        p.drawString(400, y_pos, f"{price_val:.2f} {currency}")
-        
-        p.line(50, height - 320, width - 50, height - 320)
-        p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 335, f"Att betala / Total: {price_val:.2f} {currency}")
-        p.setFont("Helvetica", 8)
-        p.drawString(300, height - 350, "(Inkl. moms / Incl. VAT)")
-        
-        p.setFont("Helvetica-Bold", 8)
-        p.drawString(50, height - 385, "Garanti & Villkor / Warranty & Terms:")
-        p.setFont("Helvetica", 7.5)
-        p.drawString(50, height - 398, "- Garanti ges endast för det arbete/delar som har utförts. / Warranty covers repaired parts.")
-        p.drawString(50, height - 410, "- Vi ansvarar ej för förlorad data. / No liability for lost data.")
-
-        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
-        p.drawString(50, 32, f"Org.nr: {comp['org_nr']} | Butik / Branch: {branch}")
+            if y_offset > height / 2:
+                p.setDash(3, 3)
+                p.line(50, height / 2, width - 50, height / 2)
+                p.setDash()
 
     elif record_type == "buyback_receipt":
         p.setFont("Helvetica-Bold", 12)
@@ -487,7 +481,7 @@ with tab1:
     c4.metric("📈 الأرباح / Profit", f"{total_prof:.2f} Kr")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: NEW REPAIR (WITH AUTO INVENTORY DEDUCTION) ---
+# --- TAB 2: NEW REPAIR (DUAL COPY & TERMS CHECKBOX) ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
     st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام / New Repair ({global_branch})")
@@ -532,8 +526,12 @@ with tab2:
     </div>
     """, unsafe_allow_html=True)
     
+    terms_accepted = st.checkbox("✅ أوافق على شروط الضمان وإصلاح الجهاز / Jag godkänner villkoren och garantivillkoren", key="rep_terms_checkbox")
+
     if st.button(t["save_repair"], type="primary", key="btn_save_rep"):
-        if c_name and c_phone and device and employee_name:
+        if not terms_accepted:
+            st.warning("⚠️ يجب الموافقة على الشروط والأحكام للمتابعة! / You must accept the terms and conditions!")
+        elif c_name and c_phone and device and employee_name:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -555,7 +553,7 @@ with tab2:
                 "phone": c_phone, "device": device, "imei": imei, "issue": issue,
                 "price": price, "employee": employee_name, "created_at": date.today().strftime('%Y-%m-%d')
             }
-            st.session_state['rep_receipt_pdf'] = generate_pdf_from_record("repair_receipt", rec_data, COMPANY_INFO)
+            st.session_state['rep_receipt_pdf'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
         else:
             st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
 
@@ -565,7 +563,7 @@ with tab2:
 
     if 'rep_receipt_pdf' in st.session_state:
         st.markdown("---")
-        display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto.pdf")
+        display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto_Dual.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 3: QUOTE ---
@@ -648,320 +646,46 @@ with tab4:
     inv_name = st.text_input("اسم العميل أو الشركة / Kund / Företag", key="inv_name")
     inv_address = st.text_input("عنوان الشارع والمدينة / Gatuadress, Postnummer Ort", value="Drottninggatan 1, 632 20 Eskilstuna", key="inv_addr_in")
     inv_phone = st.text_input(t["phone"], key="inv_phone")
-    inv_date = st.date_input("تاريخ الفاتورة / Fakturadatum", value=date.today(), key="inv_date")
-
-    st.markdown("---")
-    inv_curr = st.selectbox("العملة / Currency", ["SEK", "EUR"], key="inv_curr")
-    inv_moms = st.selectbox("نسبة الضريبة / Moms (VAT)", ["25%", "12%", "6%", "0%"], key="inv_moms_sel")
-
-    item_desc = st.text_input("وصف البند / Beskrivning", value="Reparation och reservdelar", key="inv_desc")
-    item_qty = st.number_input("الكمية / Antal", min_value=1, value=1, key="inv_qty")
-    item_price = st.number_input("السعر الإجمالي inkl. moms / Á-pris", min_value=0.0, step=50.0, key="inv_price")
     
-    total_amount = item_qty * item_price
-    moms_div = 1.25 if "25%" in inv_moms else (1.12 if "12%" in inv_moms else (1.06 if "6%" in inv_moms else 1.0))
-    netto = total_amount / moms_div if moms_div > 1 else total_amount
-    moms = total_amount - netto
-
-    st.markdown(f"**المبلغ الإجمالي / Att betala:** **{total_amount:.2f} {inv_curr}** (Netto: {netto:.2f} | Moms: {moms:.2f})")
-
     st.markdown("---")
-    st.subheader("💳 وسائل وسداد الدفع الإلكتروني المباشر")
-    pay_col1, pay_col2 = st.columns(2)
-    with pay_col1:
-        st.markdown(f"""
-        <div style="background-color: #e8f8f5; padding: 15px; border-radius: 8px; border: 1px solid #1abc9c;">
-            <b>📱 Swish Direct Pay</b><br>
-            • Nummer: <b>{comp['swish']}</b><br>
-            • Belopp: <b>{total_amount:.2f} {inv_curr}</b>
-        </div>
-        """, unsafe_allow_html=True)
+    st.subheader("💰 تفاصيل المبالغ والضرائب / Amount & VAT")
+    col_amt, col_moms_rate = st.columns(2)
+    with col_amt:
+        inv_amount = st.number_input("المبلغ الإجمالي (شامل الضريبة) / Total Amount (Incl. VAT)", min_value=0.0, step=50.0, value=500.0, key="inv_amt_in")
+    with col_moms_rate:
+        moms_rate_choice = st.selectbox("نسبة ضريبة القيمة المضافة / VAT Rate", ["25%", "12%", "6%", "0% (Momsfri)"], key="inv_moms_rate_sel")
 
-    with pay_col2:
-        payment_url = f"https://pay.30minutesphonefix.se/checkout?amount={total_amount}&ref={inv_no}"
-        st.markdown(f"""
-        <div style="background-color: #fef9e7; padding: 15px; border-radius: 8px; border: 1px solid #f1c40f;">
-            <b>💳 Card Payment Link (ShorePay)</b><br>
-            • Belopp: <b>{total_amount:.2f} {inv_curr}</b>
-        </div>
-        """, unsafe_allow_html=True)
-        st.info(f"🔗 **رابط الدفع:** `{payment_url}`")
+    item_desc = st.text_input("وصف الخدمة أو المنتج / Item Description", value="Mobilreparation / Reservdelar", key="inv_item_desc_in")
 
-    if inv_phone:
-        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Din faktura ({inv_no}) från 30 Minutes Phone Fix ({global_branch}) på {total_amount:.2f} {inv_curr} är klar. Betala via Swish ({comp['swish']}) eller kortlänk: {payment_url}"
-        st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+    rate_val = 0.25 if "25%" in moms_rate_choice else (0.12 if "12%" in moms_rate_choice else (0.06 if "6%" in moms_rate_choice else 0.0))
+    moms_val = float(inv_amount - (inv_amount / (1.0 + rate_val))) if rate_val > 0 else 0.0
 
-    st.markdown("---")
-    if st.button("حفظ وتوليد فاتورة PDF رسمية", type="primary", key="btn_save_inv"):
-        if inv_name and inv_emp:
+    st.markdown(f"**المبلغ الصافي (Netto):** {(inv_amount - moms_val):.2f} SEK | **قيمة الضريبة (Moms):** {moms_val:.2f} SEK")
+
+    if st.button("حفظ وتوليد الفاتورة PDF / Save & Generate Invoice PDF", type="primary", key="btn_save_inv"):
+        if inv_name and inv_emp and inv_no:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, total_amount, moms, inv_curr, inv_moms, inv_emp, created_at))
+            cursor.execute(
+                "INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, amount, moms, currency, moms_rate, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (global_branch, inv_name, inv_phone, inv_address, ref_no, inv_no, inv_amount, moms_val, "SEK", moms_rate_choice, inv_emp, created_at)
+            )
             conn.commit()
             conn.close()
             st.success("✅ تم حفظ الفاتورة بنجاح!")
-            
-            record_data = {"branch": global_branch, "customer_name": inv_name, "address": inv_address, "phone": inv_phone, "ref_no": ref_no, "invoice_no": inv_no, "amount": total_amount, "moms": moms, "currency": inv_curr, "moms_rate": inv_moms, "item_desc": item_desc, "employee": inv_emp, "created_at": inv_date.strftime('%Y-%m-%d')}
-            st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", record_data, COMPANY_INFO)
+
+            inv_data = {
+                "branch": global_branch, "invoice_no": inv_no, "created_id": date.today().strftime('%Y-%m-%d'),
+                "customer_name": inv_name, "address": inv_address, "phone": inv_phone, "item_desc": item_desc,
+                "ref_no": ref_no, "amount": inv_amount, "moms": moms_val, "currency": "SEK", "moms_rate": moms_rate_choice, "employee": inv_emp
+            }
+            st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+
+    if inv_phone:
+        inv_wa_text = f"Hej {inv_name or 'Kunden'}! Här är din faktura {inv_no} från 30 Minutes Phone Fix ({global_branch}). Att betala: {inv_amount:.2f} SEK. Swish: {comp['swish']}. Tack!"
+        st.markdown(f'<a href="{get_whatsapp_link(inv_phone, inv_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الفاتورة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     if 'inv_pdf' in st.session_state:
-        display_pdf_preview(st.session_state['inv_pdf'], file_name="invoice.pdf")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- TAB 5: SUBSCRIPTIONS ---
-with tab5:
-    st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
-    st.header(f"💳 الاشتراكات وضمان IMEI / Subscriptions ({global_branch})")
-    sub_emp = st.text_input(t["employee"], key="sub_emp")
-    sub_imei = st.text_input(t["imei"], key="sub_imei")
-    sub_device = st.text_input(t["device"], key="sub_device")
-    sub_name = st.text_input(t["customer_name"], key="sub_name")
-    sub_phone = st.text_input(t["phone"], key="sub_phone")
-
-    plan_choice = st.selectbox("Välj Plan / Subscription Plan", [
-        "Glass Protection Abonnemang (99 SEK/mån)",
-        "Case / Cover Abonnemang (399 SEK start + 99 SEK/mån)",
-        "Teknik, Mjukvara & Virus Help (99 SEK/mån)",
-        "Phone Shield Total Club (149 SEK/mån)"
-    ])
-    
-    sub_price = 149.0 if "Phone Shield Total Club" in plan_choice else 99.0
-    st.info("💡 **شروط الاشتراك / Terms:** مرتبط حصرياً برقم الـ IMEI للجهاز. فترة الإلغاء 3 أشهر.")
-    agree_terms = st.checkbox("Kunden godkänner villkoren / Customer agrees to terms")
-
-    if st.button("Spara Abonnemang / حفظ الاشتراك", type="primary", key="btn_save_sub"):
-        if sub_imei and sub_name and agree_terms and sub_emp:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            start_date = datetime.now().strftime("%Y-%m-%d")
-            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_choice, sub_price, sub_emp, start_date, created_at))
-            conn.commit()
-            conn.close()
-            st.success("✅ تم حفظ الاشتراك وربطه برقم الـ IMEI بنجاح!")
-        else:
-            st.warning("⚠️ أدخل اسم الموظف، رقم الـ IMEI، اسم العميل، والموافقة على الشروط.")
-
-    if sub_phone:
-        sub_wa_text = f"Hej {sub_name or 'Kunden'}! Tack för att du tecknade {plan_choice} för enhet {sub_device or 'mobil'} (IMEI: {sub_imei}) hos 30 Minutes Phone Fix ({global_branch}). Välkommen!"
-        st.markdown(f'<a href="{get_whatsapp_link(sub_phone, sub_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الاشتراك عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- TAB 6: BUYBACK ---
-with tab6:
-    st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
-    st.header(f"📱 شراء جهاز مستعمل وتحرير إيصال الشراء / Buyback & Purchase Receipt ({global_branch})")
-    bb_emp = st.text_input(t["employee"], key="bb_emp")
-    bb_name = st.text_input(t["customer_name"], key="bb_name")
-    bb_pnr = st.text_input("رقم الشخص أو الهوية / Personnummer (ÅÅMMDD-XXXX)", key="bb_pnr")
-    bb_phone = st.text_input(t["phone"], key="bb_phone")
-    bb_device = st.text_input(t["device"], key="bb_device")
-    bb_imei = st.text_input(t["imei"], key="bb_imei")
-    bb_price = st.number_input("مبلغ الشراء المدفوع للعميل / Purchase Price (SEK)", min_value=0.0, step=50.0, key="bb_price")
-
-    st.markdown("""
-    <div style="background-color: #d4edda; padding: 12px; border-radius: 8px; border-left: 5px solid #28a745; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
-        <b>📜 شروط إيصال شراء الأجهزة المستعملة (Buyback Terms):</b><br>
-        • يقر البائع بأن الجهاز هو ملكه الشرعي وغير مسروق، وأن جميع حسابات السحابة قد أُزيلت بالكامل.<br>
-        • هذا المستند يعد إيصالاً نقدياً رسمياً لشراء الأجهزة.
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button("حفظ وتوليد إيصال شراء مستعمل PDF", type="primary", key="btn_save_bb"):
-        if bb_name and bb_phone and bb_device and bb_imei and bb_emp:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO buybacks (branch, customer_name, phone, person_nummer, device, imei, purchase_price, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, bb_name, bb_phone, bb_pnr, bb_device, bb_imei, bb_price, bb_emp, created_at))
-            bb_db_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
-            st.success("✅ تم حفظ إيصال شراء الجهاز المستعمل بنجاح!")
-            
-            bb_data = {
-                "branch": global_branch, "buyback_id": str(bb_db_id), "customer_name": bb_name,
-                "person_nummer": bb_pnr, "phone": bb_phone, "device": bb_device, "imei": bb_imei,
-                "purchase_price": bb_price, "employee": bb_emp, "created_at": date.today().strftime('%Y-%m-%d')
-            }
-            st.session_state['bb_pdf'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
-        else:
-            st.warning("⚠️ يرجى تعبئة بيانات البائع، الجهاز، رقم الـ IMEI، واسم الموظف.")
-
-    if bb_phone:
-        bb_wa_text = f"Hej {bb_name or 'Säljaren'}! Tack för försäljningen av din {bb_device or 'enhet'} till 30 Minutes Phone Fix ({global_branch}). Utbetalt belopp: {bb_price} SEK."
-        st.markdown(f'<a href="{get_whatsapp_link(bb_phone, bb_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تأكيد الشراء عبر WhatsApp للبائع</a>', unsafe_allow_html=True)
-
-    if 'bb_pdf' in st.session_state:
-        st.markdown("---")
-        display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkops_Kvitto.pdf")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- TAB 7: CAMPAIGNS ---
-with tab7:
-    st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
-    st.header(f"🎄 عروض المواسم التسويقية (Black Friday & Christmas) - {global_branch}")
-    
-    camp_choice = st.selectbox("اختر الموسم التسويقي:", ["🖤 Black Friday Deals", "🎁 Christmas & New Year Specials"])
-    
-    if "Black Friday" in camp_choice:
-        st.markdown("### 🖤 Black Friday Kampanjer")
-        st.markdown("""
-        * **عرض الشاشات:** خصم 20% على تغيير الشاشات الأصلية مع حماية زجاج مجانية.
-        * **عرض البطاريات:** استبدال البطارية بسعر مخفض عند إصلاح عطل آخر.
-        """)
-        bf_phone = st.text_input("رقم هاتف العميل (مثال: 0701234567):", "")
-        bf_text = f"🖤 BLACK FRIDAY hos 30 Minutes Phone Fix! Få 20% rabatt på alla skärmbyten + gratis skärmskydd. Välkommen till {global_branch}! Tel: {comp['phone']}"
-        st.text_area("نص الرسالة الجاهز للإرسال:", value=bf_text)
-        
-        if bf_phone:
-            st.markdown(f'<a href="{get_whatsapp_link(bf_phone, bf_text)}" target="_blank" class="whatsapp-btn">💬 إرسال عروض Black Friday عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
-        else:
-            st.info("💡 أدخل رقم هاتف العميل أعلاه ليظهر لك زر الواتساب المباشر.")
-            
-    else:
-        st.markdown("### 🎁 Jul- & Nyårskampanjer")
-        st.markdown("""
-        * **بطاقات هدايا (Presentkort):** متوفرة بقيمة (500 SEK / 1000 SEK) للإصلاح أو شراء الملحقات.
-        * **حزمة الحماية:** خصم خاص 20% على إكسسوارات الحماية في شهر ديسمبر.
-        """)
-        ch_phone = st.text_input("رقم هاتف العميل (مثال: 0701234567):", "", key="ch_ph")
-        ch_text = f"God Jul och Gott Nytt År önskar 30 Minutes Phone Fix ({global_branch})! 🎄 Skydda din mobil med 20% rabatt på tillbehör under hela December. Välkommen!"
-        st.text_area("نص رسالة العيد للعميل:", value=ch_text, key="ch_tx")
-        
-        if ch_phone:
-            st.markdown(f'<a href="{get_whatsapp_link(ch_phone, ch_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تهنئة الكريسماس عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
-        else:
-            st.info("💡 أدخل رقم هاتف العميل أعلاه ليظهر لك زر الواتساب المباشر.")
-            
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- TAB 8: PRE-ORDERS ---
-with tab8:
-    st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
-    st.header(f"🛒 الطلب المسبق / Pre-orders ({global_branch})")
-    pre_emp = st.text_input(t["employee"], key="pre_emp")
-    pre_name = st.text_input(t["customer_name"], key="pre_name")
-    pre_phone = st.text_input(t["phone"], key="pre_phone")
-    pre_details = st.text_area("تفاصيل القطعة المطلوبة")
-    pre_deposit = st.number_input("العربون المدفوع (SEK)", min_value=0.0, step=50.0)
-
-    if st.button("حفظ الطلب المسبق", type="primary", key="btn_save_pre"):
-        if pre_name and pre_phone and pre_emp:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (global_branch, pre_name, pre_phone, pre_details, pre_deposit, pre_emp, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-            conn.commit()
-            conn.close()
-            st.success("✅ تم حفظ الطلب المسبق!")
-        else:
-            st.warning("⚠️ أدخل اسم الموظف والعميل ورقم الهاتف.")
-
-    if pre_phone:
-        pre_wa_text = f"Hej {pre_name or 'Kunden'}! Din förbeställning av {pre_details or 'del'} hos 30 Minutes Phone Fix ({global_branch}) har registrerats. Handpenning: {pre_deposit} SEK."
-        st.markdown(f'<a href="{get_whatsapp_link(pre_phone, pre_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الطلب المسبق عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- TAB 9: INVENTORY ---
-with tab9:
-    st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
-    st.header(f"📦 المخزون / Inventory ({global_branch})")
-    part_name = st.text_input("اسم القطعة (e.g. Skärmbyte (Original))")
-    part_qty = st.number_input("العدد المتوفر", min_value=0, step=1, value=5)
-    part_min = st.number_input("حد الإنذار الأدنى", min_value=0, step=1, value=2)
-    
-    if st.button("حفظ في المخزون", type="primary", key="btn_add_stock"):
-        if part_name:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (part_name, part_qty, part_min, global_branch))
-            conn.commit()
-            conn.close()
-            st.success("✅ تمت الإضافة للمخزون!")
-            st.rerun()
-        else:
-            st.warning("⚠️ أدخل اسم القطعة.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- TAB 10: SEARCH, ARCHIVE & REPAIR STATUS MANAGER ---
-with tab10:
-    st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 الأرشيف، البحث وإدارة حالة الإصلاحات / Archive & Repair Status ({global_branch})")
-    
-    search_cat = st.selectbox("اختر القسم", ["📝 الإصلاحات / Repairs", "💳 الاشتراكات / Subscriptions", "📱 شراء الأجهزة / Buybacks", "🛒 الطلبات / Pre-orders", "💡 عروض الأسعار / Quotes", "📄 الفواتير / Invoices", "📦 المخزون / Inventory"], key="arch_cat")
-    search_term = st.text_input("🔎 بحث بالاسم أو الهاتف أو الـ IMEI", "", key="arch_term").lower()
-    
-    table_map = {
-        "📝 الإصلاحات / Repairs": "repairs", "💳 الاشتراكات / Subscriptions": "subscriptions",
-        "📱 شراء الأجهزة / Buybacks": "buybacks", "🛒 الطلبات / Pre-orders": "preorders",
-        "💡 عروض الأسعار / Quotes": "quotes", "📄 الفواتير / Invoices": "invoices",
-        "📦 المخزون / Inventory": "inventory"
-    }
-    cur_tbl = table_map[search_cat]
-    
-    conn = get_db_connection()
-    try:
-        df_search = pd.read_sql_query(f"SELECT * FROM {cur_tbl} WHERE branch = ? ORDER BY id DESC", conn, params=(global_branch,))
-    except Exception:
-        df_search = pd.DataFrame()
-    conn.close()
-    
-    if not df_search.empty:
-        if search_term:
-            mask = df_search.astype(str).apply(lambda row: row.str.lower().str.contains(search_term).any(), axis=1)
-            filtered_df = df_search[mask]
-        else:
-            filtered_df = df_search
-            
-        st.dataframe(filtered_df, use_container_width=True)
-        
-        # --- قسم تحديث حالة الإصلاحات حصرياً ---
-        if cur_tbl == "repairs":
-            st.markdown("---")
-            st.subheader("⚙️ تحديث حالة جهاز تحت الإصلاح / Update Repair Status")
-            
-            repair_ids = filtered_df['id'].tolist() if 'id' in filtered_df.columns else []
-            if repair_ids:
-                selected_repair_id = st.selectbox("اختر رقم معرف الإصلاح (Repair ID) للتحديث:", repair_ids, key="upd_rep_id")
-                
-                conn = get_db_connection()
-                cur = conn.cursor()
-                cur.execute("SELECT * FROM repairs WHERE id = ?", (selected_repair_id,))
-                repair_record = cur.fetchone()
-                conn.close()
-                
-                if repair_record:
-                    st.info(f"📌 **العميل:** {repair_record['customer_name']} | **الجهاز:** {repair_record['device']} | **الحالة الحالية:** `{repair_record['status']}`")
-                    
-                    status_options = [
-                        "Under behandling (قيد الفحص والإصلاح)",
-                        "Väntar på reservdel (في انتظار قطع الغيار)",
-                        "Klar för avhämtning (جاهز للاستلام)",
-                        "Utlämnad / Avslutad (تم التسليم للعميل)"
-                    ]
-                    
-                    new_status = st.selectbox("اختر الحالة الجديدة:", status_options, key="new_status_sel")
-                    
-                    if st.button("💾 تحديث الحالة في النظام", type="primary", key="btn_update_status"):
-                        conn = get_db_connection()
-                        cur = conn.cursor()
-                        cur.execute("UPDATE repairs SET status = ? WHERE id = ?", (new_status, selected_repair_id))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"✅ تم تحديث حالة الجهاز رقم #{selected_repair_id} بنجاح إلى: **{new_status}**")
-                        st.rerun()
-                        
-                    cust_phone = repair_record['phone']
-                    cust_name = repair_record['customer_name']
-                    dev_name = repair_record['device']
-                    
-                    status_wa_text = f"Hej {cust_name}! Status för din enhet ({dev_name}) hos 30 Minutes Phone Fix ({global_branch}) har uppdaterats till: {new_status}. Välkommen!"
-                    st.markdown(f'<a href="{get_whatsapp_link(cust_phone, status_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تحديث الحالة عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
-            else:
-                st.warning("لا توجد سجلات إصلاح مطابقة لتحديث حالتها.")
-    else:
-        st.info("لا توجد بيانات مطابقة في هذا القسم.")
-        
+        display_pdf_preview(st.session_state['inv_pdf'], file_name=f"{inv_no}.pdf")
     st.markdown("</div>", unsafe_allow_html=True)
