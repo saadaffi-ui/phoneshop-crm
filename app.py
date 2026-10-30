@@ -268,7 +268,7 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf"):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR ---
+# --- PDF GENERATOR (WITH FULL COMPANY INFORMATION ON EVERY DOCUMENT) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -282,21 +282,22 @@ def generate_pdf_from_record(record_type, data, comp_info):
 
     if record_type == "repair_receipt_dual":
         def draw_repair_section(start_y, copy_title):
-            p.setFont("Helvetica-Bold", 10)
-            p.drawString(50, start_y, f"{comp['name']} - {copy_title}")
-            p.setFont("Helvetica", 8)
-            p.drawString(50, start_y - 12, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+            p.setFont("Helvetica-Bold", 9)
+            p.drawString(50, start_y, f"{comp['name']} ({copy_title}) - Butik: {branch}")
+            p.setFont("Helvetica", 7.5)
+            p.drawString(50, start_y - 11, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+            p.drawString(50, start_y - 21, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
             
             p.setFont("Helvetica-Bold", 9)
-            p.drawString(50, start_y - 28, f"ÄRENDEKVITTO / REPAIR RECEIPT #{data.get('repair_id', '1')}")
+            p.drawString(50, start_y - 36, f"ÄRENDEKVITTO / REPAIR RECEIPT #{data.get('repair_id', '1')}")
             p.setFont("Helvetica", 8)
-            p.drawString(320, start_y - 28, f"Datum: {data.get('created_at', '')}")
+            p.drawString(320, start_y - 36, f"Datum: {data.get('created_at', '')}")
             
-            p.drawString(50, start_y - 42, f"Kund: {data.get('customer_name', '')}")
-            p.drawString(320, start_y - 42, f"Handläggare: {employee_name}")
-            p.drawString(50, start_y - 56, f"Tel: {data.get('phone', '')}")
-            p.drawString(320, start_y - 56, f"Enhet: {data.get('device', '')}")
-            p.drawString(50, start_y - 70, f"IMEI: {data.get('imei', 'Ej angivet')}")
+            p.drawString(50, start_y - 48, f"Kund: {data.get('customer_name', '')}")
+            p.drawString(320, start_y - 48, f"Handläggare: {employee_name}")
+            p.drawString(50, start_y - 60, f"Tel: {data.get('phone', '')}")
+            p.drawString(320, start_y - 60, f"Enhet: {data.get('device', '')}")
+            p.drawString(50, start_y - 72, f"IMEI: {data.get('imei', 'Ej angivet')}")
             
             p.setFillColorRGB(0.92, 0.92, 0.92)
             p.rect(50, start_y - 92, width - 100, 14, fill=1, stroke=0)
@@ -314,99 +315,133 @@ def generate_pdf_from_record(record_type, data, comp_info):
             p.drawString(320, start_y - 124, f"Att betala / Total: {price_val:.2f} {currency} (Inkl. moms)")
             
             p.setFont("Helvetica", 7)
-            p.drawString(50, start_y - 140, "Villkor: Garanti gäller endast utfört arbete. Vi ansvarar ej för förlorad data.")
-            p.drawString(50, start_y - 150, f"Godkänt av kund / Terms Accepted (Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']})")
-            p.drawString(320, start_y - 150, "Kundens underskrift: _________________")
+            p.drawString(50, start_y - 138, "Villkor: Garanti gäller endast utfört arbete. Vi ansvarar ej för förlorad data.")
+            p.drawString(50, start_y - 148, "Godkänt av kund / Terms Accepted")
+            p.drawString(320, start_y - 148, "Kundens underskrift: _________________")
 
-        draw_repair_section(height - 40, "BUTIKENS KOPIA / STORE COPY")
+        draw_repair_section(height - 30, "BUTIKENS KOPIA / STORE COPY")
         p.setDash(3, 3)
         p.line(30, height / 2, width - 30, height / 2)
         p.setDash()
-        draw_repair_section(height / 2 - 20, "KUNDENS KOPIA / CUSTOMER COPY")
+        draw_repair_section(height / 2 - 15, "KUNDENS KOPIA / CUSTOMER COPY")
 
     elif record_type == "buyback_receipt":
         p.setFont("Helvetica-Bold", 12)
-        p.drawString(50, height - 110, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT")
-        p.setFont("Helvetica", 10)
-        p.drawString(50, height - 135, f"Kvitto ID: #{data.get('buyback_id', '1')}")
-        p.drawString(300, height - 135, f"Datum: {data.get('created_at', '')}")
-        p.drawString(50, height - 155, f"Säljare: {data.get('customer_name', '')}")
-        p.drawString(300, height - 155, f"Personnummer: {data.get('person_nummer', 'Ej angivet')}")
-        p.drawString(50, height - 175, f"Telefon: {data.get('phone', '')}")
-        p.drawString(300, height - 175, f"Handläggare: {employee_name}")
-        p.drawString(50, height - 195, f"Enhet: {data.get('device', '')}")
-        p.drawString(300, height - 195, f"IMEI: {data.get('imei', '')}")
+        p.drawString(50, height - 40, comp["name"])
+        p.setFont("Helvetica", 8)
+        p.drawString(50, height - 52, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+        p.drawString(50, height - 64, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(50, height - 95, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT")
+        p.setFont("Helvetica", 9)
+        p.drawString(50, height - 120, f"Kvitto ID: #{data.get('buyback_id', '1')}")
+        p.drawString(300, height - 120, f"Datum: {data.get('created_at', '')}")
+        p.drawString(50, height - 140, f"Säljare: {data.get('customer_name', '')}")
+        p.drawString(300, height - 140, f"Personnummer: {data.get('person_nummer', 'Ej angivet')}")
+        p.drawString(50, height - 160, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 160, f"Handläggare: {employee_name}")
+        p.drawString(50, height - 180, f"Enhet: {data.get('device', '')}")
+        p.drawString(300, height - 180, f"IMEI: {data.get('imei', '')}")
         
         price_val = data.get('purchase_price', 0)
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(300, height - 325, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
-        p.drawString(50, 45, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(300, height - 260, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
+
+        p.setFont("Helvetica", 8)
+        p.drawString(50, height - 300, "Säljaren intygar att enheten är hens egendom och att alla konton (iCloud/Google) är raderade.")
+        p.drawString(50, height - 340, "Säljarens underskrift: ________________________")
+
+        p.setFont("Helvetica", 8)
+        p.drawString(50, 45, f"Företag: {comp['name']} | Org.nr: {comp['org_nr']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+
+    elif record_type == "quote":
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(50, height - 40, comp["name"])
+        p.setFont("Helvetica", 8)
+        p.drawString(50, height - 52, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+        p.drawString(50, height - 64, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(50, height - 95, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
+        p.setFont("Helvetica", 9)
+        p.drawString(50, height - 120, f"Datum: {data.get('created_at', '')}")
+        p.drawString(300, height - 120, f"Handläggare: {employee_name}")
+        p.drawString(50, height - 140, f"Kund: {data.get('customer_name', '')}")
+        p.drawString(50, height - 160, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 140, f"Enhet: {data.get('device', '')}")
+        
+        total_val = data.get('total', 0)
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(300, height - 260, f"Att betala / Total: {total_val:.2f} {currency} (Inkl. moms)")
+
+        p.setFont("Helvetica", 8)
+        p.drawString(50, 45, f"Företag: {comp['name']} | Org.nr: {comp['org_nr']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     elif record_type == "invoice":
         p.setFont("Helvetica-Bold", 16)
-        p.drawString(50, height - 50, "FAKTURA")
+        p.drawString(50, height - 45, "FAKTURA")
         
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(400, height - 40, comp["name"])
+        p.drawString(380, height - 38, comp["name"])
         p.setFont("Helvetica", 8)
-        p.drawString(400, height - 52, comp["address"])
-        p.drawString(400, height - 64, f"Org.nr: {comp['org_nr']}")
-        p.drawString(400, height - 76, f"Tel: {comp['phone']}")
-        p.drawString(400, height - 88, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(380, height - 50, comp["address"])
+        p.drawString(380, height - 62, f"Org.nr: {comp['org_nr']} | Tel: {comp['phone']}")
+        p.drawString(380, height - 74, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
         p.setLineWidth(0.5)
-        p.line(50, height - 105, width - 50, height - 105)
+        p.line(50, height - 90, width - 50, height - 90)
 
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(50, height - 125, "Fakturainformation")
+        p.drawString(50, height - 110, "Fakturainformation")
         p.setFont("Helvetica", 9)
-        p.drawString(50, height - 140, f"Fakturanummer: {data.get('invoice_no', '')}")
-        p.drawString(50, height - 155, f"Fakturadatum: {data.get('created_at', '')}")
-        p.drawString(50, height - 170, f"Förfallodatum: {data.get('due_date', '')}")
-        p.drawString(50, height - 185, f"Vår referens: {employee_name}")
-        p.drawString(50, height - 200, f"Er referens: {data.get('ref_no', 'Ej angiven')}")
+        p.drawString(50, height - 125, f"Fakturanummer: {data.get('invoice_no', '')}")
+        p.drawString(50, height - 140, f"Fakturadatum: {data.get('created_at', '')}")
+        p.drawString(50, height - 155, f"Förfallodatum: {data.get('due_date', '')}")
+        p.drawString(50, height - 170, f"Vår referens: {employee_name}")
+        p.drawString(50, height - 185, f"Er referens: {data.get('ref_no', 'Ej angiven')}")
 
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(320, height - 125, "Köpare / Kund")
+        p.drawString(320, height - 110, "Köpare / Kund")
         p.setFont("Helvetica", 9)
-        p.drawString(320, height - 140, f"{data.get('customer_name', '')}")
-        p.drawString(320, height - 155, f"{data.get('address', '')}")
-        p.drawString(320, height - 170, f"Tel: {data.get('phone', '')}")
+        p.drawString(320, height - 125, f"{data.get('customer_name', '')}")
+        p.drawString(320, height - 140, f"{data.get('address', '')}")
+        p.drawString(320, height - 155, f"Tel: {data.get('phone', '')}")
 
         p.setFillColorRGB(0.9, 0.9, 0.9)
-        p.rect(50, height - 235, width - 100, 18, fill=1, stroke=0)
+        p.rect(50, height - 215, width - 100, 18, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
         p.setFont("Helvetica-Bold", 8)
-        p.drawString(60, height - 228, "Artikel / Beskrivning")
-        p.drawString(320, height - 228, "Moms")
-        p.drawString(390, height - 228, f"Pris ({currency})")
-        p.drawString(470, height - 228, f"Totalt ({currency})")
+        p.drawString(60, height - 208, "Artikel / Beskrivning")
+        p.drawString(320, height - 208, "Moms")
+        p.drawString(390, height - 208, f"Pris ({currency})")
+        p.drawString(470, height - 208, f"Totalt ({currency})")
 
         amount_val = data.get('amount', 0)
         moms_val = data.get('moms', 0)
         netto_val = amount_val - moms_val
 
         p.setFont("Helvetica", 9)
-        p.drawString(60, height - 260, data.get('item_desc', 'Reparation och reservdelar'))
-        p.drawString(320, height - 260, moms_rate_str)
-        p.drawString(390, height - 260, f"{netto_val:.2f}")
-        p.drawString(470, height - 260, f"{amount_val:.2f}")
+        p.drawString(60, height - 240, data.get('item_desc', 'Reparation och reservdelar'))
+        p.drawString(320, height - 240, moms_rate_str)
+        p.drawString(390, height - 240, f"{netto_val:.2f}")
+        p.drawString(470, height - 240, f"{amount_val:.2f}")
 
-        p.line(320, height - 330, width - 50, height - 330)
+        p.line(320, height - 300, width - 50, height - 300)
         p.setFont("Helvetica", 9)
-        p.drawString(320, height - 345, "Netto / Exkl. moms:")
-        p.drawString(470, height - 345, f"{netto_val:.2f} {currency}")
+        p.drawString(320, height - 315, "Netto / Exkl. moms:")
+        p.drawString(470, height - 315, f"{netto_val:.2f} {currency}")
         
-        p.drawString(320, height - 362, f"Moms ({moms_rate_str}):")
-        p.drawString(470, height - 362, f"{moms_val:.2f} {currency}")
+        p.drawString(320, height - 332, f"Moms ({moms_rate_str}):")
+        p.drawString(470, height - 332, f"{moms_val:.2f} {currency}")
 
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(320, height - 385, "Att betala / Total:")
-        p.drawString(470, height - 385, f"{amount_val:.2f} {currency}")
+        p.drawString(320, height - 355, "Att betala / Total:")
+        p.drawString(470, height - 355, f"{amount_val:.2f} {currency}")
 
         p.setFont("Helvetica-Bold", 8)
-        p.drawString(50, 60, f"Betalning sker via Bankgiro: {comp['bankgiro']} eller Swish: {comp['swish']}.")
-        p.drawString(50, 48, f"Innehar F-skattsedel | Org.nr: {comp['org_nr']}")
+        p.drawString(50, 45, f"{comp['name']} | Adress: {comp['address']} | Org.nr: {comp['org_nr']}")
+        p.drawString(50, 33, f"Bankgiro: {comp['bankgiro']} | Swish: {comp['swish']} | Innehar F-skattsedel")
 
     p.showPage()
     p.save()
@@ -841,9 +876,8 @@ with tab10:
     conn = get_db_connection()
     q_like = f"%{search_query}%" if search_query else "%"
     
-    # Function to filter dataframes based on user checklist
     def filter_df_columns(df, column_map):
-        cols_to_keep = ['id']  # ID is always kept for selection
+        cols_to_keep = ['id']
         for key_col, is_checked in column_map.items():
             if is_checked and key_col in df.columns:
                 cols_to_keep.append(key_col)
