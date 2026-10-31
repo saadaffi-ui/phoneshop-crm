@@ -5,86 +5,11 @@ import urllib.parse
 from datetime import datetime, date, timedelta
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 import io
 import pandas as pd
 import base64
 
-# --- Optimized Responsive Digital Signature Pad Component (Tailored for iPads & Mobile) ---
-def render_signature_pad(key_prefix="sig"):
-    html_code = f"""
-    <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 10px;">
-        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #1e293b;">✍️ توقع هنا بإصبعك أو بالقلم (Customer Digital Signature - Touch / Pen / Mouse)</p>
-        <canvas id="canvas_{key_prefix}" width="500" height="150" style="border: 2px dashed #94a3b8; border-radius: 6px; background-color: #f8fafc; cursor: crosshair; width: 100%; max-width: 500px; touch-action: none;"></canvas>
-        <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <button type="button" onclick="clearCanvas_{key_prefix}()" style="background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 600;">🗑️ مسح التوقيع / Clear</button>
-            <span id="status_{key_prefix}" style="font-size: 12px; color: #16a34a; font-weight: 600;"></span>
-        </div>
-    </div>
-    <script>
-        var canvas_{key_prefix} = document.getElementById('canvas_{key_prefix}');
-        var ctx_{key_prefix} = canvas_{key_prefix}.getContext('2d');
-        var drawing = false;
-
-        ctx_{key_prefix}.lineWidth = 2.5;
-        ctx_{key_prefix}.lineCap = 'round';
-        ctx_{key_prefix}.lineJoin = 'round';
-        ctx_{key_prefix}.strokeStyle = "#0f172a";
-
-        function getPos(e) {
-            var rect = canvas_{key_prefix}.getBoundingClientRect();
-            var clientX = e.clientX || (e.touches && e.touches[0].clientX);
-            var clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
-        }
-
-        function startDraw(e) {
-            drawing = true;
-            var p = getPos(e);
-            ctx_{key_prefix}.beginPath();
-            ctx_{key_prefix}.moveTo(p.x, p.y);
-            if (e.type === 'touchstart') e.preventDefault();
-        }
-
-        function draw(e) {
-            if (!drawing) return;
-            var p = getPos(e);
-            ctx_{key_prefix}.lineTo(p.x, p.y);
-            ctx_{key_prefix}.stroke();
-            if (e.type === 'touchmove') e.preventDefault();
-        }
-
-        function stopDraw(e) {
-            if (!drawing) return;
-            drawing = false;
-            var dataURL = canvas_{key_prefix}.toDataURL("image/png");
-            
-            // Push data URL to Streamlit session via hidden mechanism or element storage
-            window.parent.document.dispatchEvent(new CustomEvent('streamlit:set_signature', {{ detail: {{ key: '{key_prefix}', data: dataURL }} }}));
-            document.getElementById('status_{key_prefix}').innerText = "✅ تم التقاط وتأكيد التوقيع بنجاح";
-        }
-
-        canvas_{key_prefix}.addEventListener('mousedown', startDraw);
-        canvas_{key_prefix}.addEventListener('mousemove', draw);
-        canvas_{key_prefix}.addEventListener('mouseup', stopDraw);
-        canvas_{key_prefix}.addEventListener('mouseleave', stopDraw);
-
-        canvas_{key_prefix}.addEventListener('touchstart', startDraw, {{passive: false}});
-        canvas_{key_prefix}.addEventListener('touchmove', draw, {{passive: false}});
-        canvas_{key_prefix}.addEventListener('touchend', stopDraw);
-
-        function clearCanvas_{key_prefix}() {
-            ctx_{key_prefix}.clearRect(0, 0, canvas_{key_prefix}.width, canvas_{key_prefix}.height);
-            document.getElementById('status_{key_prefix}').innerText = "";
-        }
-    </script>
-    """
-    return html_code
-
-# --- Database Setup & Migration ---
+# --- Local SQLite Database Setup & Migration ---
 def get_db_connection():
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -98,8 +23,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
             device TEXT, imei TEXT, issue TEXT, price REAL,
-            cost_price REAL, status TEXT, employee TEXT,
-            warranty_period TEXT, terms_accepted INTEGER, signature_b64 TEXT, created_at TEXT
+            status TEXT, employee TEXT, created_at TEXT, signature TEXT
         )
     """)
     cursor.execute("""
@@ -107,63 +31,70 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT,
             device TEXT, imei TEXT, plan_type TEXT,
-            price REAL, employee TEXT, start_date TEXT, end_date TEXT, created_at TEXT
+            price REAL, employee TEXT, start_date TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS buybacks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, person_nummer TEXT,
-            id_verified INTEGER, device TEXT, imei TEXT, purchase_price REAL,
-            condition_grade TEXT, employee TEXT, signature_b64 TEXT, created_at TEXT
+            device TEXT, imei TEXT, purchase_price REAL, employee TEXT, created_at TEXT, signature TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS preorders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT,
-            item_details TEXT, deposit REAL, estimated_delivery TEXT,
-            employee TEXT, status TEXT, created_at TEXT
+            item_details TEXT, deposit REAL, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS quotes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             branch TEXT, customer_name TEXT, phone TEXT, email TEXT,
-            device TEXT, issues TEXT, total REAL, profit REAL,
-            valid_until TEXT, employee TEXT, created_at TEXT
+            device TEXT, issues TEXT, total REAL, profit REAL, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch TEXT, customer_name TEXT, phone TEXT, address TEXT,
-            org_no_cust TEXT, ref_no TEXT, invoice_no TEXT,
-            item_desc TEXT, amount REAL, moms REAL, currency TEXT,
-            moms_rate TEXT, payment_terms TEXT, due_date TEXT, employee TEXT, created_at TEXT
+            branch TEXT, customer_name TEXT, phone TEXT, address TEXT, ref_no TEXT, invoice_no TEXT,
+            item_desc TEXT, amount REAL, moms REAL, currency TEXT, moms_rate TEXT, employee TEXT, created_at TEXT
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            part_name TEXT, category TEXT, stock_qty INTEGER, min_limit INTEGER,
-            purchase_cost REAL, selling_price REAL, branch TEXT
+            part_name TEXT, stock_qty INTEGER, min_limit INTEGER, branch TEXT
         )
     """)
     
-    for tbl, cols in [
-        ("repairs", ["cost_price REAL", "warranty_period TEXT", "terms_accepted INTEGER", "signature_b64 TEXT"]),
-        ("buybacks", ["id_verified INTEGER", "condition_grade TEXT", "signature_b64 TEXT"]),
-        ("quotes", ["valid_until TEXT"]),
-        ("invoices", ["org_no_cust TEXT", "payment_terms TEXT", "due_date TEXT"]),
-        ("preorders", ["estimated_delivery TEXT", "status TEXT"]),
-        ("inventory", ["category TEXT", "purchase_cost REAL", "selling_price REAL"])
-    ]:
-        for col in cols:
-            try:
-                cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN {col}")
-            except Exception:
-                pass
+    try:
+        cursor.execute("ALTER TABLE quotes ADD COLUMN profit REAL")
+    except Exception:
+        pass
+        
+    for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices", "buybacks"]:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN employee TEXT")
+        except Exception:
+            pass
+
+    for col in ["address", "ref_no", "item_desc", "moms", "currency", "moms_rate"]:
+        try:
+            cursor.execute(f"ALTER TABLE invoices ADD COLUMN {col} TEXT")
+        except Exception:
+            pass
+
+    try:
+        cursor.execute("ALTER TABLE repairs ADD COLUMN signature TEXT")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE buybacks ADD COLUMN signature TEXT")
+    except Exception:
+        pass
 
     conn.commit()
     conn.close()
@@ -175,17 +106,20 @@ st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_ic
 # --- Custom Responsive Styling ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f1f5f9; color: #1e293b; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    h1, h2, h3 { color: #0f172a; font-weight: 700; }
+    .stApp { background-color: #f4f6f9; color: #2c3e50; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    h1, h2, h3 { color: #1a252f; font-weight: 700; }
     div.stButton > button { border-radius: 8px; font-weight: 600; padding: 0.6rem 1.2rem; width: 100%; }
-    .dashboard-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #2563eb; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .repair-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #0d9488; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .quote-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #d97706; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .invoice-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #7c3aed; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .sub-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #ea580c; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .buyback-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #16a34a; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .search-box { background-color: #ffffff; padding: 22px; border-radius: 12px; border-left: 6px solid #475569; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px;}
-    .login-container { background: #ffffff; padding: 35px; border-radius: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); max-width: 450px; margin: auto; border-top: 6px solid #dc2626; }
+    .dashboard-box { background-color: #eaf2f8; padding: 20px; border-radius: 10px; border-left: 6px solid #2980b9; margin-bottom: 15px;}
+    .repair-box { background-color: #e8f8f5; padding: 20px; border-radius: 10px; border-left: 6px solid #1abc9c; margin-bottom: 15px;}
+    .quote-box { background-color: #fef9e7; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; margin-bottom: 15px;}
+    .invoice-box { background-color: #f5eef8; padding: 20px; border-radius: 10px; border-left: 6px solid #8e44ad; margin-bottom: 15px;}
+    .sub-box { background-color: #fbeee6; padding: 20px; border-radius: 10px; border-left: 6px solid #d35400; margin-bottom: 15px;}
+    .buyback-box { background-color: #eafaf1; padding: 20px; border-radius: 10px; border-left: 6px solid #27ae60; margin-bottom: 15px;}
+    .campaign-box { background-color: #fcf3cf; padding: 20px; border-radius: 10px; border-left: 6px solid #f39c12; margin-bottom: 15px;}
+    .preorder-box { background-color: #e8f6f3; padding: 20px; border-radius: 10px; border-left: 6px solid #16a085; margin-bottom: 15px;}
+    .inventory-box { background-color: #fbfcfe; padding: 20px; border-radius: 10px; border-left: 6px solid #e67e22; margin-bottom: 15px;}
+    .search-box { background-color: #ebedef; padding: 20px; border-radius: 10px; border-left: 6px solid #34495e; margin-bottom: 15px;}
+    .login-container { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 450px; margin: auto; border-top: 5px solid #e74c3c; }
     
     .whatsapp-btn {
         display: inline-block;
@@ -209,60 +143,54 @@ st.markdown("""
 
 COMPANY_INFO = {
     "Eskilstuna": {
-        "name": "30 MINUTES PHONE FIX AB",
+        "name": "30 MINUTES PHONE FIX",
         "address": "Gunborg Nymans Väg 2, 632 32 Eskilstuna",
         "phone": "0700122444",
-        "org_nr": "559370-8034",
-        "vat_nr": "SE559370803401",
+        "org_nr": "5593708034",
         "swish": "123 407 16 76",
-        "bankgiro": "5837-0354",
-        "f_skatt": "Godkänd för F-skatt",
-        "email": "info@30phonefix.se"
+        "bankgiro": "5837-0354"
     },
     "Västerås": {
-        "name": "30 MINUTES PHONE FIX AB",
-        "address": "Stora Gatan 12, 722 12 Västerås",
+        "name": "30 MINUTES PHONE FIX",
+        "address": "Västerås",
         "phone": "0700122444",
         "org_nr": "559537-1724",
-        "vat_nr": "SE559537172401",
         "swish": "123 339 15 47",
-        "bankgiro": "5837-0354",
-        "f_skatt": "Godkänd för F-skatt",
-        "email": "vasteras@30phonefix.se"
+        "bankgiro": "5837-0354"
     }
 }
 
 TRANSLATIONS = {
     "Svenska": {
-        "tab_dash": "📊 Översikt (Dashboard)", "tab_repair": "🛠️ Ny reparation", "tab_quote": "💡 Offert",
-        "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_buyback": "📱 Inköp Begagnat",
-        "tab_campaign": "🎄 Kampanjer", "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lagerhantering", "tab_search": "🔍 Sök Alla Kundfiler",
-        "employee": "Handläggare / Säljare", "phone": "Telefonnummer", "customer_name": "Kundens Namn / Företag",
-        "email": "E-postadress", "device": "Enhet / Modell", "imei": "IMEI / Serienummer",
-        "price": "Pris inkl. moms (SEK)", "issue": "Beskrivning av fel / Utfört arbete", "save_repair": "Registrera Ärende & Skapa Kvitto (Två delar)", "success_repair": "✅ Ärendet har registrerats!"
+        "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ Nytt Ärende", "tab_quote": "💡 Kostnadsförslag",
+        "tab_invoice": "📄 Faktura", "tab_sub": "💳 Abonnemang", "tab_buyback": "📱 Köp av Begagnad",
+        "tab_campaign": "🎄 Kampanjer", "tab_preorder": "🛒 Förbeställning", "tab_stock": "📦 Lager", "tab_search": "🔍 Sök & Ärenden",
+        "employee": "Handläggare / Säljare", "phone": "Telefonnummer", "customer_name": "Kundens namn",
+        "email": "E-post (Valfritt)", "device": "Enhet / Modell", "imei": "IMEI / Serienummer",
+        "price": "Pris", "issue": "Beskrivning av fel", "save_repair": "Spara Ärende", "success_repair": "✅ Ärendet har sparats!"
     },
     "English": {
-        "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ New Repair", "tab_quote": "💡 Price Quotation",
-        "tab_invoice": "📄 Official Invoice", "tab_sub": "💳 Subscriptions", "tab_buyback": "📱 Buyback",
-        "tab_campaign": "🎄 Campaigns", "tab_preorder": "🛒 Pre-orders", "tab_stock": "📦 Stock Inventory", "tab_search": "🔍 Search All Customer Files",
-        "employee": "Employee Name", "phone": "Phone Number", "customer_name": "Customer Name / Company",
-        "email": "Email Address", "device": "Device Model", "imei": "IMEI / Serial Number",
-        "price": "Price incl. VAT (SEK)", "issue": "Issue Description", "save_repair": "Register Order & Dual Receipt", "success_repair": "✅ Order registered successfully!"
+        "tab_dash": "📊 Dashboard", "tab_repair": "🛠️ New Repair", "tab_quote": "💡 Quote",
+        "tab_invoice": "📄 Invoice", "tab_sub": "💳 Subscriptions", "tab_buyback": "📱 Buyback / Used",
+        "tab_campaign": "🎄 Campaigns", "tab_preorder": "🛒 Pre-order", "tab_stock": "📦 Inventory", "tab_search": "🔍 Search & Repairs",
+        "employee": "Employee Name", "phone": "Phone Number", "customer_name": "Customer Name",
+        "email": "Email (Optional)", "device": "Device Model", "imei": "IMEI / Serial Number",
+        "price": "Price", "issue": "Issue Description", "save_repair": "Save Repair", "success_repair": "✅ Repair saved successfully!"
     },
     "العربية (Arabic)": {
-        "tab_dash": "📊 لوحة التحكم والإحصاءات", "tab_repair": "🛠️ تسجيل إصلاح جديد", "tab_quote": "💡 عرض سعر رسمية",
-        "tab_invoice": "📄 إنشاء فاتورة قانونية", "tab_sub": "💳 اشتراكات الصيانة والضمان", "tab_buyback": "📱 شراء المستعمل",
-        "tab_campaign": "🎄 العروض الموسمية", "tab_preorder": "🛒 الطلبات المسبقة", "tab_stock": "📦 إدارة القطع والمخزون", "tab_search": "🔍 البحث في كافة ملفات الزبائن",
-        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم العميل / الشركة",
-        "email": "البريد الإلكتروني", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI / التسلسلي",
-        "price": "السعر شامل الضريبة 25% (SEK)", "issue": "تفاصيل العطل والخدمة", "save_repair": "حفظ الطلب وتوليد الإيصال المزدوج", "success_repair": "✅ تم تسجيل الطلب بنجاح!"
+        "tab_dash": "📊 لوحة التحكم", "tab_repair": "🛠️ إصلاح جديد", "tab_quote": "💡 عرض سعر",
+        "tab_invoice": "📄 فاتورة", "tab_sub": "💳 الاشتراكات", "tab_buyback": "📱 شراء مستعمل",
+        "tab_campaign": "🎄 عروض المواسم", "tab_preorder": "🛒 الطلب المسبق", "tab_stock": "📦 المخزون", "tab_search": "🔍 الأرشيف والحالات",
+        "employee": "اسم الموظف المسؤول", "phone": "رقم الهاتف", "customer_name": "اسم البائع / العميل",
+        "email": "البريد الإلكتروني", "device": "نوع وطراز الجهاز", "imei": "رقم الـ IMEI أو التسلسلي",
+        "price": "السعر", "issue": "وصف العطل أو الإصلاح", "save_repair": "حفظ طلب الإصلاح", "success_repair": "✅ تم الحفظ بنجاح!"
     }
 }
 
 def get_whatsapp_link(phone, text):
     if not phone:
         return "#"
-    clean_phone = str(phone).strip().replace(" ", "").replace("-", "")
+    clean_phone = phone.strip()
     if clean_phone.startswith("0"):
         clean_phone = "+46" + clean_phone[1:]
     return f"https://wa.me/{clean_phone}?text={urllib.parse.quote(text)}"
@@ -271,23 +199,23 @@ def get_whatsapp_link(phone, text):
 head_c1, head_c2, head_c3 = st.columns([1, 2, 2])
 with head_c1:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=65)
+        st.image("logo.png", width=55)
 with head_c2:
     lang_choice = st.selectbox("🌐 Language / Språk / اللغة", ["Svenska", "English", "العربية (Arabic)"], key="top_lang_bar")
 with head_c3:
-    global_branch = st.selectbox("🏢 Butik / Branch / الفرع", ["Eskilstuna", "Västerås"], key="top_branch_bar")
+    global_branch = st.selectbox("🏢 Branch / Butik / الفرع", ["Eskilstuna", "Västerås"], key="top_branch_bar")
 
 t = TRANSLATIONS[lang_choice]
 comp = COMPANY_INFO[global_branch]
 
 st.markdown(f"""
-<div style="background-color: #ffffff; padding: 12px 18px; border-radius: 10px; border: 1px solid #cbd5e1; margin-bottom: 15px; font-size: 13.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-    <b>🏢 Aktiv Butik:</b> {comp['name']} - {comp['address']} | <b>Tel:</b> {comp['phone']} | <b>Org.nr:</b> {comp['org_nr']} | <b>Swish:</b> {comp['swish']} | <b>{comp['f_skatt']}</b>
+<div style="background-color: #ffffff; padding: 10px 15px; border-radius: 8px; border: 1px solid #dcdde1; margin-bottom: 15px; font-size: 13px;">
+    <b>🏢 Active Branch / Aktiv Butik:</b> {comp['name']} - {comp['address']} | <b>Tel:</b> {comp['phone']} | <b>Org.nr:</b> {comp['org_nr']} | <b>Swish:</b> {comp['swish']}
 </div>
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Authentication & Remember Device System ---
+# --- Secure Authentication Login & Remember Device ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -296,42 +224,141 @@ if not st.session_state['authenticated'] and st.session_state.get('remember_devi
 
 if not st.session_state['authenticated']:
     st.markdown("<div class='login-container'>", unsafe_allow_html=True)
-    st.markdown("### 🔒 System Inloggning / System Login")
-    st.markdown("Ange PIN-kod för åtkomst / أدخل رمز المرور:")
+    st.markdown("### 🔒 System Login / Inloggning")
+    st.markdown("Ange PIN-kod för att fortsätta / الرجاء إدخال رمز المرور:")
     
-    login_pin = st.text_input("🔑 PIN-kod / Passcode", type="password", key="login_pin_input")
-    remember_me = st.checkbox("💾 Spara inloggning på denna enhet / تذكرني على هذا الجهاز", value=st.session_state.get('remember_device', False), key="remember_device_chk")
+    login_pin = st.text_input("🔑 PIN Code / رمز المرور", type="password", key="login_pin_input")
+    remember_me = st.checkbox("💾 Spara inloggning på denna enhet / تذكرني على هذا الجهاز", key="remember_device_chk")
     
     if login_pin:
         if login_pin.strip() == "Tunapark":
             st.session_state['authenticated'] = True
             st.session_state['remember_device'] = remember_me
-            st.success("✅ Inloggningen godkänd!")
+            st.success("✅ Logged in successfully! / تم تسجيل الدخول بنجاح!")
             st.rerun()
         else:
-            st.error("❌ Felaktig PIN-kod!")
+            st.error("❌ Fel PIN-kod! / رمز المرور غير صحيح!")
             
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-if st.sidebar.button("🔒 Logga ut (Log Out)"):
+if st.sidebar.button("🔒 Log Out / Logga ut / تسجيل خروج"):
     st.session_state['authenticated'] = False
     st.session_state['remember_device'] = False
     st.rerun()
 
-# --- Responsive PDF Preview & Direct Mobile Print Component ---
+def render_signature_pad(key_suffix="repair"):
+    st.markdown(f"**✍️ توقيع العميل (Digital Customer Signature - iPad / Touch supported):**")
+    sig_html = f"""
+    <div style="border: 2px dashed #3498db; border-radius: 8px; background: #fff; padding: 5px; width: 100%; max-width: 500px;">
+        <canvas id="sigCanvas_{key_suffix}" width="480" height="180" style="touch-action: none; background: #ffffff; width: 100%; height: 160px; cursor: crosshair;"></canvas>
+        <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+            <button type="button" onclick="clearSig_{key_suffix}()" style="background: #e74c3c; color: white; border: none; padding: 5px 15px; border-radius: 5px; font-weight: bold; cursor: pointer;">مسح التوقيع (Clear)</button>
+            <span style="font-size: 11px; color: #7f8c8d; align-self: center;">قم بالتوقيع بالأصبع أو القلم</span>
+        </div>
+    </div>
+    <input type="hidden" id="sigData_{key_suffix}" name="sigData_{key_suffix}">
+    <script>
+    (function() {{
+        var canvas = document.getElementById('sigCanvas_{key_suffix}');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var drawing = false;
+        var lastX = 0;
+        var lastY = 0;
+
+        function getPos(e) {{
+            var rect = canvas.getBoundingClientRect();
+            var clientX = e.clientX;
+            var clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {{
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }}
+            return {{
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
+            }};
+        }}
+
+        function startDraw(e) {{
+            drawing = true;
+            var pos = getPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            e.preventDefault();
+        }}
+
+        function draw(e) {{
+            if (!drawing) return;
+            var pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            lastX = pos.x;
+            lastY = pos.y;
+            
+            var dataURL = canvas.toDataURL('image/png');
+            var input = document.getElementById('sigData_{key_suffix}');
+            if (input) {{
+                input.value = dataURL;
+                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            }}
+            e.preventDefault();
+        }}
+
+        function stopDraw(e) {{
+            if (!drawing) return;
+            drawing = false;
+            var dataURL = canvas.toDataURL('image/png');
+            var input = document.getElementById('sigData_{key_suffix}');
+            if (input) {{
+                input.value = dataURL;
+                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            }}
+            e.preventDefault();
+        }}
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDraw);
+        canvas.addEventListener('mouseleave', stopDraw);
+
+        canvas.addEventListener('touchstart', startDraw, {{passive: false}});
+        canvas.addEventListener('touchmove', draw, {{passive: false}});
+        canvas.addEventListener('touchend', stopDraw, {{passive: false}});
+
+        window.clearSig_{key_suffix} = function() {{
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            var input = document.getElementById('sigData_{key_suffix}');
+            if (input) {{
+                input.value = '';
+                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            }}
+        }};
+    }})();
+    </script>
+    """
+    st.markdown(sig_html, unsafe_allow_html=True)
+    sig_val = st.text_input("Hidden Sig Data", key=f"hidden_sig_{key_suffix}", label_visibility="collapsed")
+    return sig_val
+
 def display_pdf_preview(pdf_buffer, file_name="document.pdf", key_suffix="doc"):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    st.success("✅ Dokumentet är redo för utskrift och export!")
+    st.success("✅ Dokumentet är redo! / Document is ready!")
     
     b_col1, b_col2, b_col3 = st.columns(3)
     with b_col1:
         st.download_button("📥 Ladda ner PDF", data=pdf_bytes, file_name=file_name, mime="application/pdf", type="primary", key=f"dl_{key_suffix}")
     with b_col2:
         pdf_data_uri = f"data:application/pdf;base64,{b64_pdf}"
-        st.markdown(f'<a href="{pdf_data_uri}" target="_blank" style="display:inline-block; background-color:#2563eb; color:white; padding:0.65rem 1.2rem; border-radius:8px; font-weight:600; text-align:center; text-decoration:none; width:100%;">🌐 Öppna i ny flik / Visning</a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="{pdf_data_uri}" target="_blank" style="display:inline-block; background-color:#2980b9; color:white; padding:0.6rem 1.2rem; border-radius:8px; font-weight:600; text-align:center; text-decoration:none; width:100%;">🌐 Öppna i ny flik</a>', unsafe_allow_html=True)
     with b_col3:
         print_html = f"""
         <script>
@@ -340,32 +367,28 @@ def display_pdf_preview(pdf_buffer, file_name="document.pdf", key_suffix="doc"):
             iframe.style.display = 'none';
             iframe.src = "data:application/pdf;base64,{b64_pdf}";
             document.body.appendChild(iframe);
-            setTimeout(function() {{
-                iframe.contentWindow.focus();
-                iframe.contentWindow.print();
-            }}, 300);
+            iframe.contentWindow.print();
         }}
         </script>
-        <button onclick="printPDF_{key_suffix}()" style="background-color: #16a34a; color: white; padding: 0.65rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; width: 100%; cursor: pointer;">
-            🖨️ Skriv ut Direct / Print (Mobil & PC)
+        <button onclick="printPDF_{key_suffix}()" style="background-color: #2ecc71; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; width: 100%; cursor: pointer;">
+            🖨️ Skriv ut
         </button>
         """
         st.markdown(print_html, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 👁️ Förhandsgranskning / Document Preview")
+    st.markdown("### 👁️ Förhandsgranskning / Preview")
     
     pdf_display = f"""
-    <div style="text-align: center; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: #fff;">
-        <object data="data:application/pdf;base64,{b64_pdf}#toolbar=1&navpanes=0&scrollbar=1" type="application/pdf" width="100%" height="580px">
-            <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="580px" />
-            <p style="padding: 20px;">📱 Mobilvisning: Klicka på knappen <b>"🖨️ Skriv ut Direct"</b> eller <b>"Öppna i ny flik"</b> ovan för utskrift.</p>
+    <div style="text-align: center; border: 1px solid #dcdde1; border-radius: 8px; padding: 10px; background: #fff;">
+        <object data="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="550px">
+            <embed src="data:application/pdf;base64,{b64_pdf}" type="application/pdf" width="100%" height="550px" />
+            <p style="padding: 20px;">متصفح هاتفك لا يدعم المعاينة المباشرة. يرجى الضغط على زر <b>"Öppna i ny flik"</b> أعلاه.</p>
         </object>
     </div>
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-# --- PDF GENERATOR (DUAL RECEIPT + APPLE/SAMSUNG TERMS & EMBEDDED SIGNATURE) ---
 def generate_pdf_from_record(record_type, data, comp_info):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -376,245 +399,208 @@ def generate_pdf_from_record(record_type, data, comp_info):
     employee_name = data.get('employee', 'Ej angiven')
     currency = data.get('currency', 'SEK')
     moms_rate_str = data.get('moms_rate', '25%')
-
-    def draw_footer():
-        p.setFont("Helvetica-Bold", 7.5)
-        p.drawString(40, 35, f"{comp['name']} | Org.nr: {comp['org_nr']} | VAT: {comp['vat_nr']} | {comp['f_skatt']}")
-        p.setFont("Helvetica", 7)
-        p.drawString(40, 24, f"Adress: {comp['address']} | Tel: {comp['phone']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+    signature_data = data.get('signature', None)
 
     if record_type == "repair_receipt_dual":
         def draw_repair_section(start_y, copy_title):
-            p.setFont("Helvetica-Bold", 10)
-            p.drawString(40, start_y, f"{comp['name']} ({copy_title})")
+            p.setFont("Helvetica-Bold", 8.5)
+            p.drawString(40, start_y, f"{comp['name']} ({copy_title}) - Butik: {branch}")
             p.setFont("Helvetica", 7)
-            p.drawString(40, start_y - 11, f"Org.nr: {comp['org_nr']} | VAT: {comp['vat_nr']} | {comp['f_skatt']} | Tel: {comp['phone']}")
-            p.drawString(40, start_y - 20, f"Adress: {comp['address']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+            p.drawString(40, start_y - 10, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+            p.drawString(40, start_y - 19, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
             
-            p.setFont("Helvetica-Bold", 9)
-            p.drawString(40, start_y - 34, f"INLÄMNINGSKVITTO / REPAIR RECEIPT #{data.get('repair_id', '1')}")
+            p.setFont("Helvetica-Bold", 8.5)
+            p.drawString(40, start_y - 32, f"ÄRENDEKVITTO / REPAIR RECEIPT #{data.get('repair_id', '1')}")
             p.setFont("Helvetica", 7.5)
-            p.drawString(360, start_y - 34, f"Datum: {data.get('created_at', '')}")
+            p.drawString(320, start_y - 32, f"Datum: {data.get('created_at', '')}")
             
-            p.drawString(40, start_y - 46, f"Kund: {data.get('customer_name', '')}")
-            p.drawString(360, start_y - 46, f"Handläggare: {employee_name}")
-            p.drawString(40, start_y - 56, f"Tel: {data.get('phone', '')}")
-            p.drawString(360, start_y - 56, f"Enhet/Modell: {data.get('device', '')}")
-            p.drawString(40, start_y - 66, f"IMEI/SN: {data.get('imei', 'Ej angivet')}")
-            p.drawString(360, start_y - 66, f"Garanti: {data.get('warranty_period', '3 Månader')}")
+            p.drawString(40, start_y - 43, f"Kund: {data.get('customer_name', '')}")
+            p.drawString(320, start_y - 43, f"Handläggare: {employee_name}")
+            p.drawString(40, start_y - 54, f"Tel: {data.get('phone', '')}")
+            p.drawString(320, start_y - 54, f"Enhet: {data.get('device', '')}")
+            p.drawString(40, start_y - 65, f"IMEI: {data.get('imei', 'Ej angivet')}")
             
-            p.setFillColorRGB(0.93, 0.94, 0.96)
-            p.rect(40, start_y - 84, width - 80, 13, fill=1, stroke=0)
+            p.setFillColorRGB(0.92, 0.92, 0.92)
+            p.rect(40, start_y - 82, width - 80, 12, fill=1, stroke=0)
             p.setFillColorRGB(0, 0, 0)
             p.setFont("Helvetica-Bold", 7.5)
-            p.drawString(45, start_y - 80, "Beskrivning av fel & beställd reparation")
-            p.drawString(440, start_y - 80, f"Pris inkl. moms")
+            p.drawString(45, start_y - 79, "Beskrivning av fel / Repair Description")
+            p.drawString(420, start_y - 79, f"Pris ({currency})")
             
             p.setFont("Helvetica", 7.5)
-            p.drawString(45, start_y - 98, f"- {data.get('issue', '')}")
-            price_val = float(data.get('price', 0.0))
-            p.drawString(440, start_y - 98, f"{price_val:.2f} {currency}")
+            p.drawString(45, start_y - 95, f"- {data.get('issue', '')}")
+            price_val = data.get('price', 0)
+            p.drawString(420, start_y - 95, f"{price_val:.2f} {currency}")
             
-            moms_calc = price_val * (0.25 / 1.25)
-            netto_calc = price_val - moms_calc
-            p.setFont("Helvetica", 7)
-            p.drawString(40, start_y - 114, f"Netto: {netto_calc:.2f} SEK | Moms (25%): {moms_calc:.2f} SEK")
-            p.setFont("Helvetica-Bold", 8)
-            p.drawString(340, start_y - 114, f"Totalt uppskattat pris: {price_val:.2f} {currency}")
+            p.setFont("Helvetica-Bold", 7.5)
+            p.drawString(320, start_y - 108, f"Att betala / Total: {price_val:.2f} {currency} (Inkl. moms)")
             
-            p.setFont("Helvetica-Bold", 6)
-            p.drawString(40, start_y - 128, "SERVICEVILLKOR & KONSUMENTRÄTT (Apple & Samsung Standardized Terms):")
+            # Apple/Samsung style terms & conditions paragraph
+            p.setFont("Helvetica-Bold", 6.5)
+            p.drawString(40, start_y - 120, "VILLKOR & SERVICEVILLKOR (APPLE / SAMSUNG STANDARD):")
             p.setFont("Helvetica", 5.5)
-            p.drawString(40, start_y - 135, "1. Inlämnad enhet genomgår inledande diagnos. Dolda fel (t.ex. fuktskador, böjt chassi) ansvarar verkstaden ej för.")
-            p.drawString(40, start_y - 141, "2. Garantin gäller endast utbytt del/utfört arbete i 3-12 månader. Garantin förverkas vid yttre åverkan eller vätska.")
-            p.drawString(40, start_y - 147, "3. Ej uthämtade enheter efter 3 månader tillfaller verkstaden i enlighet med lag (1985:982).")
+            terms_lines = [
+                "1. Enheten lämnas in för felsökning/reparation enligt angivna beskrivningar. Garanti gäller enbart utfört arbete och utbytta reservdelar i 3 månader.",
+                "2. Reparation kan medföra att enhetens vattentålighet försämras eller förloras. Vinkeln ansvarar ej för dolda eller befintliga fel.",
+                "3. Enheter som ej hämtas ut inom 3 månader kan komma att säljas för att täcka reparationskostnader i enlighet med lagen (1985:982)."
+            ]
+            ty = start_y - 128
+            for t_line in terms_lines:
+                p.drawString(40, ty, t_line)
+                ty -= 8
 
-            sig_b64 = data.get('signature_b64', '')
-            if sig_b64 and len(sig_b64) > 100:
+            p.setFont("Helvetica", 6.5)
+            p.drawString(40, ty - 6, "Godkänt av kund / Terms Accepted:")
+            p.drawString(320, ty - 6, "Kundens underskrift:")
+            
+            if signature_data:
                 try:
-                    if "," in sig_b64:
-                        sig_b64 = sig_b64.split(",")[1]
-                    img_data = base64.b64decode(sig_b64)
-                    img_buf = io.BytesIO(img_data)
-                    p.drawImage(ImageReader(img_buf), 360, start_y - 175, width=120, height=30, mask='auto')
-                    p.setFont("Helvetica", 6)
-                    p.drawString(360, start_y - 178, "Elektroniskt signerad av kund")
+                    if signature_data.startswith("data:image/png;base64,"):
+                        sig_bytes = base64.b64decode(signature_data.split(",")[1])
+                        sig_io = io.BytesIO(sig_bytes)
+                        p.drawImage(sig_io, 320, ty - 38, width=100, height=30, preserveAspectRatio=True, mask='auto')
                 except Exception:
-                    p.setFont("Helvetica", 6.5)
-                    p.drawString(350, start_y - 165, "Kundens underskrift: _________________")
-            else:
-                p.setFont("Helvetica", 6.5)
-                p.drawString(350, start_y - 165, "Kundens underskrift: _________________")
+                    pass
+            p.rect(320, ty - 38, 120, 30, fill=0, stroke=1)
 
         draw_repair_section(height - 25, "BUTIKENS KOPIA / STORE COPY")
         p.setDash(3, 3)
-        p.setLineWidth(0.5)
-        p.line(20, height / 2, width - 20, height / 2)
+        p.line(30, height / 2, width - 30, height / 2)
         p.setDash()
-        p.setFont("Helvetica-Oblique", 6)
-        p.drawString(width / 2 - 40, height / 2 + 3, "✂ Klipp här / Cut here")
         draw_repair_section(height / 2 - 15, "KUNDENS KOPIA / CUSTOMER COPY")
 
     elif record_type == "buyback_receipt":
-        p.setFont("Helvetica-Bold", 14)
+        p.setFont("Helvetica-Bold", 12)
         p.drawString(40, height - 40, comp["name"])
         p.setFont("Helvetica", 8)
-        p.drawString(40, height - 52, f"Org.nr: {comp['org_nr']} | VAT: {comp['vat_nr']} | {comp['f_skatt']} | Tel: {comp['phone']}")
-        p.drawString(40, height - 62, f"Adress: {comp['address']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(40, height - 52, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+        p.drawString(40, height - 64, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
         p.setFont("Helvetica-Bold", 11)
-        p.drawString(40, height - 90, "INKÖPSKVITTO & ÄGARFÖRSÄKRAN (BEGAGNAD ELEKTRONIK)")
-        p.setFont("Helvetica", 7.5)
-        p.drawString(40, height - 100, "Upprättat i enlighet med lag (1999:158) om handel med begagnade varor.")
-
-        p.setFont("Helvetica-Bold", 9)
-        p.drawString(40, height - 125, f"Kvitto Nr: BB-{data.get('buyback_id', '1')}")
-        p.drawString(320, height - 125, f"Datum: {data.get('created_at', '')}")
+        p.drawString(40, height - 95, "INKÖPSKVITTO - BEGAGNAD ENHET / PURCHASE RECEIPT")
+        p.setFont("Helvetica", 9)
+        p.drawString(40, height - 120, f"Kvitto ID: #{data.get('buyback_id', '1')}")
+        p.drawString(300, height - 120, f"Datum: {data.get('created_at', '')}")
+        p.drawString(40, height - 140, f"Säljare: {data.get('customer_name', '')}")
+        p.drawString(300, height - 140, f"Personnummer: {data.get('person_nummer', 'Ej angivet')}")
+        p.drawString(40, height - 160, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 160, f"Handläggare: {employee_name}")
+        p.drawString(40, height - 180, f"Enhet: {data.get('device', '')}")
+        p.drawString(300, height - 180, f"IMEI: {data.get('imei', '')}")
         
-        p.setFont("Helvetica", 8.5)
-        p.drawString(40, height - 142, f"Säljare (Kund): {data.get('customer_name', '')}")
-        p.drawString(320, height - 142, f"Personnummer: {data.get('person_nummer', '')}")
-        p.drawString(40, height - 156, f"Telefon: {data.get('phone', '')}")
-        p.drawString(320, height - 156, f"ID-Kontroll utförd: {'Ja (Godkänd)' if data.get('id_verified') else 'Nej'}")
-        p.drawString(40, height - 170, f"Enhet/Modell: {data.get('device', '')}")
-        p.drawString(320, height - 170, f"IMEI/Serienummer: {data.get('imei', '')}")
-        p.drawString(40, height - 184, f"Skick/Gradering: {data.get('condition_grade', 'B-Skick')}")
-        p.drawString(320, height - 184, f"Handläggare: {employee_name}")
-        
-        price_val = float(data.get('purchase_price', 0.0))
-        p.setFillColorRGB(0.95, 0.95, 0.95)
-        p.rect(40, height - 225, width - 80, 25, fill=1, stroke=0)
-        p.setFillColorRGB(0, 0, 0)
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(50, height - 210, f"Utbetalt belopp till säljaren: {price_val:.2f} {currency}")
+        price_val = data.get('purchase_price', 0)
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(300, height - 260, f"Utbetalat belopp / Total Paid: {price_val:.2f} {currency}")
 
-        p.setFont("Helvetica-Bold", 8)
-        p.drawString(40, height - 260, "SÄLJARENS ÄGARFÖRSÄKRAN & JURIDISKA INTYGANDE:")
-        p.setFont("Helvetica", 7)
-        p.drawString(40, height - 272, "1. Undertecknad säljare intygar att enheten är min egna egendom och lagligt förvärvad.")
-        p.drawString(40, height - 280, "2. Enheten är återställd och fri från avbetalningskontrakt samt stöldspärrar.")
-
-        sig_b64 = data.get('signature_b64', '')
-        if sig_b64 and len(sig_b64) > 100:
+        p.setFont("Helvetica", 8)
+        p.drawString(40, height - 300, "Säljaren intygar att enheten är hens egendom och att alla konton (iCloud/Google) är raderade.")
+        p.drawString(40, height - 340, "Säljarens underskrift:")
+        if signature_data:
             try:
-                if "," in sig_b64:
-                    sig_b64 = sig_b64.split(",")[1]
-                img_data = base64.b64decode(sig_b64)
-                img_buf = io.BytesIO(img_data)
-                p.drawImage(ImageReader(img_buf), 40, height - 340, width=130, height=35, mask='auto')
-                p.setFont("Helvetica", 7)
-                p.drawString(40, height - 348, "Säljarens elektroniska underskrift")
+                if signature_data.startswith("data:image/png;base64,"):
+                    sig_bytes = base64.b64decode(signature_data.split(",")[1])
+                    sig_io = io.BytesIO(sig_bytes)
+                    p.drawImage(sig_io, 180, height - 365, width=120, height=40, preserveAspectRatio=True, mask='auto')
             except Exception:
-                p.drawString(40, height - 330, "Säljarens underskrift: ________________________")
-        else:
-            p.drawString(40, height - 330, "Säljarens underskrift: ________________________")
+                pass
+        p.rect(180, height - 365, 140, 40, fill=0, stroke=1)
 
-        p.drawString(320, height - 330, "Mottaget av handläggare: ________________________")
-        draw_footer()
+        p.setFont("Helvetica", 8)
+        p.drawString(40, 45, f"Företag: {comp['name']} | Org.nr: {comp['org_nr']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     elif record_type == "quote":
-        p.setFont("Helvetica-Bold", 14)
+        p.setFont("Helvetica-Bold", 12)
         p.drawString(40, height - 40, comp["name"])
         p.setFont("Helvetica", 8)
-        p.drawString(40, height - 52, f"Org.nr: {comp['org_nr']} | VAT: {comp['vat_nr']} | {comp['f_skatt']} | Tel: {comp['phone']}")
-        p.drawString(40, height - 62, f"Adress: {comp['address']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
+        p.drawString(40, height - 52, f"Adress: {comp['address']} | Tel: {comp['phone']} | Org.nr: {comp['org_nr']}")
+        p.drawString(40, height - 64, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
-        p.setFont("Helvetica-Bold", 12)
-        p.drawString(40, height - 90, "OFFERT / KOSTNADSFÖRSLAG")
-        p.setFont("Helvetica", 8.5)
-        p.drawString(40, height - 110, f"Datum: {data.get('created_at', '')}")
-        p.drawString(320, height - 110, f"Giltig till: {data.get('valid_until', '')}")
-        p.drawString(40, height - 125, f"Kund: {data.get('customer_name', '')}")
-        p.drawString(320, height - 125, f"Handläggare: {employee_name}")
-        p.drawString(40, height - 140, f"Telefon: {data.get('phone', '')}")
-        p.drawString(320, height - 140, f"Enhet: {data.get('device', '')}")
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, height - 95, "KOSTNADSFÖRSLAG / PRICE QUOTATION")
+        p.setFont("Helvetica", 9)
+        p.drawString(40, height - 120, f"Datum: {data.get('created_at', '')}")
+        p.drawString(300, height - 120, f"Handläggare: {employee_name}")
+        p.drawString(40, height - 140, f"Kund: {data.get('customer_name', '')}")
+        p.drawString(40, height - 160, f"Telefon: {data.get('phone', '')}")
+        p.drawString(300, height - 140, f"Enhet: {data.get('device', '')}")
         
-        p.setFillColorRGB(0.95, 0.95, 0.95)
-        p.rect(40, height - 170, width - 80, 16, fill=1, stroke=0)
-        p.setFillColorRGB(0, 0, 0)
-        p.setFont("Helvetica-Bold", 8.5)
-        p.drawString(50, height - 165, "Beskrivning av rekommenderat arbete / reservdelar")
-        p.drawString(440, height - 165, "Belopp SEK")
+        total_val = data.get('total', 0)
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(300, height - 260, f"Att betala / Total: {total_val:.2f} {currency} (Inkl. moms)")
 
-        p.setFont("Helvetica", 8.5)
-        p.drawString(50, height - 190, data.get('issues', ''))
-        
-        total_val = float(data.get('total', 0.0))
-        moms_val = total_val * (0.25 / 1.25)
-        netto_val = total_val - moms_val
-
-        p.line(40, height - 230, width - 40, height - 230)
-        p.setFont("Helvetica", 8.5)
-        p.drawString(320, height - 245, f"Netto exkl. moms: {netto_val:.2f} SEK")
-        p.drawString(320, height - 258, f"Moms (25%): {moms_val:.2f} SEK")
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(320, height - 275, f"Totalt inklusive moms: {total_val:.2f} SEK")
-        draw_footer()
+        p.setFont("Helvetica", 8)
+        p.drawString(40, 45, f"Företag: {comp['name']} | Org.nr: {comp['org_nr']} | Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
     elif record_type == "invoice":
-        p.setFont("Helvetica-Bold", 18)
+        p.setFont("Helvetica-Bold", 16)
         p.drawString(40, height - 45, "FAKTURA")
         
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(340, height - 35, comp["name"])
-        p.setFont("Helvetica", 7.5)
-        p.drawString(340, height - 46, comp["address"])
-        p.drawString(340, height - 56, f"Org.nr: {comp['org_nr']} | VAT: {comp['vat_nr']}")
-        p.drawString(340, height - 66, f"Tel: {comp['phone']} | E-post: {comp['email']}")
+        p.drawString(380, height - 38, comp["name"])
+        p.setFont("Helvetica", 8)
+        p.drawString(380, height - 50, comp["address"])
+        p.drawString(380, height - 62, f"Org.nr: {comp['org_nr']} | Tel: {comp['phone']}")
+        p.drawString(380, height - 74, f"Swish: {comp['swish']} | Bankgiro: {comp['bankgiro']}")
 
         p.setLineWidth(0.5)
-        p.line(40, height - 85, width - 40, height - 85)
+        p.line(40, height - 90, width - 40, height - 90)
 
-        p.setFont("Helvetica-Bold", 8.5)
-        p.drawString(40, height - 102, "FAKTURAUPPGIFTER")
-        p.setFont("Helvetica", 8)
-        p.drawString(40, height - 115, f"Fakturanummer: {data.get('invoice_no', '')}")
-        p.drawString(40, height - 127, f"Fakturadatum: {data.get('created_at', '')}")
-        p.drawString(40, height - 139, f"Förfallodatum: {data.get('due_date', '')}")
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(40, height - 110, "Fakturainformation")
+        p.setFont("Helvetica", 9)
+        p.drawString(40, height - 125, f"Fakturanummer: {data.get('invoice_no', '')}")
+        p.drawString(40, height - 140, f"Fakturadatum: {data.get('created_at', '')}")
+        p.drawString(40, height - 155, f"Förfallodatum: {data.get('due_date', '')}")
+        p.drawString(40, height - 170, f"Vår referens: {employee_name}")
+        p.drawString(40, height - 185, f"Er referens: {data.get('ref_no', 'Ej angiven')}")
 
-        p.setFont("Helvetica-Bold", 8.5)
-        p.drawString(320, height - 102, "FAKTURERAS TILL (KUND)")
-        p.setFont("Helvetica", 8)
-        p.drawString(320, height - 115, f"Kund: {data.get('customer_name', '')}")
-        p.drawString(320, height - 127, f"Org.nr / P.nr: {data.get('org_no_cust', 'Ej angivet')}")
-        p.drawString(320, height - 139, f"Tel: {data.get('phone', '')}")
+        p.setFont("Helvetica-Bold", 9)
+        p.drawString(320, height - 110, "Köpare / Kund")
+        p.setFont("Helvetica", 9)
+        p.drawString(320, height - 125, f"{data.get('customer_name', '')}")
+        p.drawString(320, height - 140, f"{data.get('address', '')}")
+        p.drawString(320, height - 155, f"Tel: {data.get('phone', '')}")
 
-        p.setFillColorRGB(0.92, 0.92, 0.92)
-        p.rect(40, height - 200, width - 80, 16, fill=1, stroke=0)
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(40, height - 215, width - 80, 18, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
         p.setFont("Helvetica-Bold", 8)
-        p.drawString(45, height - 194, "Beskrivning / Artikel")
-        p.drawString(300, height - 194, "Moms %")
-        p.drawString(370, height - 194, f"Pris exkl. moms")
-        p.drawString(460, height - 194, f"Totalt SEK")
+        p.drawString(50, height - 208, "Artikel / Beskrivning")
+        p.drawString(320, height - 208, "Moms")
+        p.drawString(390, height - 208, f"Pris ({currency})")
+        p.drawString(470, height - 208, f"Totalt ({currency})")
 
-        amount_val = float(data.get('amount', 0.0))
-        moms_val = float(data.get('moms', 0.0))
+        amount_val = data.get('amount', 0)
+        moms_val = data.get('moms', 0)
         netto_val = amount_val - moms_val
 
-        p.setFont("Helvetica", 8.5)
-        p.drawString(45, height - 220, data.get('item_desc', 'Reparationstjänst & reservdelar'))
-        p.drawString(300, height - 220, moms_rate_str)
-        p.drawString(370, height - 220, f"{netto_val:.2f}")
-        p.drawString(460, height - 220, f"{amount_val:.2f}")
+        p.setFont("Helvetica", 9)
+        p.drawString(50, height - 240, data.get('item_desc', 'Reparation och reservdelar'))
+        p.drawString(320, height - 240, moms_rate_str)
+        p.drawString(390, height - 240, f"{netto_val:.2f}")
+        p.drawString(470, height - 240, f"{amount_val:.2f}")
 
-        p.line(300, height - 280, width - 40, height - 280)
-        p.setFont("Helvetica", 8.5)
-        p.drawString(300, height - 295, "Netto exkl. moms:")
-        p.drawString(460, height - 295, f"{netto_val:.2f} SEK")
-        p.drawString(300, height - 308, f"Moms ({moms_rate_str}):")
-        p.drawString(460, height - 308, f"{moms_val:.2f} SEK")
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(300, height - 328, "ATT BETALA (SEK):")
-        p.drawString(460, height - 328, f"{amount_val:.2f} SEK")
-        draw_footer()
+        p.line(320, height - 300, width - 40, height - 300)
+        p.setFont("Helvetica", 9)
+        p.drawString(320, height - 315, "Netto / Exkl. moms:")
+        p.drawString(470, height - 315, f"{netto_val:.2f} {currency}")
+        
+        p.drawString(320, height - 332, f"Moms ({moms_rate_str}):")
+        p.drawString(470, height - 332, f"{moms_val:.2f} {currency}")
+
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(320, height - 355, "Att betala / Total:")
+        p.drawString(470, height - 355, f"{amount_val:.2f} {currency}")
+
+        p.setFont("Helvetica-Bold", 8)
+        p.drawString(40, 45, f"{comp['name']} | Adress: {comp['address']} | Org.nr: {comp['org_nr']}")
+        p.drawString(40, 33, f"Bankgiro: {comp['bankgiro']} | Swish: {comp['swish']} | Innehar F-skattsedel")
 
     p.showPage()
     p.save()
     buffer.seek(0)
     return buffer
 
-# --- TAB NAVIGATION SETUP ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     t["tab_dash"], t["tab_repair"], t["tab_quote"], t["tab_invoice"], 
     t["tab_sub"], t["tab_buyback"], t["tab_campaign"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
@@ -623,7 +609,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
 # --- TAB 1: DASHBOARD ---
 with tab1:
     st.markdown("<div class='dashboard-box'>", unsafe_allow_html=True)
-    st.header(f"📊 Översikt & Nyckeltal / Dashboard ({global_branch})")
+    st.header(f"📊 لوحة المؤشرات والإحصاءات العامة / Dashboard ({global_branch})")
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
@@ -633,79 +619,83 @@ with tab1:
         quote_count = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM invoices WHERE branch = ?", (global_branch,))
         inv_count = cursor.fetchone()[0]
-        cursor.execute("SELECT SUM(price) FROM repairs WHERE branch = ?", (global_branch,))
-        rep_revenue = cursor.fetchone()[0] or 0.0
+        cursor.execute("SELECT SUM(profit) FROM quotes WHERE branch = ?", (global_branch,))
+        total_prof = cursor.fetchone()[0] or 0.0
         conn.close()
     except Exception:
-        rep_count, quote_count, inv_count, rep_revenue = 0, 0, 0, 0.0
+        rep_count, quote_count, inv_count, total_prof = 0, 0, 0, 0.0
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📝 Registrerade Reparationer", rep_count)
-    c2.metric("💡 Offertförslag", quote_count)
-    c3.metric("📄 Skapade Fakturor", inv_count)
-    c4.metric("💰 Omsättning Reparationer", f"{rep_revenue:.2f} SEK")
+    c1.metric("📝 الإصلاحات / Repairs", rep_count)
+    c2.metric("💡 عروض الأسعار / Quotes", quote_count)
+    c3.metric("📄 الفواتير / Invoices", inv_count)
+    c4.metric("📈 الأرباح / Profit", f"{total_prof:.2f} Kr")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 2: REPAIR ORDER ---
+# --- TAB 2: NEW REPAIR ---
 with tab2:
     st.markdown("<div class='repair-box'>", unsafe_allow_html=True)
-    st.header(f"🛠️ Registrera Ny Reparation ({global_branch})")
+    st.header(f"🛠️ تسجيل إصلاح جديد وتوليد إيصال الاستلام (نسختان) / New Repair ({global_branch})")
+    employee_name = st.text_input(t["employee"], key="rep_emp")
+    c_phone = st.text_input(t["phone"], key="rep_phone")
     
-    rep_col1, rep_col2 = st.columns(2)
-    with rep_col1:
-        employee_name = st.text_input(t["employee"], key="rep_emp")
-        c_phone = st.text_input(t["phone"], key="rep_phone")
-        
-        auto_name, auto_email = "", ""
-        if c_phone and len(c_phone) > 5:
-            conn = get_db_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT customer_name, email FROM repairs WHERE phone = ? LIMIT 1", (c_phone,))
-                res = cursor.fetchone()
-                conn.close()
-                if res:
-                    auto_name, auto_email = res[0], res[1] or ""
-                    st.info(f"💡 Befintlig kund funnen: **{auto_name}**")
-            except Exception:
-                pass
+    auto_name, auto_email = "", ""
+    if c_phone and len(c_phone) > 5:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT customer_name, email FROM repairs WHERE phone = ? LIMIT 1", (c_phone,))
+            res = cursor.fetchone()
+            conn.close()
+            if res:
+                auto_name, auto_email = res[0], res[1] or ""
+                st.info(f"💡 تم العثور على عميل سابق / Existing customer: **{auto_name}**")
+        except Exception:
+            pass
 
-        c_name = st.text_input(t["customer_name"], value=auto_name, key="rep_name")
-        c_email = st.text_input(t["email"], value=auto_email, key="rep_email")
-
-    with rep_col2:
-        device = st.text_input(t["device"], key="rep_device")
-        imei = st.text_input(t["imei"], key="rep_imei")
-        warranty_choice = st.selectbox("Garanti / Warranty", ["3 Månader (Standard)", "6 Månader", "12 Månader", "Ingen garanti"], key="rep_warranty")
-        cost_price = st.number_input("Inköpskostnad exkl. moms (SEK)", min_value=0.0, step=50.0, key="rep_cost")
-
+    c_name = st.text_input(t["customer_name"], value=auto_name, key="rep_name")
+    c_email = st.text_input(t["email"], value=auto_email, key="rep_email")
+    device = st.text_input(t["device"], key="rep_device")
+    imei = st.text_input(t["imei"], key="rep_imei")
+    
     repair_issues_options = [
-        "Skärmbyte (Original)", "Skärmbyte (OLED / In-Cell)", "Batteribyte",
-        "Laddkontakt", "Baksida / Glasbyte", "Kamera bak/fram", "Högtalare", "Fuktsanering", "Mjukvara"
+        "Skärmbyte (Original)", "Skärmbyte (OLED / Kopia)", "Batteribyte",
+        "Laddport", "Baksida", "Kamera bak", "Kamera fram", "Ljud / Högtalare",
+        "Vattenskada", "Mjukvara / Software", "Övrigt fel"
     ]
-    selected_rep_issues = st.multiselect("Välj utförda tjänster / reservdelar:", repair_issues_options, key="multi_rep_issues")
+    selected_rep_issues = st.multiselect("قائمة الأعطال / Issue options:", repair_issues_options, key="multi_rep_issues")
     price = st.number_input(t["price"], min_value=0.0, step=50.0, key="rep_price")
     
     auto_issues_str = ", ".join(selected_rep_issues)
     issue = st.text_area(t["issue"], value=auto_issues_str, key="rep_issue_desc")
 
-    st.components.v1.html(render_signature_pad("repair_sig"), height=210)
-    sig_input = st.text_input("🔑 Bekräfta signaturkod eller klistra in signaturreferens:", key="repair_sig_input")
-
-    terms_accepted = st.checkbox("✅ Kunden har godkänt villkoren & godkänner reparationen", key="rep_terms_chk")
+    st.markdown("""
+    <div style="background-color: #fff3cd; padding: 12px; border-radius: 8px; border-left: 5px solid #ffc107; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
+        <b>⚠️ شروط الخدمة والضمان (Apple & Samsung Standard Terms):</b><br>
+        • الضمان يغطي فقط الإصلاح أو القطعة التي تم استبدالها لمدة 3 أشهر.<br>
+        • لا تتحمل الورشة مسؤولية ضياع البيانات أو انخفاض مقاومة الماء بعد الفتح.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    terms_accepted = st.checkbox("✅ أوافق على شروط الخدمة والإصلاح (Accept Terms & Conditions)", key="rep_terms_chk")
+    customer_signature = render_signature_pad(key_suffix="repair")
 
     if st.button(t["save_repair"], type="primary", key="btn_save_rep"):
         if not terms_accepted:
-            st.error("❌ Kunden måste godkänna reparationsvillkoren innan ärendet sparas!")
+            st.error("❌ يجب الموافقة على شروط الخدمة أولاً لحفظ Ärende!")
         elif c_name and c_phone and device and employee_name:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute(
-                "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, cost_price, status, employee, warranty_period, terms_accepted, signature_b64, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (global_branch, c_name, c_phone, c_email, device, imei, issue, price, cost_price, "Mottagen för service", employee_name, warranty_choice, 1, sig_input, created_at)
+                "INSERT INTO repairs (branch, customer_name, phone, email, device, imei, issue, price, status, employee, created_at, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (global_branch, c_name, c_phone, c_email, device, imei, issue, price, "Under behandling", employee_name, created_at, customer_signature)
             )
             repair_db_id = cursor.lastrowid
+
+            for selected_part in selected_rep_issues:
+                cursor.execute("UPDATE inventory SET stock_qty = stock_qty - 1 WHERE branch = ? AND part_name = ? AND stock_qty > 0", (global_branch, selected_part))
+
             conn.commit()
             conn.close()
             st.success(t["success_repair"])
@@ -713,430 +703,391 @@ with tab2:
             rec_data = {
                 "branch": global_branch, "repair_id": str(repair_db_id), "customer_name": c_name,
                 "phone": c_phone, "device": device, "imei": imei, "issue": issue,
-                "price": price, "warranty_period": warranty_choice, "employee": employee_name, 
-                "signature_b64": sig_input, "created_at": date.today().strftime('%Y-%m-%d')
+                "price": price, "employee": employee_name, "created_at": date.today().strftime('%Y-%m-%d'),
+                "signature": customer_signature
             }
             st.session_state['rep_receipt_pdf'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
+        else:
+            st.warning("⚠️ يرجى تعبئة الحقول الأساسية واسم الموظف.")
+
+    if c_phone:
+        rep_wa_text = f"Hej {c_name or 'Kunden'}! Ditt ärende för {device or 'enhet'} hos 30 Minutes Phone Fix ({global_branch}) har registrerats. Pris: {price} SEK. Välkommen!"
+        st.markdown(f'<a href="{get_whatsapp_link(c_phone, rep_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال تفاصيل الإصلاح عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     if 'rep_receipt_pdf' in st.session_state:
         st.markdown("---")
-        display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name=f"Inlamningskvitto_Dual_{c_name}.pdf", key_suffix="repair")
+        display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto_Dual.pdf", key_suffix="repair")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 3: QUOTE ---
 with tab3:
     st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
-    st.header(f"💡 Skapa Offert / Price Quotation ({global_branch})")
+    st.header(f"💡 عرض سعر وحساب الأرباح / Price Quotation ({global_branch})")
+    q_emp = st.text_input(t["employee"], key="q_emp")
+    q_name = st.text_input(t["customer_name"], key="q_name")
+    q_phone = st.text_input(t["phone"], key="q_phone")
+    q_device = st.text_input(t["device"], key="q_device")
+
+    st.markdown("---")
+    st.subheader("🛠️ اختر قطع الغيار وحساب الأرباح / Select parts & calculation")
+    quote_items = [
+        ("Skärmbyte", "qp_s", "qc_s"),
+        ("Batteribyte", "qp_b", "qc_b"),
+        ("Laddport", "qp_l", "qc_l"),
+        ("Baksida", "qp_bk", "qc_bk"),
+        ("Övrigt / Utförande", "qp_o", "qc_o")
+    ]
     
-    q_c1, q_c2 = st.columns(2)
-    with q_c1:
-        q_emp = st.text_input(t["employee"], key="q_emp")
-        q_name = st.text_input(t["customer_name"], key="q_name")
-        q_phone = st.text_input(t["phone"], key="q_phone")
-    with q_c2:
-        q_device = st.text_input(t["device"], key="q_device")
-        valid_days = st.number_input("Giltighetstid i dagar", min_value=7, max_value=60, value=14, key="q_valid_days")
+    issues_list = []
+    total_price = 0.0
+    total_cost = 0.0
 
-    q_issue = st.text_area("Offertdetaljer / Tjänster & Delar", key="q_issue_desc")
-    q_total = st.number_input("Totalt Offertbelopp inkl. moms (SEK)", min_value=0.0, step=100.0, key="q_total")
+    for label, p_key, c_key in quote_items:
+        if st.checkbox(label, key=f"chk_{p_key}"):
+            col_p, col_c = st.columns(2)
+            with col_p:
+                p_val = st.number_input(f"Kundpris / Customer price ({label})", min_value=0.0, step=50.0, key=p_key)
+            with col_c:
+                c_val = st.number_input(f"Vår kostnad / Our cost ({label})", min_value=0.0, step=10.0, key=c_key)
+            issues_list.append(f"{label}: {p_val} SEK")
+            total_price += p_val
+            total_cost += c_val
 
-    if st.button("Spara & Generera Offert PDF", type="primary", key="btn_save_q"):
-        if q_name and q_device and q_total > 0 and q_emp:
+    net_profit = float(total_price - total_cost)
+    st.markdown(f"### 💰 الإجمالي / Total: **{total_price:.2f} SEK** | 📈 الربح / Net Profit: **{net_profit:.2f} SEK**")
+
+    if st.button("حفظ وتوليد عرض سعر PDF / Save Quote PDF", type="primary", key="btn_save_q"):
+        if q_name and q_device and issues_list and q_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            valid_until_date = (date.today() + timedelta(days=valid_days)).strftime('%Y-%m-%d')
-            cursor.execute("INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, valid_until, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, q_name, q_phone, "", q_device, q_issue, q_total, q_total * 0.4, valid_until_date, q_emp, created_at))
+            issues_str = ", ".join(issues_list)
+            cursor.execute("INSERT INTO quotes (branch, customer_name, phone, email, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, q_name, q_phone, "", q_device, issues_str, total_price, net_profit, q_emp, created_at))
             conn.commit()
             conn.close()
-            st.success("✅ Offerten har sparats!")
+            st.success("✅ تم حفظ عرض السعر بنجاح!")
             
-            record_data = {
-                "branch": global_branch, "customer_name": q_name, "phone": q_phone, 
-                "device": q_device, "issues": q_issue, "total": q_total, 
-                "currency": "SEK", "valid_until": valid_until_date, "employee": q_emp, 
-                "created_at": date.today().strftime('%Y-%m-%d')
-            }
+            record_data = {"branch": global_branch, "customer_name": q_name, "phone": q_phone, "device": q_device, "issues": issues_str, "total": total_price, "currency": "SEK", "employee": q_emp, "created_at": date.today().strftime('%Y-%m-%d')}
             st.session_state['q_pdf'] = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
 
+    if q_phone:
+        q_wa_text = f"Hej {q_name or 'Kunden'}! Här är kostnadsförslag för {q_device or 'enhet'} hos 30 Minutes Phone Fix ({global_branch}). Totalt: {total_price:.2f} SEK. Välkommen!"
+        st.markdown(f'<a href="{get_whatsapp_link(q_phone, q_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال عرض السعر عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+
     if 'q_pdf' in st.session_state:
-        display_pdf_preview(st.session_state['q_pdf'], file_name="Offert_Kostnadsforslag.pdf", key_suffix="quote")
+        display_pdf_preview(st.session_state['q_pdf'], file_name="quote.pdf", key_suffix="qu")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 4: INVOICE ---
 with tab4:
     st.markdown("<div class='invoice-box'>", unsafe_allow_html=True)
-    st.header(f"📄 Skapa Faktura ({global_branch})")
+    st.header(f"📄 إنشاء وتوليد الفواتير الرسمية (Faktura) / Invoices ({global_branch})")
+    inv_emp = st.text_input(t["employee"], key="inv_emp")
+    inv_cname = st.text_input(t["customer_name"], key="inv_cname")
+    inv_addr = st.text_input("عنوان الزبون / Kundadress", key="inv_addr")
+    inv_phone = st.text_input(t["phone"], key="inv_phone")
+    inv_ref = st.text_input("مرجع الفاتورة / Er referens", key="inv_ref")
+    inv_num = st.text_input("رقم الفاتورة / Fakturanummer", value=f"FAK-{datetime.now().strftime('%Y%m%d%H%M')}", key="inv_num")
+    inv_desc = st.text_area("وصف الخدمات والأصناف / Artikelbeskrivning", value="Reparation och reservdelar", key="inv_desc")
     
-    inv_c1, inv_c2 = st.columns(2)
-    with inv_c1:
-        inv_emp = st.text_input(t["employee"], key="inv_emp")
-        inv_no = st.text_input("Fakturanummer", value=f"SE-{datetime.now().strftime('%Y%m%d%H%M')}", key="inv_no")
-        inv_name = st.text_input(t["customer_name"], key="inv_name")
-        inv_org_no = st.text_input("Org.nr / Personnummer", key="inv_org_no")
-        inv_phone = st.text_input(t["phone"], key="inv_phone")
-    with inv_c2:
-        inv_address = st.text_input("Faktureringsadress", key="inv_address")
-        inv_ref = st.text_input("Er Referens", key="inv_ref")
-        pay_terms = st.selectbox("Betalningsvillkor", ["10 Dagar", "15 Dagar", "30 Dagar", "Direktbetalning"], key="inv_pay_terms")
-        inv_desc = st.text_input("Artikelbeskrivning", value="Reparation och reservdelar", key="inv_desc")
+    col_amt, col_moms = st.columns(2)
+    with col_amt:
+        inv_amount = st.number_input("المبلغ الإجمالي شامل الضريبة / Totalt belopp (Inkl. moms)", min_value=0.0, step=50.0, key="inv_amount")
+    with col_moms:
+        moms_rate_choice = st.selectbox("نسبة الضريبة / Moms rate", ["25%", "12%", "6%", "0% (Momsfri)"], key="inv_moms_rate")
 
-    inv_amount = st.number_input("Totalt belopp inkl. moms (SEK)", min_value=0.0, step=100.0, key="inv_amount")
-    moms_amount = inv_amount * (0.25 / 1.25)
+    rate_val = 0.25 if "25%" in moms_rate_choice else (0.12 if "12%" in moms_rate_choice else (0.06 if "6%" in moms_rate_choice else 0.0))
+    calc_moms = float(inv_amount - (inv_amount / (1.0 + rate_val))) if rate_val > 0 else 0.0
 
-    if st.button("Spara & Generera Faktura PDF", type="primary", key="btn_save_inv"):
-        if inv_name and inv_amount > 0 and inv_emp:
+    st.markdown(f"### 💵 الإجمالي: **{inv_amount:.2f} SEK** | 🏛️ قيمة الضريبة ({moms_rate_choice}): **{calc_moms:.2f} SEK**")
+
+    if st.button("حفظ وتوليد الفاتورة PDF / Save & Generate Invoice PDF", type="primary", key="btn_save_inv"):
+        if inv_cname and inv_amount > 0 and inv_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d")
-            due_date = (date.today() + timedelta(days=10)).strftime('%Y-%m-%d')
-            cursor.execute("INSERT INTO invoices (branch, customer_name, phone, address, org_no_cust, ref_no, invoice_no, item_desc, amount, moms, currency, moms_rate, payment_terms, due_date, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                           (global_branch, inv_name, inv_phone, inv_address, inv_org_no, inv_ref, inv_no, inv_desc, inv_amount, moms_amount, "SEK", "25%", pay_terms, due_date, inv_emp, created_at))
+            cursor.execute("""
+                INSERT INTO invoices (branch, customer_name, phone, address, ref_no, invoice_no, item_desc, amount, moms, currency, moms_rate, employee, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, inv_cname, inv_phone, inv_addr, inv_ref, inv_num, inv_desc, inv_amount, calc_moms, "SEK", moms_rate_choice, inv_emp, created_at))
             conn.commit()
             conn.close()
-            st.success("✅ Fakturan har skapats!")
-
-            record_data = {
-                "branch": global_branch, "invoice_no": inv_no, "customer_name": inv_name, "org_no_cust": inv_org_no,
-                "address": inv_address, "phone": inv_phone, "ref_no": inv_ref, "item_desc": inv_desc, 
-                "amount": inv_amount, "moms": moms_amount, "currency": "SEK", "moms_rate": "25%", 
-                "payment_terms": pay_terms, "employee": inv_emp, "created_at": created_at, "due_date": due_date
+            st.success("✅ تم حفظ الفاتورة بنجاح!")
+            
+            inv_data = {
+                "branch": global_branch, "customer_name": inv_cname, "address": inv_addr, "phone": inv_phone,
+                "ref_no": inv_ref, "invoice_no": inv_num, "item_desc": inv_desc, "amount": inv_amount,
+                "moms": calc_moms, "currency": "SEK", "moms_rate": moms_rate_choice, "employee": inv_emp,
+                "created_at": created_at, "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
             }
-            st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", record_data, COMPANY_INFO)
+            st.session_state['inv_pdf'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
 
     if 'inv_pdf' in st.session_state:
-        display_pdf_preview(st.session_state['inv_pdf'], file_name=f"Faktura_{inv_no}.pdf", key_suffix="invoice")
+        display_pdf_preview(st.session_state['inv_pdf'], file_name=f"{inv_num}.pdf", key_suffix="invoice")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 5: SUBSCRIPTIONS ---
 with tab5:
     st.markdown("<div class='sub-box'>", unsafe_allow_html=True)
-    st.header(f"💳 Abonnemang & Trygghetsavtal ({global_branch})")
+    st.header(f"💳 إدارة الاشتراكات وخدمات الصيانة الدورية / Subscriptions ({global_branch})")
+    sub_emp = st.text_input(t["employee"], key="sub_emp")
+    sub_name = st.text_input(t["customer_name"], key="sub_name")
+    sub_phone = st.text_input(t["phone"], key="sub_phone")
+    sub_device = st.text_input(t["device"], key="sub_device")
+    sub_imei = st.text_input(t["imei"], key="sub_imei")
     
-    sub_c1, sub_c2 = st.columns(2)
-    with sub_c1:
-        sub_emp = st.text_input(t["employee"], key="sub_emp")
-        sub_name = st.text_input(t["customer_name"], key="sub_name")
-        sub_phone = st.text_input(t["phone"], key="sub_phone")
-    with sub_c2:
-        sub_device = st.text_input(t["device"], key="sub_device")
-        sub_imei = st.text_input(t["imei"], key="sub_imei")
-        sub_plan = st.selectbox("Abonnemangstyp", ["Skärmskydd Garanti (12 Mån)", "Full Protection Plan"], key="sub_plan")
-        sub_price = st.number_input("Årsavgift (SEK)", min_value=0.0, step=49.0, key="sub_price")
+    plan_type = st.selectbox("نوع الاشتراك / Subscription Plan", ["Basic Care (149 SEK/mån)", "Pro Shield (299 SEK/mån)", "Business VIP (499 SEK/mån)"], key="sub_plan")
+    sub_price = st.number_input("سعر الاشتراك الشهري / Monthly Price", min_value=0.0, value=149.0, step=10.0, key="sub_price")
 
-    if st.button("Teckna Abonnemang", type="primary", key="btn_save_sub"):
+    if st.button("حفظ الاشتراك / Save Subscription", type="primary", key="btn_save_sub"):
         if sub_name and sub_phone and sub_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            end_date = (date.today() + timedelta(days=365)).strftime('%Y-%m-%d')
-            cursor.execute("INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, end_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (global_branch, sub_name, sub_phone, sub_device, sub_imei, sub_plan, sub_price, sub_emp, date.today().strftime('%Y-%m-%d'), end_date, created_at))
+            cursor.execute("""
+                INSERT INTO subscriptions (branch, customer_name, phone, device, imei, plan_type, price, employee, start_date, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, sub_name, sub_phone, sub_device, sub_imei, plan_type, sub_price, sub_emp, str(date.today()), created_at))
             conn.commit()
             conn.close()
-            st.success("✅ Abonnemanget har tecknats!")
+            st.success("✅ تم تسجيل الاشتراك بنجاح!")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 6: BUYBACK ---
 with tab6:
     st.markdown("<div class='buyback-box'>", unsafe_allow_html=True)
-    st.header(f"📱 Inköp av Begagnad Elektronik ({global_branch})")
-    
-    bb_c1, bb_c2 = st.columns(2)
-    with bb_c1:
-        b_emp = st.text_input(t["employee"], key="b_emp")
-        b_name = st.text_input("Säljarens Namn", key="b_name")
-        b_person_num = st.text_input("Personnummer (YYYYMMDD-XXXX)", key="b_pnum")
-        b_phone = st.text_input(t["phone"], key="b_phone")
-        b_id_chk = st.checkbox("✅ Legitimation kontrollerad", key="b_id_chk")
-    with bb_c2:
-        b_device = st.text_input(t["device"], key="b_device")
-        b_imei = st.text_input(t["imei"], key="b_imei")
-        b_grade = st.selectbox("Enhetens Skick", ["Nyskick (A)", "Gott Skick (B)", "Slitage (C)", "Defekt"], key="b_grade")
-        b_price = st.number_input("Utbetalt Belopp (SEK)", min_value=0.0, step=100.0, key="b_price")
+    st.header(f"📱 شراء الأجهزة المستعملة وإيصال الاستلام القانوني / Buyback ({global_branch})")
+    bb_emp = st.text_input(t["employee"], key="bb_emp")
+    bb_name = st.text_input(t["customer_name"], key="bb_name")
+    bb_phone = st.text_input(t["phone"], key="bb_phone")
+    bb_pnr = st.text_input("رقم الهوية / الشخصي (Personnummer / Legimation)", key="bb_pnr")
+    bb_device = st.text_input(t["device"], key="bb_device")
+    bb_imei = st.text_input(t["imei"], key="bb_imei")
+    bb_price = st.number_input("مبلغ الشراء المدفوع للزبون / Purchase Payout Price", min_value=0.0, step=100.0, key="bb_price")
 
-    st.components.v1.html(render_signature_pad("bb_sig"), height=210)
-    bb_sig_input = st.text_input("🔑 Bekräfta signatur för säljare:", key="bb_sig_input")
+    st.markdown("""
+    <div style="background-color: #eafaf1; padding: 12px; border-radius: 8px; border-left: 5px solid #27ae60; font-size: 13px; margin-top: 10px; margin-bottom: 10px;">
+        <b>📜 إقرار ملكية الجهاز (Ägarförsäkran):</b><br>
+        أقر أنا البائع بأن الجهاز ملكي الشخصي، وليس مسروقاً، وتم تسجيل خروج كامل الحسابات (iCloud / Google).
+    </div>
+    """, unsafe_allow_html=True)
+    bb_terms = st.checkbox("✅ أوافق على إقرار الملكية والشروط القانونية (Approve Ownership Declaration)", key="bb_terms_chk")
+    bb_signature = render_signature_pad(key_suffix="buyback")
 
-    if st.button("Spara Inköp & Skapa Inköpskvitto PDF", type="primary", key="btn_save_bb"):
-        if not b_id_chk:
-            st.error("❌ Legitimation måste kontrolleras!")
-        elif b_name and b_person_num and b_price > 0 and b_emp:
+    if st.button("حفظ وتوليد إيصال شراء مستعمل PDF / Save Buyback PDF", type="primary", key="btn_save_bb"):
+        if not bb_terms:
+            st.error("❌ يجب الموافقة على إقرار الملكية أولاً!")
+        elif bb_name and bb_pnr and bb_device and bb_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO buybacks (branch, customer_name, phone, person_nummer, id_verified, device, imei, purchase_price, condition_grade, employee, signature_b64, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                           (global_branch, b_name, b_phone, b_person_num, 1 if b_id_chk else 0, b_device, b_imei, b_price, b_grade, b_emp, bb_sig_input, created_at))
-            bb_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO buybacks (branch, customer_name, phone, person_nummer, device, imei, purchase_price, employee, created_at, signature)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, bb_name, bb_phone, bb_pnr, bb_device, bb_imei, bb_price, bb_emp, created_at, bb_signature))
+            bb_db_id = cursor.lastrowid
             conn.commit()
             conn.close()
-            st.success("✅ Inköpet har registrerats!")
-
-            rec_data = {
-                "branch": global_branch, "buyback_id": str(bb_id), "customer_name": b_name, "person_nummer": b_person_num,
-                "phone": b_phone, "id_verified": b_id_chk, "device": b_device, "imei": b_imei, "condition_grade": b_grade,
-                "purchase_price": b_price, "employee": b_emp, "signature_b64": bb_sig_input, "created_at": date.today().strftime('%Y-%m-%d')
+            st.success("✅ تم حفظ إيصال الشراء بنجاح!")
+            
+            bb_data = {
+                "branch": global_branch, "buyback_id": str(bb_db_id), "customer_name": bb_name,
+                "phone": bb_phone, "person_nummer": bb_pnr, "device": bb_device, "imei": bb_imei,
+                "purchase_price": bb_price, "currency": "SEK", "employee": bb_emp,
+                "created_at": date.today().strftime('%Y-%m-%d'), "signature": bb_signature
             }
-            st.session_state['bb_pdf'] = generate_pdf_from_record("buyback_receipt", rec_data, COMPANY_INFO)
+            st.session_state['bb_pdf'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
 
     if 'bb_pdf' in st.session_state:
-        display_pdf_preview(st.session_state['bb_pdf'], file_name="Inkopsavtal_Begagnat.pdf", key_suffix="buyback")
+        display_pdf_preview(st.session_state['bb_pdf'], file_name="Inköpskvitto.pdf", key_suffix="buyback")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 7: CAMPAIGNS ---
 with tab7:
-    st.markdown("### 🎄 Kampanjer & Erbjudanden")
-    st.info("💡 Aktiva marknadskampanjer i butiken:")
-    st.markdown("""
-    • **Paketerbjudande:** 20% rabatt på skärmskydd vid skärmbyte.
-    • **Batteribyte Kampanj:** Fast pris 499 SEK för valda modeller.
-    • **Studentrabatt:** 10% rabatt på utfört arbete vid uppvisande av student-ID.
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='campaign-box'>", unsafe_allow_html=True)
+    st.header(f"🎄 حملات وعروض الأسعار الموسمية / Campaigns ({global_branch})")
+    st.markdown("أحدث العروض والتخفيضات الخاصة بالأعياد وموسم العودة للمدارس وعروض الصيانة الشاملة:")
+    st.info("🎁 **عرض الشتاء المميز:** خصم 15% على جميع تبديلات الشاشات الأصلية وبطاريات الهواتف.")
+    st.info("🎁 **عرض الطلاب:** فحص مجاني للجهاز مع أي عملية صيانة.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 8: PRE-ORDERS ---
 with tab8:
-    st.markdown("### 🛒 Förbeställning & Handpenning")
-    po_c1, po_c2 = st.columns(2)
-    with po_c1:
-        po_emp = st.text_input(t["employee"], key="po_emp")
-        po_name = st.text_input(t["customer_name"], key="po_name")
-        po_phone = st.text_input(t["phone"], key="po_phone")
-    with po_c2:
-        po_item = st.text_input("Beställd Produkt / Del", key="po_item")
-        po_deposit = st.number_input("Handpenning (SEK)", min_value=0.0, step=100.0, key="po_deposit")
-        po_est_date = st.date_input("Beräknat ankomstdatum", value=date.today() + timedelta(days=3), key="po_est_date")
+    st.markdown("<div class='preorder-box'>", unsafe_allow_html=True)
+    st.header(f"🛒 الطلبات المسبقة للقطع والهواتف / Pre-orders ({global_branch})")
+    pre_emp = st.text_input(t["employee"], key="pre_emp")
+    pre_name = st.text_input(t["customer_name"], key="pre_name")
+    pre_phone = st.text_input(t["phone"], key="pre_phone")
+    pre_item = st.text_area("تفاصيل القطعة أو الجهاز المطلوب / Item Details", key="pre_item")
+    pre_deposit = st.number_input("عربون / عربون الحجز (Deposit SEK)", min_value=0.0, step=50.0, key="pre_deposit")
 
-    if st.button("Registrera Förbeställning", type="primary", key="btn_save_po"):
-        if po_name and po_item and po_emp:
+    if st.button("حفظ الطلب المسبق / Save Pre-order", type="primary", key="btn_save_pre"):
+        if pre_name and pre_phone and pre_item and pre_emp:
             conn = get_db_connection()
             cursor = conn.cursor()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, estimated_delivery, employee, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                           (global_branch, po_name, po_phone, po_item, po_deposit, po_est_date.strftime('%Y-%m-%d'), po_emp, "Beställd", created_at))
+            cursor.execute("""
+                INSERT INTO preorders (branch, customer_name, phone, item_details, deposit, employee, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (global_branch, pre_name, pre_phone, pre_item, pre_deposit, pre_emp, created_at))
             conn.commit()
             conn.close()
-            st.success("✅ Förbeställningen har sparats!")
+            st.success("✅ تم حفظ الطلب المسبق بنجاح!")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TAB 9: INVENTORY ---
 with tab9:
-    st.markdown("### 📦 Lagerhantering")
+    st.markdown("<div class='inventory-box'>", unsafe_allow_html=True)
+    st.header(f"📦 إدارة المخزون وقطع الغيار / Inventory ({global_branch})")
+    
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, part_name, category, stock_qty, min_limit, purchase_cost, selling_price FROM inventory WHERE branch = ?", (global_branch,))
+    cursor.execute("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ?", (global_branch,))
     inv_rows = cursor.fetchall()
-    conn.close()
-
-    if inv_rows:
-        df_inv = pd.DataFrame(inv_rows, columns=["ID", "Artikel", "Kategori", "Antal", "Min-Gräns", "Inköpspris", "Försäljningspris"])
-        st.dataframe(df_inv, use_container_width=True)
-    else:
-        st.info("ℹ️ Inga artiklar registrerade i lagret ännu.")
-
+    
+    if not inv_rows:
+        default_parts = [
+            ("Skärmbyte (Original)", 10, 2),
+            ("Skärmbyte (OLED / Kopia)", 15, 3),
+            ("Batteribyte", 12, 3),
+            ("Laddport", 8, 2),
+            ("Baksida", 5, 1)
+        ]
+        for p_name, qty, limit in default_parts:
+            cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (p_name, qty, limit, global_branch))
+        conn.commit()
+        cursor.execute("SELECT id, part_name, stock_qty, min_limit FROM inventory WHERE branch = ?", (global_branch,))
+        inv_rows = cursor.fetchall()
+    
+    df_inv = pd.DataFrame(inv_rows, columns=["ID", "قطعة الغيار / Part", "الكمية المتاحة / Stock", "الحد الأدنى / Min Limit"])
+    st.dataframe(df_inv, use_container_width=True)
+    
     st.markdown("---")
-    st.subheader("➕ Registrera Ny Artikel")
-    inv_col1, inv_col2 = st.columns(2)
-    with inv_col1:
-        new_part = st.text_input("Artikelnamn", key="inv_new_part")
-        new_cat = st.selectbox("Kategori", ["Skärmar", "Batterier", "Laddkontakter", "Tillbehör"], key="inv_new_cat")
-        new_qty = st.number_input("Antal i lager", min_value=1, step=1, key="inv_new_qty")
-    with inv_col2:
-        new_cost = st.number_input("Inköpspris exkl. moms", min_value=0.0, step=10.0, key="inv_new_cost")
-        new_sell = st.number_input("Försäljningspris inkl. moms", min_value=0.0, step=50.0, key="inv_new_sell")
-        new_min = st.number_input("Minsta larmgräns", min_value=1, value=2, key="inv_new_min")
-
-    if st.button("Spara Artikel i Lagret", key="btn_add_inv"):
+    st.subheader("➕ إضافة قطعة جديدة للمخزون / Add Stock Part")
+    new_part = st.text_input("اسم القطعة / Part Name", key="inv_pname")
+    new_qty = st.number_input("الكمية / Quantity", min_value=0, value=5, key="inv_pqty")
+    new_limit = st.number_input("الحد الأدنى للتنبيه / Min Limit", min_value=0, value=2, key="inv_plimit")
+    
+    if st.button("إضافة للمخزون / Add to Inventory", type="primary", key="btn_add_inv"):
         if new_part:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO inventory (part_name, category, stock_qty, min_limit, purchase_cost, selling_price, branch) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                           (new_part, new_cat, new_qty, new_min, new_cost, new_sell, global_branch))
+            cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (new_part, new_qty, new_limit, global_branch))
             conn.commit()
-            conn.close()
-            st.success("✅ Artikeln har lagts till!")
+            st.success("✅ تم إضافة القطعة بنجاح!")
             st.rerun()
+    conn.close()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 10: UNIFIED SEARCH & ALL CUSTOMER FILES ARCHIVE ---
+# --- TAB 10: SEARCH & ARCHIVE ---
 with tab10:
     st.markdown("<div class='search-box'>", unsafe_allow_html=True)
-    st.header(f"🔍 البحث والأرشيف الشامل لكافة ملفات الزبائن ({global_branch})")
-    st.markdown("استعرض وابحث في جميع سجلات الزبائن عبر الأقسام (Repair, Quote, Invoice, Subscription, Buyback, Preorder) مع إمكانية المعاينة والطباعة الفورية.")
-
-    s_col1, s_col2 = st.columns([3, 1])
-    with s_col1:
-        search_query = st.text_input("🔎 كلمة البحث (Search Query):", placeholder="ابحث باسم الزبون، رقم الهاتف، IMEI، أو رقم الفاتورة...", key="global_search_q")
-    with s_col2:
-        filter_module = st.selectbox("📁 القسم / Module:", [
-            "الكل (All Modules)", 
-            "🛠️ الإصلاحات (Repairs)", 
-            "💡 عروض الأسعار (Quotes)", 
-            "📄 الفواتير (Invoices)", 
-            "💳 الاشتراكات (Subscriptions)", 
-            "📱 شراء المستعمل (Buyback)", 
-            "🛒 الطلبات المسبقة (Preorders)"
-        ], key="filter_mod_sel")
-
-    q_wild = f"%{search_query.strip()}%" if search_query else "%"
+    st.header(f"🔍 الأرشيف الشامل والبحث في سجلات الزبائن / Search & Archive ({global_branch})")
+    
+    search_query = st.text_input("بحث سريع (اسم العميل، رقم الهاتف، الجهاز، IMEI، رقم الفاتورة...):", key="global_search_input")
+    section_filter = st.selectbox("تصفية حسب القسم / Filter by Section:", ["جميع الأقسام (All Sections)", "🛠️ الإصلاحات (Repairs)", "💡 عروض الأسعار (Quotes)", "📄 الفواتير (Invoices)", "💳 الاشتراكات (Subscriptions)", "📱 الشراء المستعمل (Buybacks)", "🛒 الطلبات المسبقة (Pre-orders)"], key="search_section_sel")
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 1. Repairs Section
-    if filter_module in ["الكل (All Modules)", "🛠️ الإصلاحات (Repairs)"]:
-        st.subheader("🛠️ سجلات الإصلاحات (Repairs Archive)")
-        cursor.execute("""
-            SELECT id, customer_name, phone, device, imei, issue, price, status, warranty_period, employee, created_at, signature_b64
-            FROM repairs 
-            WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ? OR imei LIKE ? OR id LIKE ?)
-            ORDER BY id DESC
-        """, (global_branch, q_wild, q_wild, q_wild, q_wild, q_wild))
-        rep_data = cursor.fetchall()
+    def fetch_all_records(table_name, search_term=""):
+        try:
+            if search_term:
+                like_term = f"%{search_term}%"
+                cursor.execute(f"SELECT * FROM {table_name} WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR employee LIKE ?)", (global_branch, like_term, like_term, like_term))
+            else:
+                cursor.execute(f"SELECT * FROM {table_name} WHERE branch = ?", (global_branch,))
+            return cursor.fetchall()
+        except Exception:
+            return []
 
-        if rep_data:
-            for r in rep_data:
-                r_dict = dict(r)
-                with st.expander(f"🛠️ إصلاح #{r_dict['id']} | العميل: {r_dict['customer_name']} | الجهاز: {r_dict['device']} | {r_dict['created_at']}"):
-                    st.write(f"**الهاتف:** {r_dict['phone']} | **IMEI:** {r_dict['imei']} | **الحالة:** {r_dict['status']}")
-                    st.write(f"**العطل:** {r_dict['issue']} | **السعر:** {r_dict['price']} SEK | **الموظف:** {r_dict['employee']}")
-                    
-                    wa_msg = f"Hej {r_dict['customer_name']}! Angående din reparation #{r_dict['id']} ({r_dict['device']}) hos {comp['name']}. Status: {r_dict['status']}."
-                    st.markdown(f'<a href="{get_whatsapp_link(r_dict["phone"], wa_msg)}" target="_blank" class="whatsapp-btn" style="width: auto; padding: 4px 10px; font-size: 12px;">💬 واتساب</a>', unsafe_allow_html=True)
-                    
-                    if st.button(f"🖨️ طباعة إيصال الإصلاح #{r_dict['id']}", key=f"btn_print_rep_{r_dict['id']}"):
-                        rec_pdf_data = {
-                            "branch": global_branch, "repair_id": str(r_dict['id']), "customer_name": r_dict['customer_name'],
-                            "phone": r_dict['phone'], "device": r_dict['device'], "imei": r_dict['imei'], "issue": r_dict['issue'],
-                            "price": r_dict['price'], "warranty_period": r_dict['warranty_period'], "employee": r_dict['employee'],
-                            "signature_b64": r_dict['signature_b64'], "created_at": r_dict['created_at']
+    st.markdown("---")
+    
+    # 1. Repairs
+    if "جميع الأقسام" in section_filter or "الإصلاحات" in section_filter:
+        st.subheader("🛠️ سجلات الإصلاحات (Repairs)")
+        rep_records = fetch_all_records("repairs", search_query)
+        if rep_records:
+            for r in rep_records:
+                with st.expander(f"إصلاح #{r['id']} - {r['customer_name']} ({r['phone']}) - {r['device']} - {r['created_at']}"):
+                    st.write(f"**الموظف:** {r['employee']} | **الحالة:** {r['status']} | **السعر:** {r['price']} SEK")
+                    st.write(f"**العطل:** {r['issue']} | **IMEI:** {r['imei']}")
+                    if st.button(f"🖨️ طباعة إيصال الإصلاح #{r['id']}", key=f"btn_print_rep_{r['id']}"):
+                        rec_data = {
+                            "branch": r['branch'], "repair_id": str(r['id']), "customer_name": r['customer_name'],
+                            "phone": r['phone'], "device": r['device'], "imei": r['imei'], "issue": r['issue'],
+                            "price": r['price'], "employee": r['employee'], "created_at": r['created_at'][:10],
+                            "signature": r.get('signature', None)
                         }
-                        st.session_state[f'search_pdf_{r_dict["id"]}'] = generate_pdf_from_record("repair_receipt_dual", rec_pdf_data, COMPANY_INFO)
-
-                    if f'search_pdf_{r_dict["id"]}' in st.session_state:
-                        display_pdf_preview(st.session_state[f'search_pdf_{r_dict["id"]}'], file_name=f"Repair_{r_dict['id']}.pdf", key_suffix=f"rep_{r_dict['id']}")
+                        st.session_state[f'search_pdf_{r["id"]}'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
+                if f'search_pdf_{r["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_pdf_{r["id"]}'], file_name=f"Repair_{r['id']}.pdf", key_suffix=f"rep_{r['id']}")
         else:
             st.info("لا توجد سجلات إصلاح مطابقة.")
 
-    # 2. Quotes Section
-    if filter_module in ["الكل (All Modules)", "💡 عروض الأسعار (Quotes)"]:
-        st.subheader("💡 عروض الأسعار (Quotes Archive)")
-        cursor.execute("""
-            SELECT id, customer_name, phone, device, issues, total, profit, valid_until, employee, created_at 
-            FROM quotes 
-            WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)
-            ORDER BY id DESC
-        """, (global_branch, q_wild, q_wild, q_wild))
-        quote_data = cursor.fetchall()
-
-        if quote_data:
-            for q in quote_data:
-                q_dict = dict(q)
-                with st.expander(f"💡 عرض سعر #{q_dict['id']} | العميل: {q_dict['customer_name']} | الجهاز: {q_dict['device']} | الإجمالي: {q_dict['total']} SEK"):
-                    st.write(f"**التفاصيل:** {q_dict['issues']} | **صالح لغاية:** {q_dict['valid_until']} | **الموظف:** {q_dict['employee']}")
-                    if st.button(f"🖨️ طباعة عرض السعر #{q_dict['id']}", key=f"btn_print_q_{q_dict['id']}"):
-                        rec_pdf_data = {
-                            "branch": global_branch, "customer_name": q_dict['customer_name'], "phone": q_dict['phone'],
-                            "device": q_dict['device'], "issues": q_dict['issues'], "total": q_dict['total'],
-                            "currency": "SEK", "valid_until": q_dict['valid_until'], "employee": q_dict['employee'],
-                            "created_at": q_dict['created_at']
+    # 2. Quotes
+    if "جميع الأقسام" in section_filter or "عروض الأسعار" in section_filter:
+        st.subheader("💡 سجلات عروض الأسعار (Quotes)")
+        quote_records = fetch_all_records("quotes", search_query)
+        if quote_records:
+            for r in quote_records:
+                with st.expander(f"عرض سعر #{r['id']} - {r['customer_name']} ({r['phone']}) - {r['device']} - {r['created_at']}"):
+                    st.write(f"**الموظف:** {r['employee']} | **الإجمالي:** {r['total']} SEK | **الربح:** {r.get('profit', 0)} SEK")
+                    st.write(f"**التفاصيل:** {r['issues']}")
+                    if st.button(f"🖨️ طباعة عرض السعر #{r['id']}", key=f"btn_print_q_{r['id']}"):
+                        rec_data = {
+                            "branch": r['branch'], "customer_name": r['customer_name'], "phone": r['phone'],
+                            "device": r['device'], "issues": r['issues'], "total": r['total'],
+                            "currency": "SEK", "employee": r['employee'], "created_at": r['created_at'][:10]
                         }
-                        st.session_state[f'search_q_pdf_{q_dict["id"]}'] = generate_pdf_from_record("quote", rec_pdf_data, COMPANY_INFO)
-
-                    if f'search_q_pdf_{q_dict["id"]}' in st.session_state:
-                        display_pdf_preview(st.session_state[f'search_q_pdf_{q_dict["id"]}'], file_name=f"Quote_{q_dict['id']}.pdf", key_suffix=f"q_{q_dict['id']}")
+                        st.session_state[f'search_q_pdf_{r["id"]}'] = generate_pdf_from_record("quote", rec_data, COMPANY_INFO)
+                if f'search_q_pdf_{r["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_q_pdf_{r["id"]}'], file_name=f"Quote_{r['id']}.pdf", key_suffix=f"q_{r['id']}")
         else:
             st.info("لا توجد عروض أسعار مطابقة.")
 
-    # 3. Invoices Section
-    if filter_module in ["الكل (All Modules)", "📄 الفواتير (Invoices)"]:
-        st.subheader("📄 الفواتير المعتمدة (Invoices Archive)")
-        cursor.execute("""
-            SELECT id, invoice_no, customer_name, org_no_cust, phone, address, ref_no, item_desc, amount, moms, payment_terms, due_date, employee, created_at 
-            FROM invoices 
-            WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ? OR org_no_cust LIKE ?)
-            ORDER BY id DESC
-        """, (global_branch, q_wild, q_wild, q_wild, q_wild))
-        inv_data = cursor.fetchall()
-
-        if inv_data:
-            for inv in inv_data:
-                inv_dict = dict(inv)
-                with st.expander(f"📄 فاتورة رقم: {inv_dict['invoice_no']} | العميل: {inv_dict['customer_name']} | المبلغ: {inv_dict['amount']} SEK"):
-                    st.write(f"**الرقم الضريبي:** {inv_dict['org_no_cust']} | **تاريخ الاستحقاق:** {inv_dict['due_date']} | **الموظف:** {inv_dict['employee']}")
-                    if st.button(f"🖨️ طباعة الفاتورة #{inv_dict['invoice_no']}", key=f"btn_print_inv_{inv_dict['id']}"):
-                        rec_pdf_data = {
-                            "branch": global_branch, "invoice_no": inv_dict['invoice_no'], "customer_name": inv_dict['customer_name'],
-                            "org_no_cust": inv_dict['org_no_cust'], "address": inv_dict['address'], "phone": inv_dict['phone'],
-                            "ref_no": inv_dict['ref_no'], "item_desc": inv_dict['item_desc'], "amount": inv_dict['amount'],
-                            "moms": inv_dict['moms'], "currency": "SEK", "moms_rate": "25%", "payment_terms": inv_dict['payment_terms'],
-                            "employee": inv_dict['employee'], "created_at": inv_dict['created_at'], "due_date": inv_dict['due_date']
+    # 3. Invoices
+    if "جميع الأقسام" in section_filter or "الفواتير" in section_filter:
+        st.subheader("📄 سجلات الفواتير الرسمية (Invoices)")
+        inv_records = fetch_all_records("invoices", search_query)
+        if inv_records:
+            for r in inv_records:
+                with st.expander(f"فاتورة {r['invoice_no']} - {r['customer_name']} - {r['amount']} SEK - {r['created_at']}"):
+                    st.write(f"**الموظف:** {r['employee']} | **العنوان:** {r['address']} | **الضريبة:** {r['moms']} SEK")
+                    st.write(f"**الوصف:** {r['item_desc']}")
+                    if st.button(f"🖨️ طباعة الفاتورة {r['invoice_no']}", key=f"btn_print_inv_{r['id']}"):
+                        inv_data = {
+                            "branch": r['branch'], "customer_name": r['customer_name'], "address": r['address'],
+                            "phone": r['phone'], "ref_no": r['ref_no'], "invoice_no": r['invoice_no'],
+                            "item_desc": r['item_desc'], "amount": r['amount'], "moms": r['moms'],
+                            "currency": r['currency'], "moms_rate": r['moms_rate'], "employee": r['employee'],
+                            "created_at": r['created_at'], "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
                         }
-                        st.session_state[f'search_inv_pdf_{inv_dict["id"]}'] = generate_pdf_from_record("invoice", rec_pdf_data, COMPANY_INFO)
-
-                    if f'search_inv_pdf_{inv_dict["id"]}' in st.session_state:
-                        display_pdf_preview(st.session_state[f'search_inv_pdf_{inv_dict["id"]}'], file_name=f"Invoice_{inv_dict['invoice_no']}.pdf", key_suffix=f"inv_{inv_dict['id']}")
+                        st.session_state[f'search_inv_pdf_{r["id"]}'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                if f'search_inv_pdf_{r["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_inv_pdf_{r["id"]}'], file_name=f"Invoice_{r['invoice_no']}.pdf", key_suffix=f"inv_{r['id']}")
         else:
             st.info("لا توجد فواتير مطابقة.")
 
-    # 4. Buybacks Section
-    if filter_module in ["الكل (All Modules)", "📱 شراء المستعمل (Buyback)"]:
-        st.subheader("📱 سجلات شراء الأجهزة المستعملة (Buyback Archive)")
-        cursor.execute("""
-            SELECT id, customer_name, phone, person_nummer, id_verified, device, imei, purchase_price, condition_grade, employee, signature_b64, created_at 
-            FROM buybacks 
-            WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR person_nummer LIKE ? OR imei LIKE ?)
-            ORDER BY id DESC
-        """, (global_branch, q_wild, q_wild, q_wild, q_wild))
-        bb_data = cursor.fetchall()
-
-        if bb_data:
-            for bb in bb_data:
-                bb_dict = dict(bb)
-                with st.expander(f"📱 شراء مستعمل #{bb_dict['id']} | البائع: {bb_dict['customer_name']} | الجهاز: {bb_dict['device']} | المبلغ: {bb_dict['purchase_price']} SEK"):
-                    st.write(f"**Personnummer:** {bb_dict['person_nummer']} | **IMEI:** {bb_dict['imei']} | **ID التحقق:** {'نعم' if bb_dict['id_verified'] else 'لا'}")
-                    if st.button(f"🖨️ طباعة عقد شراء مستعمل #{bb_dict['id']}", key=f"btn_print_bb_{bb_dict['id']}"):
-                        rec_pdf_data = {
-                            "branch": global_branch, "buyback_id": str(bb_dict['id']), "customer_name": bb_dict['customer_name'],
-                            "person_nummer": bb_dict['person_nummer'], "phone": bb_dict['phone'], "id_verified": bb_dict['id_verified'],
-                            "device": bb_dict['device'], "imei": bb_dict['imei'], "condition_grade": bb_dict['condition_grade'],
-                            "purchase_price": bb_dict['purchase_price'], "employee": bb_dict['employee'],
-                            "signature_b64": bb_dict['signature_b64'], "created_at": bb_dict['created_at']
+    # 4. Buybacks
+    if "جميع الأقسام" in section_filter or "الشراء المستعمل" in section_filter:
+        st.subheader("📱 سجلات شراء الأجهزة المستعملة (Buybacks)")
+        bb_records = fetch_all_records("buybacks", search_query)
+        if bb_records:
+            for r in bb_records:
+                with st.expander(f"شراء مستعمل #{r['id']} - {r['customer_name']} ({r['phone']}) - {r['device']} - {r['created_at']}"):
+                    st.write(f"**الموظف:** {r['employee']} | **الشخصي:** {r['person_nummer']} | **المبلغ:** {r['purchase_price']} SEK")
+                    st.write(f"**IMEI:** {r['imei']}")
+                    if st.button(f"🖨️ طباعة إيصال الشراء #{r['id']}", key=f"btn_print_bb_{r['id']}"):
+                        bb_data = {
+                            "branch": r['branch'], "buyback_id": str(r['id']), "customer_name": r['customer_name'],
+                            "phone": r['phone'], "person_nummer": r['person_nummer'], "device": r['device'],
+                            "imei": r['imei'], "purchase_price": r['purchase_price'], "currency": "SEK",
+                            "employee": r['employee'], "created_at": r['created_at'][:10], "signature": r.get('signature', None)
                         }
-                        st.session_state[f'search_bb_pdf_{bb_dict["id"]}'] = generate_pdf_from_record("buyback_receipt", rec_pdf_data, COMPANY_INFO)
-
-                    if f'search_bb_pdf_{bb_dict["id"]}' in st.session_state:
-                        display_pdf_preview(st.session_state[f'search_bb_pdf_{bb_dict["id"]}'], file_name=f"Buyback_{bb_dict['id']}.pdf", key_suffix=f"bb_{bb_dict['id']}")
+                        st.session_state[f'search_bb_pdf_{r["id"]}'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
+                if f'search_bb_pdf_{r["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_bb_pdf_{r["id"]}'], file_name=f"Buyback_{r['id']}.pdf", key_suffix=f"bb_{r['id']}")
         else:
-            st.info("لا توجد سجلات شراء أجهزة مستعملة مطابقة.")
-
-    # 5. Subscriptions Section
-    if filter_module in ["الكل (All Modules)", "💳 الاشتراكات (Subscriptions)"]:
-        st.subheader("💳 اشتراكات الضمان والخدمات (Subscriptions Archive)")
-        cursor.execute("""
-            SELECT id, customer_name, phone, device, imei, plan_type, price, employee, start_date, end_date 
-            FROM subscriptions 
-            WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)
-            ORDER BY id DESC
-        """, (global_branch, q_wild, q_wild, q_wild))
-        sub_data = cursor.fetchall()
-        if sub_data:
-            df_sub = pd.DataFrame(sub_data, columns=["ID", "العميل", "الهاتف", "الجهاز", "IMEI", "نوع الاشتراك", "السعر", "الموظف", "تاريخ البدء", "تاريخ الانتهاء"])
-            st.dataframe(df_sub, use_container_width=True)
-        else:
-            st.info("لا توجد اشتراكات مطابقة.")
-
-    # 6. Preorders Section
-    if filter_module in ["الكل (All Modules)", "🛒 الطلبات المسبقة (Preorders)"]:
-        st.subheader("🛒 سجلات الطلبات المسبقة (Pre-orders Archive)")
-        cursor.execute("""
-            SELECT id, customer_name, phone, item_details, deposit, estimated_delivery, employee, status, created_at 
-            FROM preorders 
-            WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR item_details LIKE ?)
-            ORDER BY id DESC
-        """, (global_branch, q_wild, q_wild, q_wild))
-        po_data = cursor.fetchall()
-        if po_data:
-            df_po = pd.DataFrame(po_data, columns=["ID", "العميل", "الهاتف", "المنتج المطلوب", "العربون", "التاريخ المتوقع", "الموظف", "الحالة", "تاريخ الطلب"])
-            st.dataframe(df_po, use_container_width=True)
-        else:
-            st.info("لا توجد طلبات مسبقة مطابقة.")
+            st.info("لا توجد سجلات شراء مستعمل مطابقة.")
 
     conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
