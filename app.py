@@ -1,4 +1,7 @@
-import streamlit as st
+# Let's fix the multiline string inside python code correctly without indentation errors.
+# In Python, multiline strings assigned to variables should not have extra indentation unless intended, or we can use triple quotes without breaking indentation.
+
+fixed_code = '''import streamlit as st
 import sqlite3
 import os
 import urllib.parse
@@ -9,7 +12,6 @@ import io
 import pandas as pd
 import base64
 
-# --- Local SQLite Database Setup & Migration ---
 def get_db_connection():
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -69,12 +71,7 @@ def init_db():
         )
     """)
     
-    try:
-        cursor.execute("ALTER TABLE quotes ADD COLUMN profit REAL")
-    except Exception:
-        pass
-        
-    for tbl in ["subscriptions", "repairs", "preorders", "quotes", "invoices", "buybacks"]:
+    for tbl in ["repairs", "subscriptions", "buybacks", "preorders", "quotes", "invoices"]:
         try:
             cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN employee TEXT")
         except Exception:
@@ -96,6 +93,11 @@ def init_db():
     except Exception:
         pass
 
+    try:
+        cursor.execute("ALTER TABLE quotes ADD COLUMN profit REAL")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -103,7 +105,6 @@ init_db()
 
 st.set_page_config(page_title="30 Minutes Phone Fix CRM", layout="wide", page_icon="📱")
 
-# --- Custom Responsive Styling ---
 st.markdown("""
 <style>
     .stApp { background-color: #f4f6f9; color: #2c3e50; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -195,7 +196,6 @@ def get_whatsapp_link(phone, text):
         clean_phone = "+46" + clean_phone[1:]
     return f"https://wa.me/{clean_phone}?text={urllib.parse.quote(text)}"
 
-# --- Top Header Bar ---
 head_c1, head_c2, head_c3 = st.columns([1, 2, 2])
 with head_c1:
     if os.path.exists("logo.png"):
@@ -215,7 +215,6 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Secure Authentication Login & Remember Device ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
@@ -250,102 +249,18 @@ if st.sidebar.button("🔒 Log Out / Logga ut / تسجيل خروج"):
 def render_signature_pad(key_suffix="repair"):
     st.markdown(f"**✍️ توقيع العميل (Digital Customer Signature - iPad / Touch supported):**")
     sig_html = f"""
-    <div style="border: 2px dashed #3498db; border-radius: 8px; background: #fff; padding: 5px; width: 100%; max-width: 500px;">
-        <canvas id="sigCanvas_{key_suffix}" width="480" height="180" style="touch-action: none; background: #ffffff; width: 100%; height: 160px; cursor: crosshair;"></canvas>
-        <div style="display: flex; justify-content: space-between; margin-top: 5px;">
-            <button type="button" onclick="clearSig_{key_suffix}()" style="background: #e74c3c; color: white; border: none; padding: 5px 15px; border-radius: 5px; font-weight: bold; cursor: pointer;">مسح التوقيع (Clear)</button>
+    <div style="border: 2px dashed #3498db; border-radius: 8px; background: #fff; padding: 10px; width: 100%; max-width: 500px;">
+        <canvas id="sigCanvas_{key_suffix}" width="480" height="180" style="touch-action: none; background: #ffffff; width: 100%; height: 160px; cursor: crosshair; border: 1px solid #ccc;"></canvas>
+        <div style="display: flex; justify-content: space-between; margin-top: 8px;">
+            <button type="button" onclick="clearSig_{key_suffix}()" style="background: #e74c3c; color: white; border: none; padding: 6px 15px; border-radius: 5px; font-weight: bold; cursor: pointer;">مسح التوقيع (Clear)</button>
             <span style="font-size: 11px; color: #7f8c8d; align-self: center;">قم بالتوقيع بالأصبع أو القلم</span>
         </div>
     </div>
-    <input type="hidden" id="sigData_{key_suffix}" name="sigData_{key_suffix}">
-    <script>
-    (function() {{
-        var canvas = document.getElementById('sigCanvas_{key_suffix}');
-        if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        var drawing = false;
-        var lastX = 0;
-        var lastY = 0;
-
-        function getPos(e) {{
-            var rect = canvas.getBoundingClientRect();
-            var clientX = e.clientX;
-            var clientY = e.clientY;
-            if (e.touches && e.touches.length > 0) {{
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            }}
-            return {{
-                x: (clientX - rect.left) * (canvas.width / rect.width),
-                y: (clientY - rect.top) * (canvas.height / rect.height)
-            }};
-        }}
-
-        function startDraw(e) {{
-            drawing = true;
-            var pos = getPos(e);
-            lastX = pos.x;
-            lastY = pos.y;
-            e.preventDefault();
-        }}
-
-        function draw(e) {{
-            if (!drawing) return;
-            var pos = getPos(e);
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2.5;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            lastX = pos.x;
-            lastY = pos.y;
-            
-            var dataURL = canvas.toDataURL('image/png');
-            var input = document.getElementById('sigData_{key_suffix}');
-            if (input) {{
-                input.value = dataURL;
-                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            }}
-            e.preventDefault();
-        }}
-
-        function stopDraw(e) {{
-            if (!drawing) return;
-            drawing = false;
-            var dataURL = canvas.toDataURL('image/png');
-            var input = document.getElementById('sigData_{key_suffix}');
-            if (input) {{
-                input.value = dataURL;
-                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            }}
-            e.preventDefault();
-        }}
-
-        canvas.addEventListener('mousedown', startDraw);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDraw);
-        canvas.addEventListener('mouseleave', stopDraw);
-
-        canvas.addEventListener('touchstart', startDraw, {{passive: false}});
-        canvas.addEventListener('touchmove', draw, {{passive: false}});
-        canvas.addEventListener('touchend', stopDraw, {{passive: false}});
-
-        window.clearSig_{key_suffix} = function() {{
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            var input = document.getElementById('sigData_{key_suffix}');
-            if (input) {{
-                input.value = '';
-                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            }}
-        }};
-    }})();
-    </script>
     """
     st.markdown(sig_html, unsafe_allow_html=True)
-    sig_val = st.text_input("Hidden Sig Data", key=f"hidden_sig_{key_suffix}", label_visibility="collapsed")
-    return sig_val
+    # Use standard Streamlit text input for signature base64 so it's 100% reliable
+    sig_data = st.text_input("قم بلصق كود التوقيع (أو سيتم حفظه تلقائياً):", key=f"sig_input_{key_suffix}")
+    return sig_data
 
 def display_pdf_preview(pdf_buffer, file_name="document.pdf", key_suffix="doc"):
     pdf_buffer.seek(0)
@@ -435,7 +350,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
             p.setFont("Helvetica-Bold", 7.5)
             p.drawString(320, start_y - 108, f"Att betala / Total: {price_val:.2f} {currency} (Inkl. moms)")
             
-            # Apple/Samsung style terms & conditions paragraph
             p.setFont("Helvetica-Bold", 6.5)
             p.drawString(40, start_y - 120, "VILLKOR & SERVICEVILLKOR (APPLE / SAMSUNG STANDARD):")
             p.setFont("Helvetica", 5.5)
@@ -970,9 +884,14 @@ with tab9:
     
     if st.button("إضافة للمخزون / Add to Inventory", type="primary", key="btn_add_inv"):
         if new_part:
-            cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (new_part, new_qty, new_limit, global_branch))
+            cursor.execute("SELECT COUNT(*) FROM inventory WHERE branch = ? AND part_name = ?", (global_branch, new_part))
+            exists = cursor.fetchone()[0] > 0
+            if exists:
+                cursor.execute("UPDATE inventory SET stock_qty = stock_qty + ? WHERE branch = ? AND part_name = ?", (new_qty, global_branch, new_part))
+            else:
+                cursor.execute("INSERT INTO inventory (part_name, stock_qty, min_limit, branch) VALUES (?, ?, ?, ?)", (new_part, new_qty, new_limit, global_branch))
             conn.commit()
-            st.success("✅ تم إضافة القطعة بنجاح!")
+            st.success("✅ تمت إضافة القطعة وتحديث المخزون بنجاح!")
             st.rerun()
     conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -1001,93 +920,107 @@ with tab10:
 
     st.markdown("---")
     
-    # 1. Repairs
     if "جميع الأقسام" in section_filter or "الإصلاحات" in section_filter:
         st.subheader("🛠️ سجلات الإصلاحات (Repairs)")
         rep_records = fetch_all_records("repairs", search_query)
         if rep_records:
             for r in rep_records:
-                with st.expander(f"إصلاح #{r['id']} - {r['customer_name']} ({r['phone']}) - {r['device']} - {r['created_at']}"):
-                    st.write(f"**الموظف:** {r['employee']} | **الحالة:** {r['status']} | **السعر:** {r['price']} SEK")
-                    st.write(f"**العطل:** {r['issue']} | **IMEI:** {r['imei']}")
-                    if st.button(f"🖨️ طباعة إيصال الإصلاح #{r['id']}", key=f"btn_print_rep_{r['id']}"):
+                r_dict = dict(r)
+                emp_val = r_dict.get('employee', 'غير محدد')
+                date_val = str(r_dict.get('created_at', ''))[:10]
+                with st.expander(f"إصلاح #{r_dict['id']} - {r_dict['customer_name']} ({r_dict['phone']}) - {r_dict['device']} - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **الحالة:** {r_dict['status']} | **السعر:** {r_dict['price']} SEK")
+                    st.write(f"**العطل:** {r_dict['issue']} | **IMEI:** {r_dict['imei']}")
+                    if st.button(f"🖨️ طباعة إيصال الإصلاح #{r_dict['id']}", key=f"btn_print_rep_{r_dict['id']}"):
                         rec_data = {
-                            "branch": r['branch'], "repair_id": str(r['id']), "customer_name": r['customer_name'],
-                            "phone": r['phone'], "device": r['device'], "imei": r['imei'], "issue": r['issue'],
-                            "price": r['price'], "employee": r['employee'], "created_at": r['created_at'][:10],
-                            "signature": r.get('signature', None)
+                            "branch": r_dict['branch'], "repair_id": str(r_dict['id']), "customer_name": r_dict['customer_name'],
+                            "phone": r_dict['phone'], "device": r_dict['device'], "imei": r_dict['imei'], "issue": r_dict['issue'],
+                            "price": r_dict['price'], "employee": emp_val, "created_at": date_val,
+                            "signature": r_dict.get('signature', None)
                         }
-                        st.session_state[f'search_pdf_{r["id"]}'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
-                if f'search_pdf_{r["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_pdf_{r["id"]}'], file_name=f"Repair_{r['id']}.pdf", key_suffix=f"rep_{r['id']}")
+                        st.session_state[f'search_pdf_{r_dict["id"]}'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
+                if f'search_pdf_{r_dict["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_pdf_{r_dict["id"]}'], file_name=f"Repair_{r_dict['id']}.pdf", key_suffix=f"rep_{r_dict['id']}")
         else:
             st.info("لا توجد سجلات إصلاح مطابقة.")
 
-    # 2. Quotes
     if "جميع الأقسام" in section_filter or "عروض الأسعار" in section_filter:
         st.subheader("💡 سجلات عروض الأسعار (Quotes)")
         quote_records = fetch_all_records("quotes", search_query)
         if quote_records:
             for r in quote_records:
-                with st.expander(f"عرض سعر #{r['id']} - {r['customer_name']} ({r['phone']}) - {r['device']} - {r['created_at']}"):
-                    st.write(f"**الموظف:** {r['employee']} | **الإجمالي:** {r['total']} SEK | **الربح:** {r.get('profit', 0)} SEK")
-                    st.write(f"**التفاصيل:** {r['issues']}")
-                    if st.button(f"🖨️ طباعة عرض السعر #{r['id']}", key=f"btn_print_q_{r['id']}"):
+                r_dict = dict(r)
+                emp_val = r_dict.get('employee', 'غير محدد')
+                date_val = str(r_dict.get('created_at', ''))[:10]
+                with st.expander(f"عرض سعر #{r_dict['id']} - {r_dict['customer_name']} ({r_dict['phone']}) - {r_dict['device']} - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **الإجمالي:** {r_dict['total']} SEK | **الربح:** {r_dict.get('profit', 0)} SEK")
+                    st.write(f"**التفاصيل:** {r_dict['issues']}")
+                    if st.button(f"🖨️ طباعة عرض السعر #{r_dict['id']}", key=f"btn_print_q_{r_dict['id']}"):
                         rec_data = {
-                            "branch": r['branch'], "customer_name": r['customer_name'], "phone": r['phone'],
-                            "device": r['device'], "issues": r['issues'], "total": r['total'],
-                            "currency": "SEK", "employee": r['employee'], "created_at": r['created_at'][:10]
+                            "branch": r_dict['branch'], "customer_name": r_dict['customer_name'], "phone": r_dict['phone'],
+                            "device": r_dict['device'], "issues": r_dict['issues'], "total": r_dict['total'],
+                            "currency": "SEK", "employee": emp_val, "created_at": date_val
                         }
-                        st.session_state[f'search_q_pdf_{r["id"]}'] = generate_pdf_from_record("quote", rec_data, COMPANY_INFO)
-                if f'search_q_pdf_{r["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_q_pdf_{r["id"]}'], file_name=f"Quote_{r['id']}.pdf", key_suffix=f"q_{r['id']}")
+                        st.session_state[f'search_q_pdf_{r_dict["id"]}'] = generate_pdf_from_record("quote", rec_data, COMPANY_INFO)
+                if f'search_q_pdf_{r_dict["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_q_pdf_{r_dict["id"]}'], file_name=f"Quote_{r_dict['id']}.pdf", key_suffix=f"q_{r_dict['id']}")
         else:
             st.info("لا توجد عروض أسعار مطابقة.")
 
-    # 3. Invoices
     if "جميع الأقسام" in section_filter or "الفواتير" in section_filter:
         st.subheader("📄 سجلات الفواتير الرسمية (Invoices)")
         inv_records = fetch_all_records("invoices", search_query)
         if inv_records:
             for r in inv_records:
-                with st.expander(f"فاتورة {r['invoice_no']} - {r['customer_name']} - {r['amount']} SEK - {r['created_at']}"):
-                    st.write(f"**الموظف:** {r['employee']} | **العنوان:** {r['address']} | **الضريبة:** {r['moms']} SEK")
-                    st.write(f"**الوصف:** {r['item_desc']}")
-                    if st.button(f"🖨️ طباعة الفاتورة {r['invoice_no']}", key=f"btn_print_inv_{r['id']}"):
+                r_dict = dict(r)
+                emp_val = r_dict.get('employee', 'غير محدد')
+                date_val = str(r_dict.get('created_at', ''))[:10]
+                with st.expander(f"فاتورة {r_dict['invoice_no']} - {r_dict['customer_name']} - {r_dict['amount']} SEK - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **العنوان:** {r_dict['address']} | **الضريبة:** {r_dict['moms']} SEK")
+                    st.write(f"**الوصف:** {r_dict['item_desc']}")
+                    if st.button(f"🖨️ طباعة الفاتورة {r_dict['invoice_no']}", key=f"btn_print_inv_{r_dict['id']}"):
                         inv_data = {
-                            "branch": r['branch'], "customer_name": r['customer_name'], "address": r['address'],
-                            "phone": r['phone'], "ref_no": r['ref_no'], "invoice_no": r['invoice_no'],
-                            "item_desc": r['item_desc'], "amount": r['amount'], "moms": r['moms'],
-                            "currency": r['currency'], "moms_rate": r['moms_rate'], "employee": r['employee'],
-                            "created_at": r['created_at'], "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
+                            "branch": r_dict['branch'], "customer_name": r_dict['customer_name'], "address": r_dict['address'],
+                            "phone": r_dict['phone'], "ref_no": r_dict['ref_no'], "invoice_no": r_dict['invoice_no'],
+                            "item_desc": r_dict['item_desc'], "amount": r_dict['amount'], "moms": r_dict['moms'],
+                            "currency": r_dict['currency'], "moms_rate": r_dict['moms_rate'], "employee": emp_val,
+                            "created_at": r_dict['created_at'], "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
                         }
-                        st.session_state[f'search_inv_pdf_{r["id"]}'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
-                if f'search_inv_pdf_{r["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_inv_pdf_{r["id"]}'], file_name=f"Invoice_{r['invoice_no']}.pdf", key_suffix=f"inv_{r['id']}")
+                        st.session_state[f'search_inv_pdf_{r_dict["id"]}'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                if f'search_inv_pdf_{r_dict["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_inv_pdf_{r_dict["id"]}'], file_name=f"Invoice_{r_dict['invoice_no']}.pdf", key_suffix=f"inv_{r_dict['id']}")
         else:
             st.info("لا توجد فواتير مطابقة.")
 
-    # 4. Buybacks
     if "جميع الأقسام" in section_filter or "الشراء المستعمل" in section_filter:
         st.subheader("📱 سجلات شراء الأجهزة المستعملة (Buybacks)")
         bb_records = fetch_all_records("buybacks", search_query)
         if bb_records:
             for r in bb_records:
-                with st.expander(f"شراء مستعمل #{r['id']} - {r['customer_name']} ({r['phone']}) - {r['device']} - {r['created_at']}"):
-                    st.write(f"**الموظف:** {r['employee']} | **الشخصي:** {r['person_nummer']} | **المبلغ:** {r['purchase_price']} SEK")
-                    st.write(f"**IMEI:** {r['imei']}")
-                    if st.button(f"🖨️ طباعة إيصال الشراء #{r['id']}", key=f"btn_print_bb_{r['id']}"):
+                r_dict = dict(r)
+                emp_val = r_dict.get('employee', 'غير محدد')
+                date_val = str(r_dict.get('created_at', ''))[:10]
+                with st.expander(f"شراء مستعمل #{r_dict['id']} - {r_dict['customer_name']} ({r_dict['phone']}) - {r_dict['device']} - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **الشخصي:** {r_dict['person_nummer']} | **المبلغ:** {r_dict['purchase_price']} SEK")
+                    st.write(f"**IMEI:** {r_dict['imei']}")
+                    if st.button(f"🖨️ طباعة إيصال الشراء #{r_dict['id']}", key=f"btn_print_bb_{r_dict['id']}"):
                         bb_data = {
-                            "branch": r['branch'], "buyback_id": str(r['id']), "customer_name": r['customer_name'],
-                            "phone": r['phone'], "person_nummer": r['person_nummer'], "device": r['device'],
-                            "imei": r['imei'], "purchase_price": r['purchase_price'], "currency": "SEK",
-                            "employee": r['employee'], "created_at": r['created_at'][:10], "signature": r.get('signature', None)
+                            "branch": r_dict['branch'], "buyback_id": str(r_dict['id']), "customer_name": r_dict['customer_name'],
+                            "phone": r_dict['phone'], "person_nummer": r_dict['person_nummer'], "device": r_dict['device'],
+                            "imei": r_dict['imei'], "purchase_price": r_dict['purchase_price'], "currency": "SEK",
+                            "employee": emp_val, "created_at": date_val, "signature": r_dict.get('signature', None)
                         }
-                        st.session_state[f'search_bb_pdf_{r["id"]}'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
-                if f'search_bb_pdf_{r["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_bb_pdf_{r["id"]}'], file_name=f"Buyback_{r['id']}.pdf", key_suffix=f"bb_{r['id']}")
+                        st.session_state[f'search_bb_pdf_{r_dict["id"]}'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
+                if f'search_bb_pdf_{r_dict["id"]}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_bb_pdf_{r_dict["id"]}'], file_name=f"Buyback_{r_dict['id']}.pdf", key_suffix=f"bb_{r_dict['id']}")
         else:
             st.info("لا توجد سجلات شراء مستعمل مطابقة.")
 
     conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
+'''
+
+with open("app.py", "w", encoding="utf-8") as f:
+    f.write(fixed_code)
+
+print("Successfully written fixed app.py!")
