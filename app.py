@@ -205,19 +205,25 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Secure Authentication Login ---
+# --- Secure Authentication Login & Remember Device ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
+
+if not st.session_state['authenticated'] and st.session_state.get('remember_device', False):
+    st.session_state['authenticated'] = True
 
 if not st.session_state['authenticated']:
     st.markdown("<div class='login-container'>", unsafe_allow_html=True)
     st.markdown("### 🔒 System Login / Inloggning")
     st.markdown("Ange PIN-kod för att fortsätta / الرجاء إدخال رمز المرور:")
+    
     login_pin = st.text_input("🔑 PIN Code / رمز المرور", type="password", key="login_pin_input")
+    remember_me = st.checkbox("💾 Spara inloggning på denna enhet / تذكرني على هذا الجهاز", key="remember_device_chk")
     
     if login_pin:
         if login_pin.strip() == "Tunapark":
             st.session_state['authenticated'] = True
+            st.session_state['remember_device'] = remember_me
             st.success("✅ Logged in successfully! / تم تسجيل الدخول بنجاح!")
             st.rerun()
         else:
@@ -228,6 +234,7 @@ if not st.session_state['authenticated']:
 
 if st.sidebar.button("🔒 Log Out / Logga ut / تسجيل خروج"):
     st.session_state['authenticated'] = False
+    st.session_state['remember_device'] = False
     st.rerun()
 
 def display_pdf_preview(pdf_buffer, file_name="document.pdf", key_suffix="doc"):
@@ -958,6 +965,29 @@ with tab10:
     if not quote_res.empty:
         q_map = {'customer_name': inc_name, 'phone': inc_phone, 'device': inc_device, 'issues': inc_issue, 'total': inc_price, 'employee': inc_emp, 'created_at': inc_date}
         st.dataframe(filter_df_columns(quote_res, q_map), use_container_width=True)
+        
+        selected_quote_id = st.selectbox("🖨️ اختر رقم عرض سعر (ID) لطباعة أو إرسال العرض:", quote_res['id'].tolist(), key="sel_quote_id")
+        if selected_quote_id:
+            q_row = quote_res[quote_res['id'] == selected_quote_id].iloc[0]
+            if st.button("📄 معاينة وطباعة عرض السعر", key=f"btn_gen_quote_{selected_quote_id}"):
+                q_data = {
+                    "branch": global_branch,
+                    "customer_name": q_row['customer_name'] if inc_name else "N/A",
+                    "phone": q_row['phone'] if inc_phone else "N/A",
+                    "device": q_row['device'] if inc_device else "N/A",
+                    "issues": q_row['issues'] if inc_issue else "N/A",
+                    "total": q_row['total'] if inc_price else 0.0,
+                    "currency": "SEK",
+                    "employee": q_row['employee'] if inc_emp else "N/A",
+                    "created_at": str(q_row['created_at'])[:10] if inc_date else ""
+                }
+                pdf_buf = generate_pdf_from_record("quote", q_data, COMPANY_INFO)
+                display_pdf_preview(pdf_buf, file_name=f"Kostnadsforslag_{selected_quote_id}.pdf", key_suffix=f"search_quote_{selected_quote_id}")
+                if q_row['phone'] and inc_phone:
+                    wa_t = f"Hej {q_row['customer_name']}! Här är ert kostnadsförslag för {q_row['device']} på {q_row['total']} SEK från 30 Minutes Phone Fix ({global_branch}). Välkommen!"
+                    st.markdown(f'<a href="{get_whatsapp_link(q_row["phone"], wa_t)}" target="_blank" class="whatsapp-btn">💬 إرسال عرض السعر عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
+    else:
+        st.info("لا توجد نتائج مطابقة في جدول عروض الأسعار.")
 
     # 4. SUBSCRIPTIONS
     st.subheader("💳 الاشتراكات (Subscriptions)")
