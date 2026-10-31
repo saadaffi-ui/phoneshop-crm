@@ -1,7 +1,4 @@
-# Let's fix the multiline string inside python code correctly without indentation errors.
-# In Python, multiline strings assigned to variables should not have extra indentation unless intended, or we can use triple quotes without breaking indentation.
-
-fixed_code = '''import streamlit as st
+import streamlit as st
 import sqlite3
 import os
 import urllib.parse
@@ -16,6 +13,19 @@ def get_db_connection():
     conn = sqlite3.connect("local_crm.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
+
+def safe_val(row, key, default="-"):
+    try:
+        if isinstance(row, dict):
+            val = row.get(key, default)
+            return val if val is not None and str(val).strip() != "" else default
+        if hasattr(row, "keys"):
+            if key in row.keys():
+                val = row[key]
+                return val if val is not None and str(val).strip() != "" else default
+        return default
+    except Exception:
+        return default
 
 def init_db():
     conn = get_db_connection()
@@ -258,7 +268,6 @@ def render_signature_pad(key_suffix="repair"):
     </div>
     """
     st.markdown(sig_html, unsafe_allow_html=True)
-    # Use standard Streamlit text input for signature base64 so it's 100% reliable
     sig_data = st.text_input("قم بلصق كود التوقيع (أو سيتم حفظه تلقائياً):", key=f"sig_input_{key_suffix}")
     return sig_data
 
@@ -925,22 +934,31 @@ with tab10:
         rep_records = fetch_all_records("repairs", search_query)
         if rep_records:
             for r in rep_records:
-                r_dict = dict(r)
-                emp_val = r_dict.get('employee', 'غير محدد')
-                date_val = str(r_dict.get('created_at', ''))[:10]
-                with st.expander(f"إصلاح #{r_dict['id']} - {r_dict['customer_name']} ({r_dict['phone']}) - {r_dict['device']} - {date_val}"):
-                    st.write(f"**الموظف:** {emp_val} | **الحالة:** {r_dict['status']} | **السعر:** {r_dict['price']} SEK")
-                    st.write(f"**العطل:** {r_dict['issue']} | **IMEI:** {r_dict['imei']}")
-                    if st.button(f"🖨️ طباعة إيصال الإصلاح #{r_dict['id']}", key=f"btn_print_rep_{r_dict['id']}"):
+                r_id = safe_val(r, 'id', '1')
+                r_cust = safe_val(r, 'customer_name', 'زبون')
+                r_phone = safe_val(r, 'phone', '-')
+                r_dev = safe_val(r, 'device', '-')
+                emp_val = safe_val(r, 'employee', 'غير محدد')
+                date_val = str(safe_val(r, 'created_at', ''))[:10]
+                r_status = safe_val(r, 'status', '-')
+                r_price = safe_val(r, 'price', 0.0)
+                r_issue = safe_val(r, 'issue', '-')
+                r_imei = safe_val(r, 'imei', '-')
+                r_sig = safe_val(r, 'signature', None)
+                
+                with st.expander(f"إصلاح #{r_id} - {r_cust} ({r_phone}) - {r_dev} - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **الحالة:** {r_status} | **السعر:** {r_price} SEK")
+                    st.write(f"**العطل:** {r_issue} | **IMEI:** {r_imei}")
+                    if st.button(f"🖨️ طباعة إيصال الإصلاح #{r_id}", key=f"btn_print_rep_{r_id}"):
                         rec_data = {
-                            "branch": r_dict['branch'], "repair_id": str(r_dict['id']), "customer_name": r_dict['customer_name'],
-                            "phone": r_dict['phone'], "device": r_dict['device'], "imei": r_dict['imei'], "issue": r_dict['issue'],
-                            "price": r_dict['price'], "employee": emp_val, "created_at": date_val,
-                            "signature": r_dict.get('signature', None)
+                            "branch": global_branch, "repair_id": str(r_id), "customer_name": r_cust,
+                            "phone": r_phone, "device": r_dev, "imei": r_imei, "issue": r_issue,
+                            "price": r_price, "employee": emp_val, "created_at": date_val,
+                            "signature": r_sig
                         }
-                        st.session_state[f'search_pdf_{r_dict["id"]}'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
-                if f'search_pdf_{r_dict["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_pdf_{r_dict["id"]}'], file_name=f"Repair_{r_dict['id']}.pdf", key_suffix=f"rep_{r_dict['id']}")
+                        st.session_state[f'search_pdf_{r_id}'] = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
+                if f'search_pdf_{r_id}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_pdf_{r_id}'], file_name=f"Repair_{r_id}.pdf", key_suffix=f"rep_{r_id}")
         else:
             st.info("لا توجد سجلات إصلاح مطابقة.")
 
@@ -949,21 +967,28 @@ with tab10:
         quote_records = fetch_all_records("quotes", search_query)
         if quote_records:
             for r in quote_records:
-                r_dict = dict(r)
-                emp_val = r_dict.get('employee', 'غير محدد')
-                date_val = str(r_dict.get('created_at', ''))[:10]
-                with st.expander(f"عرض سعر #{r_dict['id']} - {r_dict['customer_name']} ({r_dict['phone']}) - {r_dict['device']} - {date_val}"):
-                    st.write(f"**الموظف:** {emp_val} | **الإجمالي:** {r_dict['total']} SEK | **الربح:** {r_dict.get('profit', 0)} SEK")
-                    st.write(f"**التفاصيل:** {r_dict['issues']}")
-                    if st.button(f"🖨️ طباعة عرض السعر #{r_dict['id']}", key=f"btn_print_q_{r_dict['id']}"):
+                r_id = safe_val(r, 'id', '1')
+                r_cust = safe_val(r, 'customer_name', 'زبون')
+                r_phone = safe_val(r, 'phone', '-')
+                r_dev = safe_val(r, 'device', '-')
+                emp_val = safe_val(r, 'employee', 'غير محدد')
+                date_val = str(safe_val(r, 'created_at', ''))[:10]
+                r_total = safe_val(r, 'total', 0.0)
+                r_profit = safe_val(r, 'profit', 0.0)
+                r_issues = safe_val(r, 'issues', '-')
+                
+                with st.expander(f"عرض سعر #{r_id} - {r_cust} ({r_phone}) - {r_dev} - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **الإجمالي:** {r_total} SEK | **الربح:** {r_profit} SEK")
+                    st.write(f"**التفاصيل:** {r_issues}")
+                    if st.button(f"🖨️ طباعة عرض السعر #{r_id}", key=f"btn_print_q_{r_id}"):
                         rec_data = {
-                            "branch": r_dict['branch'], "customer_name": r_dict['customer_name'], "phone": r_dict['phone'],
-                            "device": r_dict['device'], "issues": r_dict['issues'], "total": r_dict['total'],
+                            "branch": global_branch, "customer_name": r_cust, "phone": r_phone,
+                            "device": r_dev, "issues": r_issues, "total": r_total,
                             "currency": "SEK", "employee": emp_val, "created_at": date_val
                         }
-                        st.session_state[f'search_q_pdf_{r_dict["id"]}'] = generate_pdf_from_record("quote", rec_data, COMPANY_INFO)
-                if f'search_q_pdf_{r_dict["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_q_pdf_{r_dict["id"]}'], file_name=f"Quote_{r_dict['id']}.pdf", key_suffix=f"q_{r_dict['id']}")
+                        st.session_state[f'search_q_pdf_{r_id}'] = generate_pdf_from_record("quote", rec_data, COMPANY_INFO)
+                if f'search_q_pdf_{r_id}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_q_pdf_{r_id}'], file_name=f"Quote_{r_id}.pdf", key_suffix=f"q_{r_id}")
         else:
             st.info("لا توجد عروض أسعار مطابقة.")
 
@@ -972,23 +997,34 @@ with tab10:
         inv_records = fetch_all_records("invoices", search_query)
         if inv_records:
             for r in inv_records:
-                r_dict = dict(r)
-                emp_val = r_dict.get('employee', 'غير محدد')
-                date_val = str(r_dict.get('created_at', ''))[:10]
-                with st.expander(f"فاتورة {r_dict['invoice_no']} - {r_dict['customer_name']} - {r_dict['amount']} SEK - {date_val}"):
-                    st.write(f"**الموظف:** {emp_val} | **العنوان:** {r_dict['address']} | **الضريبة:** {r_dict['moms']} SEK")
-                    st.write(f"**الوصف:** {r_dict['item_desc']}")
-                    if st.button(f"🖨️ طباعة الفاتورة {r_dict['invoice_no']}", key=f"btn_print_inv_{r_dict['id']}"):
+                r_id = safe_val(r, 'id', '1')
+                r_inv_no = safe_val(r, 'invoice_no', 'FAK-1')
+                r_cust = safe_val(r, 'customer_name', 'زبون')
+                r_phone = safe_val(r, 'phone', '-')
+                r_addr = safe_val(r, 'address', '-')
+                r_ref = safe_val(r, 'ref_no', '-')
+                r_desc = safe_val(r, 'item_desc', '-')
+                r_amount = safe_val(r, 'amount', 0.0)
+                r_moms = safe_val(r, 'moms', 0.0)
+                r_curr = safe_val(r, 'currency', 'SEK')
+                r_mrate = safe_val(r, 'moms_rate', '25%')
+                emp_val = safe_val(r, 'employee', 'غير محدد')
+                date_val = str(safe_val(r, 'created_at', ''))[:10]
+                
+                with st.expander(f"فاتورة {r_inv_no} - {r_cust} - {r_amount} SEK - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **العنوان:** {r_addr} | **الضريبة:** {r_moms} SEK")
+                    st.write(f"**الوصف:** {r_desc}")
+                    if st.button(f"🖨️ طباعة الفاتورة {r_inv_no}", key=f"btn_print_inv_{r_id}"):
                         inv_data = {
-                            "branch": r_dict['branch'], "customer_name": r_dict['customer_name'], "address": r_dict['address'],
-                            "phone": r_dict['phone'], "ref_no": r_dict['ref_no'], "invoice_no": r_dict['invoice_no'],
-                            "item_desc": r_dict['item_desc'], "amount": r_dict['amount'], "moms": r_dict['moms'],
-                            "currency": r_dict['currency'], "moms_rate": r_dict['moms_rate'], "employee": emp_val,
-                            "created_at": r_dict['created_at'], "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
+                            "branch": global_branch, "customer_name": r_cust, "address": r_addr,
+                            "phone": r_phone, "ref_no": r_ref, "invoice_no": r_inv_no,
+                            "item_desc": r_desc, "amount": r_amount, "moms": r_moms,
+                            "currency": r_curr, "moms_rate": r_mrate, "employee": emp_val,
+                            "created_at": date_val, "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
                         }
-                        st.session_state[f'search_inv_pdf_{r_dict["id"]}'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
-                if f'search_inv_pdf_{r_dict["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_inv_pdf_{r_dict["id"]}'], file_name=f"Invoice_{r_dict['invoice_no']}.pdf", key_suffix=f"inv_{r_dict['id']}")
+                        st.session_state[f'search_inv_pdf_{r_id}'] = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                if f'search_inv_pdf_{r_id}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_inv_pdf_{r_id}'], file_name=f"Invoice_{r_inv_no}.pdf", key_suffix=f"inv_{r_id}")
         else:
             st.info("لا توجد فواتير مطابقة.")
 
@@ -997,30 +1033,32 @@ with tab10:
         bb_records = fetch_all_records("buybacks", search_query)
         if bb_records:
             for r in bb_records:
-                r_dict = dict(r)
-                emp_val = r_dict.get('employee', 'غير محدد')
-                date_val = str(r_dict.get('created_at', ''))[:10]
-                with st.expander(f"شراء مستعمل #{r_dict['id']} - {r_dict['customer_name']} ({r_dict['phone']}) - {r_dict['device']} - {date_val}"):
-                    st.write(f"**الموظف:** {emp_val} | **الشخصي:** {r_dict['person_nummer']} | **المبلغ:** {r_dict['purchase_price']} SEK")
-                    st.write(f"**IMEI:** {r_dict['imei']}")
-                    if st.button(f"🖨️ طباعة إيصال الشراء #{r_dict['id']}", key=f"btn_print_bb_{r_dict['id']}"):
+                r_id = safe_val(r, 'id', '1')
+                r_cust = safe_val(r, 'customer_name', 'زبون')
+                r_phone = safe_val(r, 'phone', '-')
+                r_pnr = safe_val(r, 'person_nummer', '-')
+                r_dev = safe_val(r, 'device', '-')
+                r_imei = safe_val(r, 'imei', '-')
+                r_pprice = safe_val(r, 'purchase_price', 0.0)
+                emp_val = safe_val(r, 'employee', 'غير محدد')
+                date_val = str(safe_val(r, 'created_at', ''))[:10]
+                r_sig = safe_val(r, 'signature', None)
+                
+                with st.expander(f"شراء مستعمل #{r_id} - {r_cust} ({r_phone}) - {r_dev} - {date_val}"):
+                    st.write(f"**الموظف:** {emp_val} | **الهوية:** {r_pnr} | **المبلغ:** {r_pprice} SEK")
+                    st.write(f"**IMEI:** {r_imei}")
+                    if st.button(f"🖨️ طباعة إيصال الشراء #{r_id}", key=f"btn_print_bb_{r_id}"):
                         bb_data = {
-                            "branch": r_dict['branch'], "buyback_id": str(r_dict['id']), "customer_name": r_dict['customer_name'],
-                            "phone": r_dict['phone'], "person_nummer": r_dict['person_nummer'], "device": r_dict['device'],
-                            "imei": r_dict['imei'], "purchase_price": r_dict['purchase_price'], "currency": "SEK",
-                            "employee": emp_val, "created_at": date_val, "signature": r_dict.get('signature', None)
+                            "branch": global_branch, "buyback_id": str(r_id), "customer_name": r_cust,
+                            "phone": r_phone, "person_nummer": r_pnr, "device": r_dev,
+                            "imei": r_imei, "purchase_price": r_pprice, "currency": "SEK",
+                            "employee": emp_val, "created_at": date_val, "signature": r_sig
                         }
-                        st.session_state[f'search_bb_pdf_{r_dict["id"]}'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
-                if f'search_bb_pdf_{r_dict["id"]}' in st.session_state:
-                    display_pdf_preview(st.session_state[f'search_bb_pdf_{r_dict["id"]}'], file_name=f"Buyback_{r_dict['id']}.pdf", key_suffix=f"bb_{r_dict['id']}")
+                        st.session_state[f'search_bb_pdf_{r_id}'] = generate_pdf_from_record("buyback_receipt", bb_data, COMPANY_INFO)
+                if f'search_bb_pdf_{r_id}' in st.session_state:
+                    display_pdf_preview(st.session_state[f'search_bb_pdf_{r_id}'], file_name=f"Buyback_{r_id}.pdf", key_suffix=f"bb_{r_id}")
         else:
             st.info("لا توجد سجلات شراء مستعمل مطابقة.")
 
     conn.close()
     st.markdown("</div>", unsafe_allow_html=True)
-'''
-
-with open("app.py", "w", encoding="utf-8") as f:
-    f.write(fixed_code)
-
-print("Successfully written fixed app.py!")
