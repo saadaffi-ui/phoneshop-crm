@@ -61,44 +61,46 @@ def init_db():
 
 init_db()
 
-# --- MOCK PDF GENERATOR FUNCTION ---
+# --- MOCK DOCUMENT GENERATOR FUNCTION ---
 def generate_pdf_from_record(doc_type, data, company_info):
     buffer = io.BytesIO()
-    # Simple text representation mocked as a PDF buffer for seamless preview
     content = f"""
-    ==================================================
-    {company_info[data['branch']]['name']}
-    Address: {company_info[data['branch']]['address']}
-    Phone: {company_info[data['branch']]['phone']}
-    ==================================================
-    Document Type: {doc_type.upper()}
-    Date: {data.get('created_at', date.today())}
-    Branch: {data['branch']}
-    --------------------------------------------------
-    Customer Name: {data.get('customer_name', 'N/A')}
-    Phone Number: {data.get('phone', 'N/A')}
-    Device: {data.get('device', 'N/A')}
-    Description/Issue: {data.get('issue', data.get('issues', 'N/A'))}
-    Total Amount: {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
-    Handled by: {data.get('employee', 'N/A')}
-    ==================================================
-    Thank you for choosing 30 Minutes Phone Fix!
-    """
+==================================================
+{company_info[data['branch']]['name']}
+Address: {company_info[data['branch']]['address']}
+Phone: {company_info[data['branch']]['phone']}
+==================================================
+Document Type: {doc_type.upper()}
+Date: {data.get('created_at', date.today())}
+Branch: {data['branch']}
+--------------------------------------------------
+Customer Name: {data.get('customer_name', 'N/A')}
+Phone Number: {data.get('phone', 'N/A')}
+Device: {data.get('device', 'N/A')}
+Description/Issue: {data.get('issue', data.get('issues', 'N/A'))}
+Total Amount: {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
+Handled by: {data.get('employee', 'N/A')}
+==================================================
+Thank you for choosing 30 Minutes Phone Fix!
+"""
     buffer.write(content.encode('utf-8'))
     buffer.seek(0)
     return buffer
 
 def display_pdf_preview(buffer, file_name, key_suffix):
+    doc_text = buffer.getvalue().decode('utf-8')
+    
     st.markdown("### 📄 معاينة المستند (Document Preview)")
-    st.download_button(
-        label="📥 تحميل الملف (Download PDF)",
-        data=buffer,
-        file_name=file_name,
-        mime="application/pdf",
-        key=f"dl_btn_{key_suffix}"
-    )
-    # Text visual preview box
-    st.text_area("محتوى المستند / Document Content", buffer.getvalue().decode('utf-8'), height=300, key=f"preview_area_{key_suffix}")
+    
+    # عرض محتوى المستند داخل صندوق منسق متوافق 100% مع تطبيق الآيفون
+    st.markdown(f"""
+    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+{doc_text}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.text_area("محتوى نصي قابل للنسخ / Copy Text", doc_text, height=150, key=f"copy_area_{key_suffix}")
 
 # --- SIDEBAR RESET & CONTROLS ---
 if st.sidebar.button("🔄 إعادة ضبط العرض / Reset Session"):
@@ -318,7 +320,7 @@ with tab10:
                     pdf_buf = generate_pdf_from_record("quote", q_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {
                         'buffer': pdf_buf,
-                        'filename': f"Kostnadsforslag_{selected_quote_id}.pdf",
+                        "filename": f"Kostnadsforslag_{selected_quote_id}.pdf",
                         'key': f"search_quote_{selected_quote_id}"
                     }
                     st.rerun()
