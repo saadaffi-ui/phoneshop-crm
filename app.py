@@ -1,6 +1,196 @@
+import streamlit as st
+import pandas as pd
+import sqlite3
+from datetime import date, timedelta
+import io
+
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="30 Minutes Phone Fix CRM",
+    page_icon="📱",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- GLOBAL BRANCH & CONFIG ---
+global_branch = st.sidebar.selectbox("اختر الفرع / Select Branch", ["Eskilstuna", "Västerås"])
+
+COMPANY_INFO = {
+    "Eskilstuna": {"name": "30 Minutes Phone Fix Eskilstuna", "address": "Drottninggatan X, Eskilstuna", "phone": "016-XXX XX XX"},
+    "Västerås": {"name": "30 Minutes Phone Fix Västerås", "address": "Stora Gatan Y, Västerås", "phone": "021-XXX XX XX"}
+}
+
+t = {
+    "tab_dash": "📊 لوحة التحكم / Dashboard",
+    "tab_repair": "🛠️ الإصلاحات / Repairs",
+    "tab_quote": "💡 عرض سعر / Quotes",
+    "tab_invoice": "📄 الفواتير / Invoices",
+    "tab_sub": "📦 الاشتراكات / Subscriptions",
+    "tab_buyback": "🔄 شراء الأجهزة / Buyback",
+    "tab_campaign": "🎯 الحملات / Campaigns",
+    "tab_preorder": "📋 الطلبات المسبقة / Pre-orders",
+    "tab_stock": "📦 المخزون / Stock",
+    "tab_search": "🔍 البحث والأرشيف / Search & Archive"
+}
+
+# --- DATABASE SETUP ---
+def get_db_connection():
+    conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS repairs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        branch TEXT, customer_name TEXT, phone TEXT, 
+                        device TEXT, issue TEXT, price REAL, status TEXT, 
+                        employee TEXT, created_at TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS invoices (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        branch TEXT, invoice_no TEXT, customer_name TEXT, 
+                        phone TEXT, address TEXT, amount REAL, moms REAL, 
+                        employee TEXT, created_at TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS quotes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        branch TEXT, customer_name TEXT, phone TEXT, 
+                        device TEXT, issues TEXT, total REAL, profit REAL, 
+                        employee TEXT, created_at TEXT)''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# --- MOCK PDF GENERATOR FUNCTION ---
+def generate_pdf_from_record(doc_type, data, company_info):
+    buffer = io.BytesIO()
+    # Simple text representation mocked as a PDF buffer for seamless preview
+    content = f"""
+    ==================================================
+    {company_info[data['branch']]['name']}
+    Address: {company_info[data['branch']]['address']}
+    Phone: {company_info[data['branch']]['phone']}
+    ==================================================
+    Document Type: {doc_type.upper()}
+    Date: {data.get('created_at', date.today())}
+    Branch: {data['branch']}
+    --------------------------------------------------
+    Customer Name: {data.get('customer_name', 'N/A')}
+    Phone Number: {data.get('phone', 'N/A')}
+    Device: {data.get('device', 'N/A')}
+    Description/Issue: {data.get('issue', data.get('issues', 'N/A'))}
+    Total Amount: {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
+    Handled by: {data.get('employee', 'N/A')}
+    ==================================================
+    Thank you for choosing 30 Minutes Phone Fix!
+    """
+    buffer.write(content.encode('utf-8'))
+    buffer.seek(0)
+    return buffer
+
+def display_pdf_preview(buffer, file_name, key_suffix):
+    st.markdown("### 📄 معاينة المستند (Document Preview)")
+    st.download_button(
+        label="📥 تحميل الملف (Download PDF)",
+        data=buffer,
+        file_name=file_name,
+        mime="application/pdf",
+        key=f"dl_btn_{key_suffix}"
+    )
+    # Text visual preview box
+    st.text_area("محتوى المستند / Document Content", buffer.getvalue().decode('utf-8'), height=300, key=f"preview_area_{key_suffix}")
+
+# --- SIDEBAR RESET & CONTROLS ---
+if st.sidebar.button("🔄 إعادة ضبط العرض / Reset Session"):
+    if 'active_doc' in st.session_state:
+        del st.session_state['active_doc']
+    st.rerun()
+
+# --- DEFINE ALL TABS FIRST ---
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    t["tab_dash"], t["tab_repair"], t["tab_quote"], t["tab_invoice"], 
+    t["tab_sub"], t["tab_buyback"], t["tab_campaign"], t["tab_preorder"], t["tab_stock"], t["tab_search"]
+])
+
+# --- TAB 1: DASHBOARD ---
+with tab1:
+    st.header(f"📊 لوحة التحكم الرئيسية / Dashboard ({global_branch})")
+    st.metric("الحالة التشغيلية", "متصل ويعمل بكفاءة عالية", "جاهز")
+
+# --- TAB 2: REPAIRS ---
+with tab2:
+    st.header(f"🛠️ تسجيل إصلاح جديد / New Repair ({global_branch})")
+    with st.form("repair_form"):
+        c_name = st.text_input("اسم العميل / Customer Name")
+        c_phone = st.text_input("رقم الهاتف / Phone Number")
+        c_device = st.text_input("نوع الجهاز / Device Model")
+        c_issue = st.text_area("وصف العطل / Issue Description")
+        c_price = st.number_input("التكلفة / Price (SEK)", min_value=0.0, step=50.0)
+        c_emp = st.text_input("اسم الموظف / Employee Name")
+        submitted = st.form_submit_button("حفظ الإصلاح / Save Repair")
+        if submitted:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO repairs (branch, customer_name, phone, device, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                           (global_branch, c_name, c_phone, c_device, c_issue, c_price, "Pending", c_emp, str(date.today())))
+            conn.commit()
+            conn.close()
+            st.success("تم حفظ بيانات الإصلاح بنجاح!")
+
+# --- TAB 3: QUOTES ---
+with tab3:
+    st.header(f"💡 عروض الأسعار / Quotes ({global_branch})")
+    with st.form("quote_form"):
+        q_name = st.text_input("اسم العميل / Customer Name", key="q_name")
+        q_phone = st.text_input("رقم الهاتف / Phone Number", key="q_phone")
+        q_device = st.text_input("الجهاز / Device", key="q_device")
+        q_issue = st.text_area("المشاكل / Issues", key="q_issue")
+        q_total = st.number_input("الإجمالي / Total (SEK)", min_value=0.0, step=50.0, key="q_total")
+        q_emp = st.text_input("الموظف / Employee", key="q_emp")
+        q_sub = st.form_submit_button("حفظ عرض السعر")
+        if q_sub:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                           (global_branch, q_name, q_phone, q_device, q_issue, q_total, q_total * 0.3, q_emp, str(date.today())))
+            conn.commit()
+            conn.close()
+            st.success("تم حفظ عرض السعر بنجاح!")
+
+# --- TAB 4: INVOICES ---
+with tab4:
+    st.header(f"📄 الفواتير / Invoices ({global_branch})")
+    with st.form("invoice_form"):
+        i_no = st.text_input("رقم الفاتورة / Invoice No", value=f"INV-{date.today().strftime('%Y%m%d')}-01")
+        i_name = st.text_input("اسم العميل", key="i_name")
+        i_phone = st.text_input("رقم الهاتف", key="i_phone")
+        i_addr = st.text_input("العنوان", key="i_addr")
+        i_amt = st.number_input("المبلغ الإجمالي", min_value=0.0, step=50.0, key="i_amt")
+        i_emp = st.text_input("الموظف", key="i_emp")
+        i_sub = st.form_submit_button("إصدار الفاتورة")
+        if i_sub:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO invoices (branch, invoice_no, customer_name, phone, address, amount, moms, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                           (global_branch, i_no, i_name, i_phone, i_addr, i_amt, i_amt * 0.2, i_emp, str(date.today())))
+            conn.commit()
+            conn.close()
+            st.success("تم إصدار الفاتورة بنجاح!")
+
+# --- TABS 5 to 9: PLACEHOLDERS ---
+with tab5:
+    st.header("📦 إدارة الاشتراكات (Subscriptions)")
+with tab6:
+    st.header("🔄 شراء الأجهزة واستبدالها (Buyback)")
+with tab7:
+    st.header("🎯 الحملات والتسويق (Campaigns)")
+with tab8:
+    st.header("📋 الطلبات المسبقة (Pre-orders)")
+with tab9:
+    st.header("📦 إدارة المخزون (Stock)")
+
 # --- TAB 10: SEARCH WITH STATEFUL DOCUMENT VIEWER ---
 with tab10:
-    st.markdown("<div class='search-box'>", unsafe_allow_html=True)
     st.header(f"🔍 البحث والأرشيف وتخصيص الحقول للعرض والطباعة / Search & Field Checklist ({global_branch})")
     
     # إذا كان هناك مستند قيد المعاينة، سيظهر زر الرجوع بوضوح في الأعلى
@@ -58,7 +248,6 @@ with tab10:
                         "customer_name": r_row['customer_name'] if inc_name else "N/A",
                         "phone": r_row['phone'] if inc_phone else "N/A",
                         "device": r_row['device'] if inc_device else "N/A",
-                        "imei": "N/A",
                         "issue": r_row['issue'] if inc_issue else "N/A",
                         "price": r_row['price'] if inc_price else 0.0,
                         "employee": r_row['employee'] if inc_emp else "N/A",
@@ -135,4 +324,3 @@ with tab10:
                     st.rerun()
 
         conn.close()
-    st.markdown("</div>", unsafe_allow_html=True)
