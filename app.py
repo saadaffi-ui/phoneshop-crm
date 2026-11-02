@@ -24,7 +24,7 @@ COMPANY_INFO = {
 t = {
     "tab_dash": "📊 لوحة التحكم / Dashboard",
     "tab_repair": "🛠️ الإصلاحات / Repairs",
-    "tab_quote": "💡 عرض سعر / Quotes",
+    "tab_quote": "💡 عرض سعر / Kostnadsförslag",
     "tab_invoice": "📄 الفواتير / Invoices",
     "tab_sub": "📦 الاشتراكات / Subscriptions",
     "tab_buyback": "🔄 شراء الأجهزة / Buyback",
@@ -71,18 +71,22 @@ def generate_pdf_from_record(doc_type, data, company_info):
 Address: {company_info[data['branch']]['address']}
 Phone: {company_info[data['branch']]['phone']}
 ==================================================
-Document Type: {doc_type.upper()}
+Document Type: {doc_type.upper()} (KOSTNADSFÖRSLAG)
 Date: {data.get('created_at', date.today())}
 Branch: {data['branch']}
 --------------------------------------------------
 Customer Name: {data.get('customer_name', 'N/A')}
 Phone Number: {data.get('phone', 'N/A')}
-Device: {data.get('device', 'N/A')}
-Description/Issue: {data.get('issue', data.get('issues', 'N/A'))}
-Total Amount: {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
+Device Model: {data.get('device', 'N/A')}
+--------------------------------------------------
+REPAIR DETAILS & REQUIRED SERVICE:
+{data.get('issue', data.get('issues', 'N/A'))}
+--------------------------------------------------
+Total Amount (inkl. moms): {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
 Handled by: {data.get('employee', 'N/A')}
 ==================================================
 Thank you for choosing 30 Minutes Phone Fix!
+Giltighetstid / Validity: 30 dagar.
 """
     buffer.write(content.encode('utf-8'))
     buffer.seek(0)
@@ -148,25 +152,48 @@ with tab2:
             conn.close()
             st.success("تم حفظ بيانات الإصلاح بنجاح!")
 
-# --- TAB 3: QUOTES ---
+# --- TAB 3: QUOTES (COST ESTIMATE / KOSTNADSFÖRSLAG WITH DETAILED REPAIR CHECKLIST) ---
 with tab3:
-    st.header(f"💡 عروض الأسعار / Quotes ({global_branch})")
+    st.header(f"💡 إنشاء عرض سعر مفصل / Kostnadsförslag ({global_branch})")
     with st.form("quote_form"):
         q_name = st.text_input("اسم العميل / Customer Name", key="q_name")
         q_phone = st.text_input("رقم الهاتف / Phone Number", key="q_phone")
-        q_device = st.text_input("الجهاز / Device", key="q_device")
-        q_issue = st.text_area("المشاكل / Issues", key="q_issue")
-        q_total = st.number_input("الإجمالي / Total (SEK)", min_value=0.0, step=50.0, key="q_total")
-        q_emp = st.text_input("الموظف / Employee", key="q_emp")
-        q_sub = st.form_submit_button("حفظ عرض السعر")
+        q_device = st.text_input("موديل الجهاز / Device Model (e.g., iPhone 14)", key="q_device")
+        
+        st.markdown("### ⚙️ تحديد تفاصيل القطع والأعطال (Select Services & Repairs)")
+        q_iss_display = st.checkbox("📱 تغيير الشاشة (Skärmbyte / Display Replacement)", key="q_iss_display")
+        q_iss_battery = st.checkbox("🔋 تغيير البطارية (Batteribyte / Battery Replacement)", key="q_iss_battery")
+        q_iss_charger = st.checkbox("🔌 منفذ الشحن (Laddkontakt / Charging Port)", key="q_iss_charger")
+        q_iss_back = st.checkbox("🔍 الزجاج الخلفي (Baksida / Back Glass)", key="q_iss_back")
+        q_iss_camera = st.checkbox("📷 الكاميرا أو الزجاج الأمامي/الخلفي للكاميرا (Kamera)", key="q_iss_camera")
+        q_iss_water = st.checkbox("💧 تنظيف وتصليح أضرار السوائل (Vattenskada)", key="q_iss_water")
+        
+        q_extra_issue = st.text_area("ملاحظات إضافية أو أعطال أخرى / Additional Fault Details", key="q_extra_issue")
+        
+        q_total = st.number_input("السعر الإجمالي لعرض السعر / Total Price (SEK)", min_value=0.0, step=50.0, key="q_total")
+        q_emp = st.text_input("اسم الموظف / Employee Name", key="q_emp")
+        q_sub = st.form_submit_button("حفظ وعرض Kostnadsförslag")
+        
         if q_sub:
+            # تجميع التفاصيل تلقائياً لتظهر في وصف العطل والوصف المطبوع
+            selected_services = []
+            if q_iss_display: selected_services.append("Skärmbyte (Display Replacement)")
+            if q_iss_battery: selected_services.append("Batteribyte (Battery Replacement)")
+            if q_iss_charger: selected_services.append("Laddkontakt reparation (Charging Port)")
+            if q_iss_back: selected_services.append("Baksida byte (Back Glass)")
+            if q_iss_camera: selected_services.append("Kamerareparation (Camera Service)")
+            if q_iss_water: selected_services.append("Vattenskada rengöring (Water Damage)")
+            if q_extra_issue: selected_services.append(q_extra_issue)
+            
+            full_issues_desc = " | ".join(selected_services) if selected_services else "Allmän undersökning och service"
+            
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                           (global_branch, q_name, q_phone, q_device, q_issue, q_total, q_total * 0.3, q_emp, str(date.today())))
+                           (global_branch, q_name, q_phone, q_device, full_issues_desc, q_total, q_total * 0.3, q_emp, str(date.today())))
             conn.commit()
             conn.close()
-            st.success("تم حفظ عرض السعر بنجاح!")
+            st.success("تم إنشاء وحفظ عرض السعر (Kostnadsförslag) بالتشخيص والتفاصيل بنجاح!")
 
 # --- TAB 4: INVOICES ---
 with tab4:
@@ -304,22 +331,22 @@ with tab10:
                     st.rerun()
 
         # 3. QUOTES SEARCH
-        st.subheader("💡 عروض الأسعار (Quotes)")
+        st.subheader("💡 عروض الأسعار (Kostnadsförslag)")
         quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, profit, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
         if not quote_res.empty:
             q_map = {'customer_name': inc_name, 'phone': inc_phone, 'device': inc_device, 'issues': inc_issue, 'total': inc_price, 'employee': inc_emp, 'created_at': inc_date}
             st.dataframe(filter_df_columns(quote_res, q_map), use_container_width=True)
             
-            selected_quote_id = st.selectbox("🖨️ اختر رقم عرض سعر (ID) لطباعة أو إرسال العرض:", quote_res['id'].tolist(), key="sel_quote_id")
+            selected_quote_id = st.selectbox("🖨️ اختر رقم عرض سعر (ID) لطباعة أو إرسال عرض السعر:", quote_res['id'].tolist(), key="sel_quote_id")
             if selected_quote_id:
                 q_row = quote_res[quote_res['id'] == selected_quote_id].iloc[0]
-                if st.button("📄 معاينة وطباعة عرض السعر", key=f"btn_gen_quote_{selected_quote_id}"):
+                if st.button("📄 معاينة وطباعة Kostnadsförslag", key=f"btn_gen_quote_{selected_quote_id}"):
                     q_data = {
                         "branch": global_branch,
                         "customer_name": q_row['customer_name'] if inc_name else "N/A",
                         "phone": q_row['phone'] if inc_phone else "N/A",
                         "device": q_row['device'] if inc_device else "N/A",
-                        "issues": q_row['issues'] if inc_issue else "N/A",
+                        "issue": q_row['issues'] if inc_issue else "N/A",
                         "total": q_row['total'] if inc_price else 0.0,
                         "currency": "SEK",
                         "employee": q_row['employee'] if inc_emp else "N/A",
