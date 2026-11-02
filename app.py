@@ -71,22 +71,21 @@ def generate_pdf_from_record(doc_type, data, company_info):
 Address: {company_info[data['branch']]['address']}
 Phone: {company_info[data['branch']]['phone']}
 ==================================================
-Document Type: {doc_type.upper()} (KOSTNADSFÖRSLAG)
+Document Type: {doc_type.upper()}
 Date: {data.get('created_at', date.today())}
 Branch: {data['branch']}
 --------------------------------------------------
 Customer Name: {data.get('customer_name', 'N/A')}
 Phone Number: {data.get('phone', 'N/A')}
-Device Model: {data.get('device', 'N/A')}
+Device Model/Info: {data.get('device', data.get('address', 'N/A'))}
 --------------------------------------------------
-REPAIR DETAILS & REQUIRED SERVICE:
-{data.get('issue', data.get('issues', 'N/A'))}
+DETAILS & REQUIRED SERVICE:
+{data.get('issue', data.get('issues', data.get('item_desc', 'N/A')))}
 --------------------------------------------------
-Total Amount (inkl. moms): {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
+Total Amount: {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
 Handled by: {data.get('employee', 'N/A')}
 ==================================================
 Thank you for choosing 30 Minutes Phone Fix!
-Giltighetstid / Validity: 30 dagar.
 """
     buffer.write(content.encode('utf-8'))
     buffer.seek(0)
@@ -96,9 +95,8 @@ def display_pdf_preview(buffer, file_name, key_suffix):
     doc_text = buffer.getvalue().decode('utf-8')
     b64_data = base64.b64encode(buffer.getvalue()).decode()
     
-    st.markdown("### 📄 معاينة المستند (Document Preview)")
+    st.markdown("### 📄 معاينة المستند المباشرة (Document Preview)")
     
-    # زر إضافي صريح للعودة الفورية إلى التطبيق من شاشة المعاينة
     if st.button("🔙 العودة إلى التطبيق والقائمة / Back to App", type="primary", key=f"back_app_btn_{key_suffix}"):
         if 'active_doc' in st.session_state:
             del st.session_state['active_doc']
@@ -141,84 +139,138 @@ with tab1:
 # --- TAB 2: REPAIRS ---
 with tab2:
     st.header(f"🛠️ تسجيل إصلاح جديد / New Repair ({global_branch})")
-    with st.form("repair_form"):
-        c_name = st.text_input("اسم العميل / Customer Name")
-        c_phone = st.text_input("رقم الهاتف / Phone Number")
-        c_device = st.text_input("نوع الجهاز / Device Model")
-        c_issue = st.text_area("وصف العطل / Issue Description")
-        c_price = st.number_input("التكلفة / Price (SEK)", min_value=0.0, step=50.0)
-        c_emp = st.text_input("اسم الموظف / Employee Name")
-        submitted = st.form_submit_button("حفظ الإصلاح / Save Repair")
-        if submitted:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO repairs (branch, customer_name, phone, device, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                           (global_branch, c_name, c_phone, c_device, c_issue, c_price, "Pending", c_emp, str(date.today())))
-            conn.commit()
-            conn.close()
-            st.success("تم حفظ بيانات الإصلاح بنجاح!")
+    
+    if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('rep_new_'):
+        display_pdf_preview(st.session_state['active_doc']['buffer'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+    else:
+        with st.form("repair_form"):
+            c_name = st.text_input("اسم العميل / Customer Name")
+            c_phone = st.text_input("رقم الهاتف / Phone Number")
+            c_device = st.text_input("نوع الجهاز / Device Model")
+            c_issue = st.text_area("وصف العطل / Issue Description")
+            c_price = st.number_input("التكلفة / Price (SEK)", min_value=0.0, step=50.0)
+            c_emp = st.text_input("اسم الموظف / Employee Name")
+            submitted = st.form_submit_button("حفظ ومعاينة إيصال الإصلاح")
+            if submitted:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO repairs (branch, customer_name, phone, device, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               (global_branch, c_name, c_phone, c_device, c_issue, c_price, "Pending", c_emp, str(date.today())))
+                conn.commit()
+                last_id = cursor.lastrowid
+                conn.close()
+                
+                rec_data = {
+                    "branch": global_branch, "repair_id": str(last_id),
+                    "customer_name": c_name, "phone": c_phone, "device": c_device,
+                    "issue": c_issue, "price": c_price, "employee": c_emp,
+                    "created_at": str(date.today())
+                }
+                pdf_buf = generate_pdf_from_record("repair_receipt", rec_data, COMPANY_INFO)
+                st.session_state['active_doc'] = {
+                    'buffer': pdf_buf,
+                    'filename': f"Inlamningskvitto_{last_id}.pdf",
+                    'key': f"rep_new_{last_id}"
+                }
+                st.success("تم حفظ الإصلاح بنجاح!")
+                st.rerun()
 
-# --- TAB 3: QUOTES (KOSTNADSFÖRSLAG WITH DETAILED REPAIR CHECKLIST) ---
+# --- TAB 3: QUOTES (KOSTNADSFÖRSLAG) ---
 with tab3:
-    st.header(f"💡 إنشاء عرض سعر مفصل / Kostnadsförslag ({global_branch})")
-    with st.form("quote_form"):
-        q_name = st.text_input("اسم العميل / Customer Name", key="q_name")
-        q_phone = st.text_input("رقم الهاتف / Phone Number", key="q_phone")
-        q_device = st.text_input("موديل الجهاز / Device Model (e.g., iPhone 14)", key="q_device")
-        
-        st.markdown("### ⚙️ تحديد تفاصيل القطع والأعطال (Select Services & Repairs)")
-        q_iss_display = st.checkbox("📱 تغيير الشاشة (Skärmbyte / Display Replacement)", key="q_iss_display")
-        q_iss_battery = st.checkbox("🔋 تغيير البطارية (Batteribyte / Battery Replacement)", key="q_iss_battery")
-        q_iss_charger = st.checkbox("🔌 منفذ الشحن (Laddkontakt / Charging Port)", key="q_iss_charger")
-        q_iss_back = st.checkbox("🔍 الزجاج الخلفي (Baksida / Back Glass)", key="q_iss_back")
-        q_iss_camera = st.checkbox("📷 الكاميرا أو الزجاج الأمامي/الخلفي للكاميرا (Kamera)", key="q_iss_camera")
-        q_iss_water = st.checkbox("💧 تنظيف وتصليح أضرار السوائل (Vattenskada)", key="q_iss_water")
-        
-        q_extra_issue = st.text_area("ملاحظات إضافية أو أعطال أخرى / Additional Fault Details", key="q_extra_issue")
-        
-        q_total = st.number_input("السعر الإجمالي لعرض السعر / Total Price (SEK)", min_value=0.0, step=50.0, key="q_total")
-        q_emp = st.text_input("اسم الموظف / Employee Name", key="q_emp")
-        q_sub = st.form_submit_button("حفظ وعرض Kostnadsförslag")
-        
-        if q_sub:
-            selected_services = []
-            if q_iss_display: selected_services.append("Skärmbyte (Display Replacement)")
-            if q_iss_battery: selected_services.append("Batteribyte (Battery Replacement)")
-            if q_iss_charger: selected_services.append("Laddkontakt reparation (Charging Port)")
-            if q_iss_back: selected_services.append("Baksida byte (Back Glass)")
-            if q_iss_camera: selected_services.append("Kamerareparation (Camera Service)")
-            if q_iss_water: selected_services.append("Vattenskada rengöring (Water Damage)")
-            if q_extra_issue: selected_services.append(q_extra_issue)
+    st.header(f"💡 عرض سعر مفصل / Kostnadsförslag ({global_branch})")
+    
+    if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('quote_new_'):
+        display_pdf_preview(st.session_state['active_doc']['buffer'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+    else:
+        with st.form("quote_form"):
+            q_name = st.text_input("اسم العميل / Customer Name", key="q_name")
+            q_phone = st.text_input("رقم الهاتف / Phone Number", key="q_phone")
+            q_device = st.text_input("موديل الجهاز / Device Model (e.g., iPhone 14)", key="q_device")
             
-            full_issues_desc = " | ".join(selected_services) if selected_services else "Allmän undersökning och service"
+            st.markdown("### ⚙️ تحديد تفاصيل القطع والأعطال (Select Services & Repairs)")
+            q_iss_display = st.checkbox("📱 تغيير الشاشة (Skärmbyte / Display Replacement)", key="q_iss_display")
+            q_iss_battery = st.checkbox("🔋 تغيير البطارية (Batteribyte / Battery Replacement)", key="q_iss_battery")
+            q_iss_charger = st.checkbox("🔌 منفذ الشحن (Laddkontakt / Charging Port)", key="q_iss_charger")
+            q_iss_back = st.checkbox("🔍 الزجاج الخلفي (Baksida / Back Glass)", key="q_iss_back")
+            q_iss_camera = st.checkbox("📷 الكاميرا أو الزجاج (Kamera)", key="q_iss_camera")
+            q_iss_water = st.checkbox("💧 تنظيف السوائل (Vattenskada)", key="q_iss_water")
             
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                           (global_branch, q_name, q_phone, q_device, full_issues_desc, q_total, q_total * 0.3, q_emp, str(date.today())))
-            conn.commit()
-            conn.close()
-            st.success("تم إنشاء وحفظ عرض السعر (Kostnadsförslag) بالتشخيص والتفاصيل بنجاح!")
+            q_extra_issue = st.text_area("ملاحظات إضافية أو أعطال أخرى / Additional Fault Details", key="q_extra_issue")
+            q_total = st.number_input("السعر الإجمالي لعرض السعر / Total Price (SEK)", min_value=0.0, step=50.0, key="q_total")
+            q_emp = st.text_input("اسم الموظف / Employee Name", key="q_emp")
+            q_sub = st.form_submit_button("حفظ ومعاينة Kostnadsförslag")
+            
+            if q_sub:
+                selected_services = []
+                if q_iss_display: selected_services.append("Skärmbyte (Display Replacement)")
+                if q_iss_battery: selected_services.append("Batteribyte (Battery Replacement)")
+                if q_iss_charger: selected_services.append("Laddkontakt reparation (Charging Port)")
+                if q_iss_back: selected_services.append("Baksida byte (Back Glass)")
+                if q_iss_camera: selected_services.append("Kamerareparation (Camera Service)")
+                if q_iss_water: selected_services.append("Vattenskada rengöring (Water Damage)")
+                if q_extra_issue: selected_services.append(q_extra_issue)
+                
+                full_issues_desc = " | ".join(selected_services) if selected_services else "Allmän undersökning och service"
+                
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               (global_branch, q_name, q_phone, q_device, full_issues_desc, q_total, q_total * 0.3, q_emp, str(date.today())))
+                conn.commit()
+                last_id = cursor.lastrowid
+                conn.close()
+                
+                q_data = {
+                    "branch": global_branch, "customer_name": q_name, "phone": q_phone,
+                    "device": q_device, "issue": full_issues_desc, "total": q_total,
+                    "employee": q_emp, "created_at": str(date.today())
+                }
+                pdf_buf = generate_pdf_from_record("kostnadsforslag", q_data, COMPANY_INFO)
+                st.session_state['active_doc'] = {
+                    'buffer': pdf_buf,
+                    'filename': f"Kostnadsforslag_{last_id}.pdf",
+                    'key': f"quote_new_{last_id}"
+                }
+                st.success("تم حفظ عرض السعر بنجاح!")
+                st.rerun()
 
 # --- TAB 4: INVOICES ---
 with tab4:
     st.header(f"📄 الفواتير / Invoices ({global_branch})")
-    with st.form("invoice_form"):
-        i_no = st.text_input("رقم الفاتورة / Invoice No", value=f"INV-{date.today().strftime('%Y%m%d')}-01")
-        i_name = st.text_input("اسم العميل", key="i_name")
-        i_phone = st.text_input("رقم الهاتف", key="i_phone")
-        i_addr = st.text_input("العنوان", key="i_addr")
-        i_amt = st.number_input("المبلغ الإجمالي", min_value=0.0, step=50.0, key="i_amt")
-        i_emp = st.text_input("الموظف", key="i_emp")
-        i_sub = st.form_submit_button("إصدار الفاتورة")
-        if i_sub:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO invoices (branch, invoice_no, customer_name, phone, address, amount, moms, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                           (global_branch, i_no, i_name, i_phone, i_addr, i_amt, i_amt * 0.2, i_emp, str(date.today())))
-            conn.commit()
-            conn.close()
-            st.success("تم إصدار الفاتورة بنجاح!")
+    
+    if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('inv_new_'):
+        display_pdf_preview(st.session_state['active_doc']['buffer'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+    else:
+        with st.form("invoice_form"):
+            i_no = st.text_input("رقم الفاتورة / Invoice No", value=f"INV-{date.today().strftime('%Y%m%d')}-01")
+            i_name = st.text_input("اسم العميل", key="i_name")
+            i_phone = st.text_input("رقم الهاتف", key="i_phone")
+            i_addr = st.text_input("العنوان", key="i_addr")
+            i_amt = st.number_input("المبلغ الإجمالي", min_value=0.0, step=50.0, key="i_amt")
+            i_emp = st.text_input("الموظف", key="i_emp")
+            i_sub = st.form_submit_button("إصدار ومعاينة الفاتورة")
+            if i_sub:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO invoices (branch, invoice_no, customer_name, phone, address, amount, moms, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               (global_branch, i_no, i_name, i_phone, i_addr, i_amt, i_amt * 0.2, i_emp, str(date.today())))
+                conn.commit()
+                last_id = cursor.lastrowid
+                conn.close()
+                
+                inv_data = {
+                    "branch": global_branch, "invoice_no": i_no, "customer_name": i_name,
+                    "phone": i_phone, "address": i_addr, "issue": "Reparation och reservdelar",
+                    "price": i_amt, "employee": i_emp, "created_at": str(date.today())
+                }
+                pdf_buf = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                st.session_state['active_doc'] = {
+                    'buffer': pdf_buf,
+                    'filename': f"{i_no}.pdf",
+                    'key': f"inv_new_{last_id}"
+                }
+                st.success("تم إصدار الفاتورة بنجاح!")
+                st.rerun()
 
 # --- TABS 5 to 9: PLACEHOLDERS ---
 with tab5:
@@ -236,7 +288,7 @@ with tab9:
 with tab10:
     st.header(f"🔍 البحث والأرشيف وتخصيص الحقول للعرض والطباعة / Search & Field Checklist ({global_branch})")
     
-    if 'active_doc' in st.session_state:
+    if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_')):
         doc_info = st.session_state['active_doc']
         
         if st.button("🔙 العودة إلى نتائج البحث / Back to Search", type="primary", key="top_back_nav_search"):
@@ -319,13 +371,10 @@ with tab10:
                         "customer_name": i_row['customer_name'] if inc_name else "N/A",
                         "address": i_row['address'],
                         "phone": i_row['phone'] if inc_phone else "N/A",
-                        "item_desc": "Reparation och reservdelar",
-                        "amount": i_row['amount'] if inc_price else 0.0,
-                        "moms": i_row['moms'] if inc_price else 0.0,
-                        "currency": "SEK", "moms_rate": "25%",
+                        "issue": "Reparation och reservdelar",
+                        "price": i_row['amount'] if inc_price else 0.0,
                         "employee": i_row['employee'] if inc_emp else "N/A",
-                        "created_at": str(i_row['created_at'])[:10] if inc_date else "",
-                        "due_date": (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
+                        "created_at": str(i_row['created_at'])[:10] if inc_date else ""
                     }
                     pdf_buf = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {
@@ -353,11 +402,10 @@ with tab10:
                         "device": q_row['device'] if inc_device else "N/A",
                         "issue": q_row['issues'] if inc_issue else "N/A",
                         "total": q_row['total'] if inc_price else 0.0,
-                        "currency": "SEK",
                         "employee": q_row['employee'] if inc_emp else "N/A",
                         "created_at": str(q_row['created_at'])[:10] if inc_date else ""
                     }
-                    pdf_buf = generate_pdf_from_record("quote", q_data, COMPANY_INFO)
+                    pdf_buf = generate_pdf_from_record("kostnadsforslag", q_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {
                         'buffer': pdf_buf,
                         "filename": f"Kostnadsforslag_{selected_quote_id}.pdf",
