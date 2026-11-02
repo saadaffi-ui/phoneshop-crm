@@ -1,9 +1,9 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import sqlite3
 from datetime import date, timedelta
 import io
+import base64
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -90,20 +90,24 @@ Thank you for choosing 30 Minutes Phone Fix!
 
 def display_pdf_preview(buffer, file_name, key_suffix):
     doc_text = buffer.getvalue().decode('utf-8')
+    b64_data = base64.b64encode(buffer.getvalue()).decode()
     
     st.markdown("### 📄 معاينة المستند (Document Preview)")
     
-    html_code = f"""
-    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; max-height: 400px; overflow-y: auto;">
+    st.markdown(f"""
+    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; max-height: 350px; overflow-y: auto;">
 {doc_text}
     </div>
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <button onclick="window.print();" style="flex: 1; background-color: #007AFF; color: white; border: none; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            🖨️ طباعة أو مشاركة المستند (Print / Share)
-        </button>
+    """, unsafe_allow_html=True)
+    
+    download_html = f"""
+    <div style="margin-bottom: 20px;">
+        <a href="data:text/plain;base64,{b64_data}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            📥 فتح المستند للطباعة والمشاركة (Open & Share)
+        </a>
     </div>
     """
-    components.html(html_code, height=480, scrolling=True)
+    st.markdown(download_html, unsafe_allow_html=True)
     
     st.text_area("محتوى نصي قابل للنسخ / Copy Text", doc_text, height=120, key=f"copy_area_{key_suffix}")
 
