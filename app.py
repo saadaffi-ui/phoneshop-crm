@@ -238,6 +238,14 @@ if st.sidebar.button("🔒 Log Out / Logga ut / تسجيل خروج"):
     st.rerun()
 
 def display_pdf_preview(pdf_buffer, file_name="document.pdf", key_suffix="doc"):
+    # Back button to clear state and return
+    if st.button("🔙 Tillbaka / Back to Form", key=f"back_btn_{key_suffix}", type="secondary"):
+        if f'rep_receipt_pdf' in st.session_state: del st.session_state['rep_receipt_pdf']
+        if f'q_pdf' in st.session_state: del st.session_state['q_pdf']
+        if f'inv_pdf' in st.session_state: del st.session_state['inv_pdf']
+        if f'bb_pdf' in st.session_state: del st.session_state['bb_pdf']
+        st.rerun()
+
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
     b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -388,7 +396,6 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(50, height - 145, f"Telefon: {data.get('phone', '')}")
         p.drawString(300, height - 130, f"Enhet: {data.get('device', '')}")
 
-        # Header bar for quote items table
         p.setFillColorRGB(0.9, 0.9, 0.9)
         p.rect(50, height - 175, width - 100, 16, fill=1, stroke=0)
         p.setFillColorRGB(0, 0, 0)
@@ -396,11 +403,10 @@ def generate_pdf_from_record(record_type, data, comp_info):
         p.drawString(55, height - 169, "Åtgärd / Del & Felbeskrivning")
         p.drawString(420, height - 169, f"Pris ({currency})")
 
-        # Draw quote items/issues line by line
         issues_text = data.get('issues', '')
         y_pos = height - 195
         p.setFont("Helvetica", 8.5)
-        for issue_line in issues_text.split(", "):
+        for issue_line in issues_text.split(" | "):
             p.drawString(55, y_pos, f"- {issue_line}")
             y_pos -= 15
         
@@ -581,7 +587,6 @@ with tab2:
             repair_db_id = cursor.lastrowid
 
             for selected_part in selected_rep_issues:
-                # Extract part base name for inventory check
                 part_clean = selected_part.split(" - ")[0]
                 cursor.execute("UPDATE inventory SET stock_qty = stock_qty - 1 WHERE branch = ? AND part_name = ? AND stock_qty > 0", (global_branch, part_clean))
 
@@ -607,7 +612,7 @@ with tab2:
         display_pdf_preview(st.session_state['rep_receipt_pdf'], file_name="Inlamningskvitto_Dual.pdf", key_suffix="repair")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- TAB 3: QUOTE WITH FAULT DESCRIPTION ---
+# --- TAB 3: QUOTE ---
 with tab3:
     st.markdown("<div class='quote-box'>", unsafe_allow_html=True)
     st.header(f"💡 عرض سعر مع تفصيل الأعطال وحساب الأرباح / Price Quotation ({global_branch})")
@@ -663,7 +668,7 @@ with tab3:
             st.session_state['q_pdf'] = generate_pdf_from_record("quote", record_data, COMPANY_INFO)
 
     if q_phone:
-        q_wa_text = f"Hej {q_name or 'Kunden'}! Här är ert kostnadsförslag för {q_device or 'enhet'} hos 30 Minutes Phone Fix ({global_branch}). Totalt: {total_price:.2f} SEK. Välkommen!"
+        q_wa_text = f"Hej {q_name or 'Kunden'}! Här är kostnadsförslag för {q_device or 'enhet'} hos 30 Minutes Phone Fix ({global_branch}). Totalt: {total_price:.2f} SEK. Välkommen!"
         st.markdown(f'<a href="{get_whatsapp_link(q_phone, q_wa_text)}" target="_blank" class="whatsapp-btn">💬 إرسال عرض السعر عبر WhatsApp للعميل</a>', unsafe_allow_html=True)
 
     if 'q_pdf' in st.session_state:
