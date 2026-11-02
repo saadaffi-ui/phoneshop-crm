@@ -98,8 +98,14 @@ def display_pdf_preview(buffer, file_name, key_suffix):
     
     st.markdown("### 📄 معاينة المستند (Document Preview)")
     
+    # زر إضافي صريح للعودة الفورية إلى التطبيق من شاشة المعاينة
+    if st.button("🔙 العودة إلى التطبيق والقائمة / Back to App", type="primary", key=f"back_app_btn_{key_suffix}"):
+        if 'active_doc' in st.session_state:
+            del st.session_state['active_doc']
+        st.rerun()
+
     st.markdown(f"""
-    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; max-height: 350px; overflow-y: auto;">
+    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 15px; margin-bottom: 15px; max-height: 350px; overflow-y: auto;">
 {doc_text}
     </div>
     """, unsafe_allow_html=True)
@@ -152,7 +158,7 @@ with tab2:
             conn.close()
             st.success("تم حفظ بيانات الإصلاح بنجاح!")
 
-# --- TAB 3: QUOTES (COST ESTIMATE / KOSTNADSFÖRSLAG WITH DETAILED REPAIR CHECKLIST) ---
+# --- TAB 3: QUOTES (KOSTNADSFÖRSLAG WITH DETAILED REPAIR CHECKLIST) ---
 with tab3:
     st.header(f"💡 إنشاء عرض سعر مفصل / Kostnadsförslag ({global_branch})")
     with st.form("quote_form"):
@@ -175,7 +181,6 @@ with tab3:
         q_sub = st.form_submit_button("حفظ وعرض Kostnadsförslag")
         
         if q_sub:
-            # تجميع التفاصيل تلقائياً لتظهر في وصف العطل والوصف المطبوع
             selected_services = []
             if q_iss_display: selected_services.append("Skärmbyte (Display Replacement)")
             if q_iss_battery: selected_services.append("Batteribyte (Battery Replacement)")
