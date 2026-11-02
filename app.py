@@ -62,62 +62,83 @@ def init_db():
 
 init_db()
 
-# --- MOCK DOCUMENT GENERATOR FUNCTION ---
-def generate_pdf_from_record(doc_type, data, company_info):
-    buffer = io.BytesIO()
-    content = f"""
-==================================================
-{company_info[data['branch']]['name']}
-Address: {company_info[data['branch']]['address']}
-Phone: {company_info[data['branch']]['phone']}
-==================================================
-Document Type: {doc_type.upper()}
-Date: {data.get('created_at', date.today())}
-Branch: {data['branch']}
---------------------------------------------------
-Customer Name: {data.get('customer_name', 'N/A')}
-Phone Number: {data.get('phone', 'N/A')}
-Device Model/Info: {data.get('device', data.get('address', 'N/A'))}
---------------------------------------------------
-DETAILS & REQUIRED SERVICE:
-{data.get('issue', data.get('issues', data.get('item_desc', 'N/A')))}
---------------------------------------------------
-Total Amount: {data.get('price', data.get('amount', data.get('total', 0.0)))} SEK
-Handled by: {data.get('employee', 'N/A')}
-==================================================
-Thank you for choosing 30 Minutes Phone Fix!
-"""
-    buffer.write(content.encode('utf-8'))
-    buffer.seek(0)
-    return buffer
+# --- HTML DOCUMENT GENERATOR (FIXES PREVIEW ERRORS ON IOS) ---
+def generate_html_document(doc_type, data, company_info):
+    branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="sv">
+    <head>
+        <meta charset="UTF-8">
+        <title>{doc_type.upper()}</title>
+        <style>
+            body {{ font-family: Helvetica, Arial, sans-serif; padding: 25px; color: #111; background: #fff; }}
+            .header {{ text-align: center; border-bottom: 2px solid #007AFF; padding-bottom: 15px; margin-bottom: 20px; }}
+            .header h2 {{ margin: 0; color: #007AFF; }}
+            .info-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e9ecef; }}
+            .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+            .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 10px 12px; text-align: left; }}
+            .details-table th {{ background-color: #f1f3f5; }}
+            .footer {{ text-align: center; margin-top: 30px; font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; pt: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h2>30 Minutes Phone Fix</h2>
+            <p><strong>{branch_info['name']}</strong><br>{branch_info['address']} | Tel: {branch_info['phone']}</p>
+        </div>
+        
+        <div class="info-box">
+            <h3>Dokumenttyp: {doc_type.upper()}</h3>
+            <p><strong>Datum:</strong> {data.get('created_at', date.today())}</p>
+            <p><strong>Kund:</strong> {data.get('customer_name', 'N/A')}</p>
+            <p><strong>Telefon:</strong> {data.get('phone', 'N/A')}</p>
+            <p><strong>Enhet / Modell:</strong> {data.get('device', data.get('address', 'N/A'))}</p>
+        </div>
 
-def display_pdf_preview(buffer, file_name, key_suffix):
-    doc_text = buffer.getvalue().decode('utf-8')
-    b64_data = base64.b64encode(buffer.getvalue()).decode()
+        <table class="details-table">
+            <tr>
+                <th>Reparation / Åtgärd (Details & Required Service)</th>
+                <th>Pris (SEK inkl. moms)</th>
+            </tr>
+            <tr>
+                <td>{data.get('issue', data.get('issues', data.get('item_desc', 'Allmän service')))}</td>
+                <td><strong>{data.get('price', data.get('amount', data.get('total', 0.0)))} SEK</strong></td>
+            </tr>
+        </table>
+
+        <p><strong>Handläggare / Anställd:</strong> {data.get('employee', 'N/A')}</p>
+
+        <div class="footer">
+            <p>Tack för att du väljer 30 Minutes Phone Fix! | Giltighetstid: 30 dagar.</p>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
+
+def display_document_preview(html_content, file_name, key_suffix):
+    b64_html = base64.b64encode(html_content.encode('utf-8')).decode('utf-8')
     
-    st.markdown("### 📄 معاينة المستند المباشرة (Document Preview)")
+    st.markdown("### 📄 معاينة المستند (Document Preview)")
     
     if st.button("🔙 العودة إلى التطبيق والقائمة / Back to App", type="primary", key=f"back_app_btn_{key_suffix}"):
         if 'active_doc' in st.session_state:
             del st.session_state['active_doc']
         st.rerun()
 
-    st.markdown(f"""
-    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 15px; margin-bottom: 15px; max-height: 350px; overflow-y: auto;">
-{doc_text}
-    </div>
-    """, unsafe_allow_html=True)
+    # عرض المعاينة الحية المباشرة داخل الـ iframe
+    st.components.v1.html(html_content, height=420, scrolling=True)
     
+    # زر آمن وفعال للفتح والطباعة والمشاركة على الآيفون
     download_html = f"""
-    <div style="margin-bottom: 20px;">
-        <a href="data:text/plain;base64,{b64_data}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            📥 فتح المستند للطباعة والمشاركة (Open & Share)
+    <div style="margin: 15px 0;">
+        <a href="data:text/html;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            🖨️ فتح للطباعة والمشاركة (Open & Print / Share)
         </a>
     </div>
     """
     st.markdown(download_html, unsafe_allow_html=True)
-    
-    st.text_area("محتوى نصي قابل للنسخ / Copy Text", doc_text, height=120, key=f"copy_area_{key_suffix}")
 
 # --- SIDEBAR RESET & CONTROLS ---
 if st.sidebar.button("🔄 إعادة ضبط العرض / Reset Session"):
@@ -141,7 +162,7 @@ with tab2:
     st.header(f"🛠️ تسجيل إصلاح جديد / New Repair ({global_branch})")
     
     if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('rep_new_'):
-        display_pdf_preview(st.session_state['active_doc']['buffer'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+        display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
     else:
         with st.form("repair_form"):
             c_name = st.text_input("اسم العميل / Customer Name")
@@ -166,21 +187,21 @@ with tab2:
                     "issue": c_issue, "price": c_price, "employee": c_emp,
                     "created_at": str(date.today())
                 }
-                pdf_buf = generate_pdf_from_record("repair_receipt", rec_data, COMPANY_INFO)
+                html_doc = generate_html_document("Inlämningskvitto", rec_data, COMPANY_INFO)
                 st.session_state['active_doc'] = {
-                    'buffer': pdf_buf,
-                    'filename': f"Inlamningskvitto_{last_id}.pdf",
+                    'html': html_doc,
+                    'filename': f"Inlamningskvitto_{last_id}.html",
                     'key': f"rep_new_{last_id}"
                 }
                 st.success("تم حفظ الإصلاح بنجاح!")
                 st.rerun()
 
-# --- TAB 3: QUOTES (KOSTNADSFÖRSLAG) ---
+# --- TAB 3: QUOTES (KOSTNADSFÖRSLAG WITH DETAILED REPAIR OPTIONS) ---
 with tab3:
     st.header(f"💡 عرض سعر مفصل / Kostnadsförslag ({global_branch})")
     
     if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('quote_new_'):
-        display_pdf_preview(st.session_state['active_doc']['buffer'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+        display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
     else:
         with st.form("quote_form"):
             q_name = st.text_input("اسم العميل / Customer Name", key="q_name")
@@ -192,8 +213,8 @@ with tab3:
             q_iss_battery = st.checkbox("🔋 تغيير البطارية (Batteribyte / Battery Replacement)", key="q_iss_battery")
             q_iss_charger = st.checkbox("🔌 منفذ الشحن (Laddkontakt / Charging Port)", key="q_iss_charger")
             q_iss_back = st.checkbox("🔍 الزجاج الخلفي (Baksida / Back Glass)", key="q_iss_back")
-            q_iss_camera = st.checkbox("📷 الكاميرا أو الزجاج (Kamera)", key="q_iss_camera")
-            q_iss_water = st.checkbox("💧 تنظيف السوائل (Vattenskada)", key="q_iss_water")
+            q_iss_camera = st.checkbox("📷 الكاميرا أو زجاج الكاميرا (Kamera / Camera Glass)", key="q_iss_camera")
+            q_iss_water = st.checkbox("💧 تصليح وتنظيف أضرار السوائل (Vattenskada Rengöring)", key="q_iss_water")
             
             q_extra_issue = st.text_area("ملاحظات إضافية أو أعطال أخرى / Additional Fault Details", key="q_extra_issue")
             q_total = st.number_input("السعر الإجمالي لعرض السعر / Total Price (SEK)", min_value=0.0, step=50.0, key="q_total")
@@ -225,13 +246,13 @@ with tab3:
                     "device": q_device, "issue": full_issues_desc, "total": q_total,
                     "employee": q_emp, "created_at": str(date.today())
                 }
-                pdf_buf = generate_pdf_from_record("kostnadsforslag", q_data, COMPANY_INFO)
+                html_doc = generate_html_document("Kostnadsförslag", q_data, COMPANY_INFO)
                 st.session_state['active_doc'] = {
-                    'buffer': pdf_buf,
-                    'filename': f"Kostnadsforslag_{last_id}.pdf",
+                    'html': html_doc,
+                    'filename': f"Kostnadsforslag_{last_id}.html",
                     'key': f"quote_new_{last_id}"
                 }
-                st.success("تم حفظ عرض السعر بنجاح!")
+                st.success("تم حفظ عرض السعر (Kostnadsförslag) بالتشخيص والتفاصيل بنجاح!")
                 st.rerun()
 
 # --- TAB 4: INVOICES ---
@@ -239,7 +260,7 @@ with tab4:
     st.header(f"📄 الفواتير / Invoices ({global_branch})")
     
     if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('inv_new_'):
-        display_pdf_preview(st.session_state['active_doc']['buffer'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+        display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
     else:
         with st.form("invoice_form"):
             i_no = st.text_input("رقم الفاتورة / Invoice No", value=f"INV-{date.today().strftime('%Y%m%d')}-01")
@@ -263,10 +284,10 @@ with tab4:
                     "phone": i_phone, "address": i_addr, "issue": "Reparation och reservdelar",
                     "price": i_amt, "employee": i_emp, "created_at": str(date.today())
                 }
-                pdf_buf = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                html_doc = generate_html_document("Faktura", inv_data, COMPANY_INFO)
                 st.session_state['active_doc'] = {
-                    'buffer': pdf_buf,
-                    'filename': f"{i_no}.pdf",
+                    'html': html_doc,
+                    'filename': f"{i_no}.html",
                     'key': f"inv_new_{last_id}"
                 }
                 st.success("تم إصدار الفاتورة بنجاح!")
@@ -295,7 +316,7 @@ with tab10:
             del st.session_state['active_doc']
             st.rerun()
             
-        display_pdf_preview(doc_info['buffer'], file_name=doc_info['filename'], key_suffix=doc_info['key'])
+        display_document_preview(doc_info['html'], doc_info['filename'], doc_info['key'])
     else:
         search_query = st.text_input("بحث بالاسم، رقم الهاتف، نوع الجهاز أو رقم الفاتورة / Search Query", key="global_search_input")
         
@@ -347,10 +368,10 @@ with tab10:
                         "employee": r_row['employee'] if inc_emp else "N/A",
                         "created_at": str(r_row['created_at'])[:10] if inc_date else ""
                     }
-                    pdf_buf = generate_pdf_from_record("repair_receipt_dual", rec_data, COMPANY_INFO)
+                    html_doc = generate_html_document("Inlämningskvitto", rec_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {
-                        'buffer': pdf_buf,
-                        'filename': f"Inlamningskvitto_{selected_rep_id}.pdf",
+                        'html': html_doc,
+                        'filename': f"Inlamningskvitto_{selected_rep_id}.html",
                         'key': f"search_rep_{selected_rep_id}"
                     }
                     st.rerun()
@@ -376,10 +397,10 @@ with tab10:
                         "employee": i_row['employee'] if inc_emp else "N/A",
                         "created_at": str(i_row['created_at'])[:10] if inc_date else ""
                     }
-                    pdf_buf = generate_pdf_from_record("invoice", inv_data, COMPANY_INFO)
+                    html_doc = generate_html_document("Faktura", inv_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {
-                        'buffer': pdf_buf,
-                        'filename': f"{i_row['invoice_no']}.pdf",
+                        'html': html_doc,
+                        'filename': f"{i_row['invoice_no']}.html",
                         'key': f"search_inv_{selected_inv_id}"
                     }
                     st.rerun()
@@ -405,10 +426,10 @@ with tab10:
                         "employee": q_row['employee'] if inc_emp else "N/A",
                         "created_at": str(q_row['created_at'])[:10] if inc_date else ""
                     }
-                    pdf_buf = generate_pdf_from_record("kostnadsforslag", q_data, COMPANY_INFO)
+                    html_doc = generate_html_document("Kostnadsförslag", q_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {
-                        'buffer': pdf_buf,
-                        "filename": f"Kostnadsforslag_{selected_quote_id}.pdf",
+                        'html': html_doc,
+                        "filename": f"Kostnadsforslag_{selected_quote_id}.html",
                         'key': f"search_quote_{selected_quote_id}"
                     }
                     st.rerun()
