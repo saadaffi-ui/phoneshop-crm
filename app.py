@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import sqlite3
 from datetime import date, timedelta
@@ -92,15 +93,19 @@ def display_pdf_preview(buffer, file_name, key_suffix):
     
     st.markdown("### 📄 معاينة المستند (Document Preview)")
     
-    # عرض محتوى المستند داخل صندوق منسق متوافق 100% مع تطبيق الآيفون
-    st.markdown(f"""
-    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    html_code = f"""
+    <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ccc; font-family: monospace; white-space: pre-wrap; color: #000000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; max-height: 400px; overflow-y: auto;">
 {doc_text}
     </div>
-    """, unsafe_allow_html=True)
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button onclick="window.print();" style="flex: 1; background-color: #007AFF; color: white; border: none; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            🖨️ طباعة أو مشاركة المستند (Print / Share)
+        </button>
+    </div>
+    """
+    components.html(html_code, height=480, scrolling=True)
     
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.text_area("محتوى نصي قابل للنسخ / Copy Text", doc_text, height=150, key=f"copy_area_{key_suffix}")
+    st.text_area("محتوى نصي قابل للنسخ / Copy Text", doc_text, height=120, key=f"copy_area_{key_suffix}")
 
 # --- SIDEBAR RESET & CONTROLS ---
 if st.sidebar.button("🔄 إعادة ضبط العرض / Reset Session"):
@@ -195,7 +200,6 @@ with tab9:
 with tab10:
     st.header(f"🔍 البحث والأرشيف وتخصيص الحقول للعرض والطباعة / Search & Field Checklist ({global_branch})")
     
-    # إذا كان هناك مستند قيد المعاينة، سيظهر زر الرجوع بوضوح في الأعلى
     if 'active_doc' in st.session_state:
         doc_info = st.session_state['active_doc']
         
