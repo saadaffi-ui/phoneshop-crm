@@ -232,13 +232,25 @@ if not st.session_state['authenticated']:
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-if st.sidebar.button("🔒 Log Out / Logga ut / تسجيل خروج"):
-    st.session_state['authenticated'] = False
-    st.session_state['remember_device'] = False
-    st.rerun()
+# --- Sidebar Controls ---
+with st.sidebar:
+    st.markdown("### ⚙️ System Controls")
+    if st.button("🔄 Stäng / Återställ vy (Reset View)", type="secondary"):
+        if 'active_doc' in st.session_state:
+            del st.session_state['active_doc']
+        keys_to_clear = [k for k in st.session_state.keys() if 'pdf' in k or 'buf' in k]
+        for k in keys_to_clear:
+            del st.session_state[k]
+        st.rerun()
+        
+    st.markdown("---")
+    if st.button("🔒 Log Out / Logga ut / تسجيل خروج"):
+        st.session_state['authenticated'] = False
+        st.session_state['remember_device'] = False
+        st.rerun()
 
 def display_pdf_preview(pdf_buffer, file_name="document.pdf", key_suffix="doc"):
-    if st.button("🔙 Tillbaka / Back", key=f"back_btn_{key_suffix}", type="secondary"):
+    if st.button("🔙 Tillbaka / Back", key=f"back_btn_{key_suffix}", type="primary"):
         if 'active_doc' in st.session_state:
             del st.session_state['active_doc']
         keys_to_clear = [k for k in st.session_state.keys() if 'pdf' in k or 'buf' in k]
