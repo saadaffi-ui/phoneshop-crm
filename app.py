@@ -21,7 +21,6 @@ passwords = ['tuna123']
 
 hashed_passwords = [stauth.Hasher.hash(password) for password in passwords]
 
-# تهيئة بيانات الاعتماد بشكل متوافق مع الإصدارات الحديثة
 credentials = {
     'usernames': {
         usernames[0]: {
@@ -38,7 +37,15 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=30
 )
 
-name, authentication_status, username = authenticator.login('تسجيل الدخول / Login', 'main')
+# تم تغيير استدعاء الـ login ليتوافق مع الإصدارات الحديثة
+try:
+    authenticator.login('main')
+    authentication_status = st.session_state.get('authentication_status')
+    name = st.session_state.get('name')
+    username = st.session_state.get('username')
+except Exception as e:
+    # توافق احتياطي مع الإصدارات الأخرى
+    name, authentication_status, username = authenticator.login('تسجيل الدخول / Login', 'main')
 
 if authentication_status == False:
     st.error('اسم المستخدم أو كلمة المرور غير صحيحة / Username/password is incorrect')
