@@ -19,13 +19,15 @@ global_branch = st.sidebar.selectbox("اختر الفرع / Select Branch", ["Es
 COMPANY_INFO = {
     "Eskilstuna": {
         "name": "30 Minutes Phone Fix Eskilstuna", 
-        "address": "Drottninggatan X, Eskilstuna", 
-        "phone": "016-XXX XX XX"
+        "address": "Gunborg Nymans Väg 2, 632 22 Eskilstuna", 
+        "phone": "0700122444",
+        "org_nr": "559370-8034"
     },
     "Västerås": {
-        "name": "30 Minutes Phone Fix Västerås", 
-        "address": "Stora Gatan Y, Västerås", 
-        "phone": "021-XXX XX XX"
+        "name": "30 Minutes Phone Fix Västerås AB", 
+        "address": "Gunborg Nymans Väg 2, 632 22 Eskilstuna", 
+        "phone": "0700122444",
+        "org_nr": "559537-1724"
     }
 }
 
@@ -93,7 +95,9 @@ def generate_html_document(doc_type, data, company_info):
     <body>
         <div class="header">
             <h2>30 Minutes Phone Fix</h2>
-            <p><strong>{branch_info['name']}</strong><br>{branch_info['address']} | Tel: {branch_info['phone']}</p>
+            <p><strong>{branch_info['name']}</strong><br>
+               Org.nr: {branch_info['org_nr']}<br>
+               {branch_info['address']} | Tel: {branch_info['phone']}</p>
         </div>
         
         <div class="info-box">
