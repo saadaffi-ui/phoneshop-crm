@@ -19,13 +19,20 @@ names = ['Tunapark Admin']
 usernames = ['tunapark']
 passwords = ['tuna123']
 
-# تحديث طريقة التشفير لتتوافق مع الإصدارات الحديثة من المكتبة
 hashed_passwords = [stauth.Hasher.hash(password) for password in passwords]
 
+# تهيئة بيانات الاعتماد بشكل متوافق مع الإصدارات الحديثة
+credentials = {
+    'usernames': {
+        usernames[0]: {
+            'name': names[0],
+            'password': hashed_passwords[0]
+        }
+    }
+}
+
 authenticator = stauth.Authenticate(
-    names=names,
-    usernames=usernames,
-    passwords=hashed_passwords,
+    credentials,
     cookie_name='tunapark_crm_cookie',
     key='tunapark_signature_key',
     cookie_expiry_days=30
