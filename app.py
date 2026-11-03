@@ -182,13 +182,11 @@ elif authentication_status == True:
 
     init_db()
 
-    # --- FORMAT PRICE HELPER ---
+    # --- FORMAT PRICE HELPER (Strictly whole numbers without .00) ---
     def format_price(val):
         try:
             f_val = float(val)
-            if f_val.is_integer():
-                return str(int(f_val))
-            return f"{f_val:.2f}"
+            return str(int(f_val))
         except:
             return str(val)
 
@@ -320,7 +318,7 @@ elif authentication_status == True:
                 c_phone = st.text_input(txt["phone"])
                 c_device = st.text_input(txt["device"])
                 c_issue = st.text_area(txt["issue"])
-                c_price = st.number_input(txt["price"], min_value=0.0, step=50.0)
+                c_price = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
                 c_emp = st.text_input(txt["employee"])
                 submitted = st.form_submit_button(txt["save_repair"])
                 if submitted:
@@ -347,7 +345,7 @@ elif authentication_status == True:
                     st.success(txt["success_repair"])
                     st.rerun()
 
-    # --- TAB 3: KOSTNADSFÖRSLAG WITH SPECIFIC REPAIR CHECKLIST ---
+    # --- TAB 3: KOSTNADSFÖRSLAG ---
     with tab3:
         st.header(f"{txt['tab_quote']} ({global_branch})")
         
@@ -372,7 +370,7 @@ elif authentication_status == True:
                     s_water = st.checkbox("💧 Vattenskada (Water Damage)", key="q_s_water")
                 
                 q_extra = st.text_area("Övriga kommentarer / Felbeskrivning (Additional notes)", key="q_extra")
-                q_total = st.number_input(txt["price"], min_value=0.0, step=50.0, key="q_total")
+                q_total = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d", key="q_total")
                 q_emp = st.text_input(txt["employee"], key="q_emp")
                 
                 q_sub = st.form_submit_button("Spara & Förhandsgranska Kostnadsförslag")
@@ -422,7 +420,7 @@ elif authentication_status == True:
                 i_addr = st.text_input(txt["address"])
                 i_type = st.selectbox(txt["inv_type"], ["Inrikes (Sverige - 25% Moms)", "EU Företag (Reverse Charge)", "Export utanför EU"])
                 i_desc = st.text_area(txt["issue"], value="Reparation och reservdelar")
-                i_amt = st.number_input(txt["total_amt"], min_value=0.0, step=50.0)
+                i_amt = st.number_input(txt["total_amt"], min_value=0.0, step=50.0, format="%d")
                 i_emp = st.text_input(txt["employee"])
                 i_sub = st.form_submit_button(txt["create_inv"])
                 if i_sub:
