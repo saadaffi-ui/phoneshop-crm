@@ -86,7 +86,7 @@ elif authentication_status == True:
             "success_inv": "Fakturan har sparats!",
             "search_q": "Sök på namn, org.nr, enhet eller nummer...",
             "select_item_print": "Välj ID för att skriva ut eller visa:",
-            "service_header": "⚙️ Välj fel och specifika reparationer",
+            "service_header": "⚙️ Välj fel och specifika reparationer (Pris per del)",
             "sub_plan": "Prenumerationstyp / Plan",
             "buy_model": "Enhet / Skick (Gradering A/B/C)",
             "camp_name": "Kampanjnamn / Rabatt",
@@ -131,7 +131,7 @@ elif authentication_status == True:
             "success_inv": "تم إصدار الفاتورة بنجاح!",
             "search_q": "بحث بالاسم، رقم التسجيل، الجهاز أو الرقم...",
             "select_item_print": "اختر المعرف (ID) لطباعة أو عرض المستند:",
-            "service_header": "⚙️ تحديد الأعطال والقطع المطلوبة",
+            "service_header": "⚙️ تحديد الأعطال وتكلفة كل قطعة منفصلة",
             "sub_plan": "نوع الاشتراكات / الخطة",
             "buy_model": "الجهاز المراد شراؤه / الحالة",
             "camp_name": "اسم الحملة التسويقية / العرض",
@@ -166,7 +166,6 @@ elif authentication_status == True:
         }
     }
 
-    # استخدام شعار المشروع المحلي logo.png مباشرة
     LOGO_PATH = "logo.png"
 
     def get_image_base64(path):
@@ -177,9 +176,8 @@ elif authentication_status == True:
             return ""
 
     logo_base64 = get_image_base64(LOGO_PATH)
-    logo_tag = f'<data:image/png;base64,{logo_base64}' if logo_base64 else 'logo.png'
 
-    # --- DATABASE SETUP & AUTO MIGRATION ---
+    # --- DATABASE SETUP ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -244,14 +242,21 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- PROFESSIONAL DUAL-COPY DOCUMENT GENERATOR WITH TERMS & SIGNATURE ---
+    # --- DOCUMENT GENERATOR WITH ITEMIZED COSTS AND TOTAL SUM ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
         formatted_total = format_price(raw_amount)
         uniq_id = data.get('repair_id', data.get('invoice_no', data.get('id', '30MIN-001')))
         cust_org_display = f"<br><strong>Org.nr / VAT:</strong> {data.get('customer_org', 'N/A')}" if doc_type == 'Faktura' and data.get('customer_org') else ""
-        issue_desc = data.get('issue', data.get('issues', data.get('plan', data.get('item', data.get('campaign_name', 'Service')))))
+        
+        # Format breakdown if itemized repairs exist
+        items = data.get('items_breakdown', [])
+        if items:
+            rows_html = "".join([f"<tr><td>{item['name']}</td><td style='text-align: right;'>{format_price(item['price'])} SEK</td></tr>" for item in items])
+        else:
+            issue_desc = data.get('issue', data.get('issues', data.get('plan', data.get('item', data.get('campaign_name', 'Service')))))
+            rows_html = f"<tr><td>{issue_desc}</td><td style='text-align: right;'>{formatted_total} SEK</td></tr>"
 
         terms_html = """
         <div class="terms">
@@ -263,11 +268,11 @@ elif authentication_status == True:
         </div>
         """
 
-        signature_block = """
+        signature_block = f"""
         <table class="sig-table">
             <tr>
                 <td>Kundens undersökningsgodkännande / Signatur:<br><br>________________________________________</td>
-                <td>Handläggares signatur ({employee}):<br><br>________________________________________</td>
+                <td>Handläggares signatur ({data.get('employee', 'Admin')}):<br><br>________________________________________</td>
             </tr>
         </table>
         """
@@ -306,18 +311,23 @@ elif authentication_status == True:
             </div>
 
             <table class="details-table">
-                <tr>
-                    <th>Åtgärd / Beskrivning (Service & Parts)</th>
-                    <th style="text-align: right;">Totalt (SEK inkl. moms)</th>
-                </tr>
-                <tr>
-                    <td>{issue_desc}</td>
-                    <td style="text-align: right;"><strong>{formatted_total} SEK</strong></td>
-                </tr>
+                <thead>
+                    <tr>
+                        <th>Åtgärd / Beskrivning (Service & Parts)</th>
+                        <th style="text-align: right;">Pris (SEK inkl. moms)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                    <tr style="background-color: #f8f9fa;">
+                        <td><strong>Totalt belopp (Total Summa):</strong></td>
+                        <td style="text-align: right;"><strong>{formatted_total} SEK</strong></td>
+                    </tr>
+                </tbody>
             </table>
 
             {terms_html}
-            {signature_block.format(employee=data.get('employee', 'Admin'))}
+            {signature_block}
         """
 
         html_content = f"""
@@ -343,23 +353,20 @@ elif authentication_status == True:
                 .sig-table {{ width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 11px; }}
                 .sig-table td {{ width: 50%; padding: 5px; vertical-align: bottom; }}
                 .copy-tag {{ font-weight: bold; color: #007AFF; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }}
-                .cut-line {{ border-top: 2px dashed #bbb; margin: 30px 0; position: relative; }}
+                .cut-line {{ border-top: 2px dashed #bbb; margin: 25px 0; position: relative; }}
                 .cut-text {{ position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 10px; font-size: 10px; color: #777; }}
             </style>
         </head>
         <body>
-            <!-- KUNDENS EXEMPLAR (Customer Copy) -->
             <div class="copy-tag">📱 1. KUNDENS EXEMPLAR (Customer Copy)</div>
             {single_receipt_content}
 
             <div class="cut-line">
-                <span class="cut-text">Klipp här / Vik här (Kvitto för butik & kund)</span>
+                <span class="cut-text">Klipp här / Vik här (Kvitto för Butik & Kund)</span>
             </div>
 
-            <!-- BUTIKENS EXEMPLAR (Store Copy) -->
             <div class="copy-tag">📂 2. BUTIKENS EXEMPLAR (Store Archive Copy)</div>
             {single_receipt_content}
-
         </body>
         </html>
         """
@@ -367,7 +374,6 @@ elif authentication_status == True:
 
     def display_document_preview(html_content, file_name, key_suffix):
         st.markdown(f"### 📄 {txt['preview']}")
-        
         col_back, col_web = st.columns([1, 1])
         with col_back:
             if st.button(f"🔙 {txt['back_app']}", type="primary", key=f"back_app_btn_{key_suffix}"):
@@ -382,16 +388,13 @@ elif authentication_status == True:
                 mime="text/html",
                 key=f"download_web_btn_{key_suffix}"
             )
-
         st.components.v1.html(html_content, height=650, scrolling=True)
 
-    # --- SIDEBAR RESET ---
     if st.sidebar.button(txt["reset"]):
         if 'active_doc' in st.session_state:
             del st.session_state['active_doc']
         st.rerun()
 
-    # --- TABS DEFINITION ---
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         txt["tab_dash"], txt["tab_repair"], txt["tab_quote"], txt["tab_invoice"], 
         txt["tab_sub"], txt["tab_buyback"], txt["tab_campaign"], txt["tab_preorder"], txt["tab_stock"], txt["tab_search"]
@@ -412,6 +415,7 @@ elif authentication_status == True:
         col_d3.metric("💡 Quotes", quote_count)
         col_d4.metric("📦 Stock Items", stock_count if stock_count else 0)
 
+    # --- TAB 2: REPAIRS (ITEMIZED REPAIRS WITH INDIVIDUAL PRICES) ---
     with tab2:
         st.header(f"{txt['tab_repair']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('rep_new_'):
@@ -421,15 +425,52 @@ elif authentication_status == True:
                 c_name = st.text_input(txt["comp_name"])
                 c_phone = st.text_input(txt["phone"])
                 c_device = st.text_input(txt["device"])
-                c_issue = st.text_area(txt["issue"])
-                c_price = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
+                
+                st.markdown(f"### {txt['service_header']}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    chk_display = st.checkbox("📱 Skärmbyte (Display)")
+                    p_display = st.number_input("Pris: Skärmbyte (SEK)", min_value=0.0, step=50.0, key="p_disp")
+                    
+                    chk_battery = st.checkbox("🔋 Batteribyte (Battery)")
+                    p_battery = st.number_input("Pris: Batteribyte (SEK)", min_value=0.0, step=50.0, key="p_batt")
+                    
+                    chk_camera = st.checkbox("📷 Kamerabyte / Kameralins (Camera)")
+                    p_camera = st.number_input("Pris: Kamerabyte (SEK)", min_value=0.0, step=50.0, key="p_cam")
+                
+                with col2:
+                    chk_charger = st.checkbox("🔌 Laddkontakt (Charging Port)")
+                    p_charger = st.number_input("Pris: Laddkontakt (SEK)", min_value=0.0, step=50.0, key="p_charg")
+                    
+                    chk_back = st.checkbox("🔍 Baksida glas (Back Glass)")
+                    p_back = st.number_input("Pris: Baksida glas (SEK)", min_value=0.0, step=50.0, key="p_bg")
+                    
+                    chk_water = st.checkbox("💧 Vattenskada (Water Damage)")
+                    p_water = st.number_input("Pris: Vattenskada (SEK)", min_value=0.0, step=50.0, key="p_wat")
+
+                st.markdown("---")
+                c_issue_extra = st.text_area("Övrig felbeskrivning / Extra arbete")
+                p_extra = st.number_input("Pris: Övrigt arbete (SEK)", min_value=0.0, step=50.0, key="p_ext")
                 c_emp = st.text_input(txt["employee"])
+                
                 submitted = st.form_submit_button(txt["save_repair"])
                 if submitted:
+                    items_breakdown = []
+                    if chk_display and p_display > 0: items_breakdown.append({'name': '📱 Skärmbyte (Display)', 'price': p_display})
+                    if chk_battery and p_battery > 0: items_breakdown.append({'name': '🔋 Batteribyte (Battery)', 'price': p_battery})
+                    if chk_camera and p_camera > 0: items_breakdown.append({'name': '📷 Kamerabyte / Kameralins', 'price': p_camera})
+                    if chk_charger and p_charger > 0: items_breakdown.append({'name': '🔌 Laddkontakt (Charging Port)', 'price': p_charger})
+                    if chk_back and p_back > 0: items_breakdown.append({'name': '🔍 Baksida glas (Back Glass)', 'price': p_back})
+                    if chk_water and p_water > 0: items_breakdown.append({'name': '💧 Vattenskada sanering', 'price': p_water})
+                    if c_issue_extra and p_extra > 0: items_breakdown.append({'name': f"Övrigt: {c_issue_extra}", 'price': p_extra})
+                    
+                    total_calculated = sum(item['price'] for item in items_breakdown)
+                    summary_text = " | ".join([f"{item['name']} ({format_price(item['price'])} kr)" for item in items_breakdown]) if items_breakdown else "Allmän service"
+
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute("INSERT INTO repairs (branch, customer_name, phone, device, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, c_name, c_phone, c_device, c_issue, c_price, "Pending", c_emp, str(date.today())))
+                                   (global_branch, c_name, c_phone, c_device, summary_text, total_calculated, "Pending", c_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
@@ -437,7 +478,7 @@ elif authentication_status == True:
                     rec_data = {
                         "branch": global_branch, "repair_id": f"REP-{date.today().strftime('%Y%m%d')}-{last_id:03d}",
                         "customer_name": c_name, "phone": c_phone, "device": c_device,
-                        "issue": c_issue, "price": c_price, "employee": c_emp,
+                        "items_breakdown": items_breakdown, "price": total_calculated, "employee": c_emp,
                         "created_at": str(date.today())
                     }
                     html_doc = generate_html_document("Inlämningskvitto", rec_data, COMPANY_INFO)
@@ -465,7 +506,7 @@ elif authentication_status == True:
                     s_display = st.checkbox("📱 Skärmbyte (Display)", key="q_s_display")
                     s_battery = st.checkbox("🔋 Batteribyte (Battery)", key="q_s_battery")
                 with col_s2:
-                    s_camera = st.checkbox("📷 Kamerabyte / Kameralins (Camera)", key="q_s_camera")
+                    s_camera = st.checkbox("📷 Kamerabyte / Kameralins", key="q_s_camera")
                     s_charger = st.checkbox("🔌 Laddkontakt (Charging Port)", key="q_s_charger")
                 with col_s3:
                     s_back = st.checkbox("🔍 Baksida glas (Back Glass)", key="q_s_back")
