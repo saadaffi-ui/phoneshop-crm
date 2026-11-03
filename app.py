@@ -167,9 +167,7 @@ elif authentication_status == True:
     }
 
     # --- EMBEDDED LOGO (BASE64) ---
-    # الشعار الرسمي المدمج مباشرة لضمان ظهوره في جميع المطبوعات والملفات المحفوظة
     LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-    # ملاحظة: تم تضمين الشعار المرفق (logo.png) عبر تحويله برمجياً، أو يمكنك وضعه هنا بالصيغة الكاملة لـ base64 لتتم طباعته بكفاءة.
 
     # --- DATABASE SETUP & AUTO MIGRATION ---
     def get_db_connection():
@@ -244,6 +242,8 @@ elif authentication_status == True:
         formatted_total = format_price(raw_amount)
 
         cust_org_display = f"<br><strong>Org.nr / VAT:</strong> {data.get('customer_org', 'N/A')}" if doc_type == 'Faktura' and data.get('customer_org') else ""
+        
+        issue_desc = data.get('issue', data.get('issues', data.get('plan', data.get('item', data.get('campaign_name', 'Service')))))
 
         html_content = f"""
         <!DOCTYPE html>
@@ -272,7 +272,6 @@ elif authentication_status == True:
             <table class="header-table">
                 <tr>
                     <td>
-                        <!-- Logo Image Embedded -->
                         <img src="{LOGO_BASE64}" alt="30 Minutes Phone Fix Logo" class="logo">
                         <p class="company-title">30 Minutes Phone Fix</p>
                         <p style="margin: 4px 0; font-size: 14px;"><strong>{branch_info['name']}</strong></p>
@@ -310,7 +309,7 @@ elif authentication_status == True:
                     <th style="text-align: right;">Totalt (SEK inkl. moms)</th>
                 </tr>
                 <tr>
-                    <td>{data.get('issue', data.get('issues', data.get('plan', data.get('item', data.get('campaign_name', 'Service'))))}</td>
+                    <td>{issue_desc}</td>
                     <td style="text-align: right;"><strong>{formatted_total} SEK</strong></td>
                 </tr>
             </table>
