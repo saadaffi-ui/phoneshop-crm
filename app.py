@@ -166,8 +166,18 @@ elif authentication_status == True:
         }
     }
 
-    # --- EMBEDDED LOGO (BASE64) ---
-    LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    # استخدام شعار المشروع المحلي logo.png مباشرة
+    LOGO_PATH = "logo.png"
+
+    def get_image_base64(path):
+        try:
+            with open(path, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode('utf-8')
+        except Exception:
+            return ""
+
+    logo_base64 = get_image_base64(LOGO_PATH)
+    logo_tag = f'<data:image/png;base64,{logo_base64}' if logo_base64 else 'logo.png'
 
     # --- DATABASE SETUP & AUTO MIGRATION ---
     def get_db_connection():
@@ -227,7 +237,6 @@ elif authentication_status == True:
 
     init_db()
 
-    # --- FORMAT PRICE HELPER ---
     def format_price(val):
         try:
             f_val = float(val)
@@ -235,58 +244,51 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- SWEDISH PROFESSIONAL DOCUMENT GENERATOR WITH LOGO ---
+    # --- PROFESSIONAL DUAL-COPY DOCUMENT GENERATOR WITH TERMS & SIGNATURE ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
         formatted_total = format_price(raw_amount)
-
+        uniq_id = data.get('repair_id', data.get('invoice_no', data.get('id', '30MIN-001')))
         cust_org_display = f"<br><strong>Org.nr / VAT:</strong> {data.get('customer_org', 'N/A')}" if doc_type == 'Faktura' and data.get('customer_org') else ""
-        
         issue_desc = data.get('issue', data.get('issues', data.get('plan', data.get('item', data.get('campaign_name', 'Service')))))
 
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="sv">
-        <head>
-            <meta charset="UTF-8">
-            <title>{doc_type.upper()}</title>
-            <style>
-                body {{ font-family: Helvetica, Arial, sans-serif; padding: 30px; color: #222; background: #fff; margin: 0; }}
-                .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; border-bottom: 2px solid #007AFF; padding-bottom: 15px; }}
-                .header-table td {{ vertical-align: top; }}
-                .logo {{ max-height: 70px; max-width: 200px; margin-bottom: 12px; object-fit: contain; }}
-                .company-title {{ font-size: 18px; font-weight: bold; color: #007AFF; margin: 0; }}
-                .invoice-title {{ font-size: 24px; font-weight: bold; text-align: right; color: #333; margin: 0; }}
-                .meta-box {{ background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 25px; border: 1px solid #e9ecef; }}
-                .meta-box table {{ width: 100%; border-collapse: collapse; }}
-                .meta-box td {{ padding: 5px; font-size: 14px; }}
-                .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; }}
-                .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 12px; text-align: left; font-size: 14px; }}
-                .details-table th {{ background-color: #f1f3f5; color: #333; }}
-                .f-skatt {{ font-size: 12px; color: #555; margin-top: 10px; }}
-                .footer {{ text-align: center; margin-top: 40px; font-size: 11px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 15px; }}
-            </style>
-        </head>
-        <body>
+        terms_html = """
+        <div class="terms">
+            <strong>Villkor & Apple Service Villkor (Repair Terms & Conditions):</strong><br>
+            1. Enheten lämnas in på egen risk. Kunden ansvarar för att säkerhetskopiera data (Backup) innan reparation.<br>
+            2. 30 Minutes Phone Fix lämnar 3 månaders garanti på utbytta reservdelar (gäller ej fuktskadade eller handhavandeskadade enheter).<br>
+            3. Vid Apple-enheter (iPhone/iPad/Mac) rekommenderas att "Hitta min iPhone" (Find My) stängs av före inlämning.<br>
+            4. Ej uthämtade enheter efter 90 dagar tillfaller verkstaden enligt svensk lag om kvarglömd egendom.
+        </div>
+        """
+
+        signature_block = """
+        <table class="sig-table">
+            <tr>
+                <td>Kundens undersökningsgodkännande / Signatur:<br><br>________________________________________</td>
+                <td>Handläggares signatur ({employee}):<br><br>________________________________________</td>
+            </tr>
+        </table>
+        """
+
+        single_receipt_content = f"""
             <table class="header-table">
                 <tr>
                     <td>
-                        <img src="{LOGO_BASE64}" alt="30 Minutes Phone Fix Logo" class="logo">
+                        <img src="data:image/png;base64,{logo_base64}" alt="Logo" class="logo">
                         <p class="company-title">30 Minutes Phone Fix</p>
-                        <p style="margin: 4px 0; font-size: 14px;"><strong>{branch_info['name']}</strong></p>
-                        <p style="margin: 2px 0; font-size: 13px; color: #555;">
+                        <p style="margin: 4px 0; font-size: 13px;"><strong>{branch_info['name']}</strong></p>
+                        <p style="margin: 2px 0; font-size: 11px; color: #555;">
                             Adress: {branch_info['address']}<br>
-                            Org.nr: {branch_info['org_nr']}<br>
-                            Momsreg.nr: {branch_info['moms_reg']}<br>
-                            Tel: {branch_info['phone']}
+                            Org.nr: {branch_info['org_nr']} | Momsreg: {branch_info['moms_reg']}<br>
+                            Tel: {branch_info['phone']} | Bankgiro: {branch_info['bankgiro']}
                         </p>
-                        <div class="f-skatt">Godkänd för F-skatt | Bankgiro: {branch_info['bankgiro']}</div>
                     </td>
                     <td style="text-align: right;">
                         <p class="invoice-title">{doc_type.upper()}</p>
-                        <p style="margin: 5px 0; font-size: 14px;"><strong>Datum:</strong> {data.get('created_at', date.today())}</p>
-                        <p style="margin: 5px 0; font-size: 14px;"><strong>Förfallodatum:</strong> {(date.today() + timedelta(days=30))}</p>
+                        <p style="margin: 4px 0; font-size: 13px; color: #d9534f;"><strong>ID / Ref:</strong> {uniq_id}</p>
+                        <p style="margin: 2px 0; font-size: 12px;"><strong>Datum:</strong> {data.get('created_at', date.today())}</p>
                     </td>
                 </tr>
             </table>
@@ -294,18 +296,18 @@ elif authentication_status == True:
             <div class="meta-box">
                 <table>
                     <tr>
-                        <td><strong>Företag / Kund:</strong> {data.get('customer_name', data.get('campaign_name', 'N/A'))} {cust_org_display}</td>
+                        <td><strong>Kund / Företag:</strong> {data.get('customer_name', 'N/A')} {cust_org_display}</td>
                         <td><strong>Telefon:</strong> {data.get('phone', 'N/A')}</td>
                     </tr>
                     <tr>
-                        <td colspan="2"><strong>Detaljer / Enhet:</strong> {data.get('device', data.get('item', data.get('plan', data.get('address', 'N/A'))))}</td>
+                        <td colspan="2"><strong>Enhet / Modell:</strong> {data.get('device', data.get('item', data.get('address', 'N/A')))}</td>
                     </tr>
                 </table>
             </div>
 
             <table class="details-table">
                 <tr>
-                    <th>Beskrivning / Tjänst (Description & Service)</th>
+                    <th>Åtgärd / Beskrivning (Service & Parts)</th>
                     <th style="text-align: right;">Totalt (SEK inkl. moms)</th>
                 </tr>
                 <tr>
@@ -314,11 +316,50 @@ elif authentication_status == True:
                 </tr>
             </table>
 
-            <p style="font-size: 13px;"><strong>Handläggare:</strong> {data.get('employee', 'N/A')}</p>
+            {terms_html}
+            {signature_block.format(employee=data.get('employee', 'Admin'))}
+        """
 
-            <div class="footer">
-                <p>30 Minutes Phone Fix | Giltighetstid: 30 dagar | Välkommen åter!</p>
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="sv">
+        <head>
+            <meta charset="UTF-8">
+            <title>{doc_type.upper()} - {uniq_id}</title>
+            <style>
+                body {{ font-family: Helvetica, Arial, sans-serif; padding: 20px; color: #222; background: #fff; margin: 0; font-size: 12px; }}
+                .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border-bottom: 1.5px solid #007AFF; padding-bottom: 10px; }}
+                .header-table td {{ vertical-align: top; }}
+                .logo {{ max-height: 50px; max-width: 150px; margin-bottom: 8px; object-fit: contain; }}
+                .company-title {{ font-size: 16px; font-weight: bold; color: #007AFF; margin: 0; }}
+                .invoice-title {{ font-size: 20px; font-weight: bold; text-align: right; color: #333; margin: 0; }}
+                .meta-box {{ background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #e9ecef; }}
+                .meta-box table {{ width: 100%; border-collapse: collapse; }}
+                .meta-box td {{ padding: 3px; font-size: 12px; }}
+                .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
+                .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 12px; }}
+                .details-table th {{ background-color: #f1f3f5; color: #333; }}
+                .terms {{ font-size: 9px; color: #666; margin-bottom: 15px; line-height: 1.3; border-left: 3px solid #007AFF; padding-left: 8px; }}
+                .sig-table {{ width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 11px; }}
+                .sig-table td {{ width: 50%; padding: 5px; vertical-align: bottom; }}
+                .copy-tag {{ font-weight: bold; color: #007AFF; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }}
+                .cut-line {{ border-top: 2px dashed #bbb; margin: 30px 0; position: relative; }}
+                .cut-text {{ position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 10px; font-size: 10px; color: #777; }}
+            </style>
+        </head>
+        <body>
+            <!-- KUNDENS EXEMPLAR (Customer Copy) -->
+            <div class="copy-tag">📱 1. KUNDENS EXEMPLAR (Customer Copy)</div>
+            {single_receipt_content}
+
+            <div class="cut-line">
+                <span class="cut-text">Klipp här / Vik här (Kvitto för butik & kund)</span>
             </div>
+
+            <!-- BUTIKENS EXEMPLAR (Store Copy) -->
+            <div class="copy-tag">📂 2. BUTIKENS EXEMPLAR (Store Archive Copy)</div>
+            {single_receipt_content}
+
         </body>
         </html>
         """
@@ -342,7 +383,7 @@ elif authentication_status == True:
                 key=f"download_web_btn_{key_suffix}"
             )
 
-        st.components.v1.html(html_content, height=480, scrolling=True)
+        st.components.v1.html(html_content, height=650, scrolling=True)
 
     # --- SIDEBAR RESET ---
     if st.sidebar.button(txt["reset"]):
@@ -356,7 +397,6 @@ elif authentication_status == True:
         txt["tab_sub"], txt["tab_buyback"], txt["tab_campaign"], txt["tab_preorder"], txt["tab_stock"], txt["tab_search"]
     ])
 
-    # --- TAB 1: DASHBOARD ---
     with tab1:
         st.header(f"{txt['tab_dash']} ({global_branch})")
         conn = get_db_connection()
@@ -372,7 +412,6 @@ elif authentication_status == True:
         col_d3.metric("💡 Quotes", quote_count)
         col_d4.metric("📦 Stock Items", stock_count if stock_count else 0)
 
-    # --- TAB 2: REPAIRS ---
     with tab2:
         st.header(f"{txt['tab_repair']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('rep_new_'):
@@ -396,7 +435,7 @@ elif authentication_status == True:
                     conn.close()
                     
                     rec_data = {
-                        "branch": global_branch, "repair_id": str(last_id),
+                        "branch": global_branch, "repair_id": f"REP-{date.today().strftime('%Y%m%d')}-{last_id:03d}",
                         "customer_name": c_name, "phone": c_phone, "device": c_device,
                         "issue": c_issue, "price": c_price, "employee": c_emp,
                         "created_at": str(date.today())
@@ -410,7 +449,6 @@ elif authentication_status == True:
                     st.success(txt["success_repair"])
                     st.rerun()
 
-    # --- TAB 3: QUOTES ---
     with tab3:
         st.header(f"{txt['tab_quote']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('quote_new_'):
@@ -459,8 +497,8 @@ elif authentication_status == True:
                     conn.close()
                     
                     q_data = {
-                        "branch": global_branch, "customer_name": q_name, "phone": q_phone,
-                        "device": q_device, "issue": full_issue_text, "total": q_total,
+                        "branch": global_branch, "repair_id": f"QUO-{date.today().strftime('%Y%m%d')}-{last_id:03d}",
+                        "customer_name": q_name, "phone": q_phone, "device": q_device, "issue": full_issue_text, "total": q_total,
                         "employee": q_emp, "created_at": str(date.today())
                     }
                     html_doc = generate_html_document("Kostnadsförslag", q_data, COMPANY_INFO)
@@ -472,7 +510,6 @@ elif authentication_status == True:
                     st.success("Kostnadsförslag har sparats!")
                     st.rerun()
 
-    # --- TAB 4: B2B INVOICES ---
     with tab4:
         st.header(f"{txt['tab_invoice']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('inv_new_'):
@@ -499,7 +536,7 @@ elif authentication_status == True:
                     conn.close()
                     
                     inv_data = {
-                        "branch": global_branch, "invoice_no": i_no, "customer_name": i_name,
+                        "branch": global_branch, "repair_id": i_no, "customer_name": i_name,
                         "customer_org": i_org, "phone": i_phone, "address": i_addr, "issue": i_desc,
                         "amount": i_amt, "invoice_type": i_type, "employee": i_emp, "created_at": str(date.today())
                     }
@@ -512,7 +549,6 @@ elif authentication_status == True:
                     st.success(txt["success_inv"])
                     st.rerun()
 
-    # --- TAB 5: SUBSCRIPTIONS ---
     with tab5:
         st.header(f"📦 {txt['tab_sub']} ({global_branch})")
         with st.form("sub_form"):
@@ -521,8 +557,7 @@ elif authentication_status == True:
             s_plan = st.text_input(txt["sub_plan"], value="Företagsavtal - 12 Månader")
             s_price = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
             s_emp = st.text_input(txt["employee"])
-            s_sub_btn = st.form_submit_button(txt["save"])
-            if s_sub_btn:
+            if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO subscriptions (branch, customer_name, phone, plan, price, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -531,7 +566,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 6: BUYBACK ---
     with tab6:
         st.header(f"🔄 {txt['tab_buyback']} ({global_branch})")
         with st.form("buyback_form"):
@@ -540,8 +574,7 @@ elif authentication_status == True:
             b_device = st.text_input(txt["buy_model"], value="iPhone 13 - Grade A")
             b_payout = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
             b_emp = st.text_input(txt["employee"])
-            b_sub_btn = st.form_submit_button(txt["save"])
-            if b_sub_btn:
+            if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO buyback (branch, customer_name, phone, device, payout, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -550,7 +583,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 7: CAMPAIGNS ---
     with tab7:
         st.header(f"🎯 {txt['tab_campaign']} ({global_branch})")
         with st.form("campaign_form"):
@@ -559,8 +591,7 @@ elif authentication_status == True:
             cp_start = st.date_input("Startdatum", date.today())
             cp_end = st.date_input("Slutdatum", date.today() + timedelta(days=30))
             cp_emp = st.text_input(txt["employee"])
-            cp_sub_btn = st.form_submit_button(txt["save"])
-            if cp_sub_btn:
+            if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO campaigns (branch, campaign_name, discount, start_date, end_date, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -569,7 +600,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 8: PREORDERS ---
     with tab8:
         st.header(f"📋 {txt['tab_preorder']} ({global_branch})")
         with st.form("preorder_form"):
@@ -578,8 +608,7 @@ elif authentication_status == True:
             p_item = st.text_input(txt["pre_item"], value="iPhone 16 Pro Max Reservdel")
             p_dep = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0, format="%d")
             p_emp = st.text_input(txt["employee"])
-            p_sub_btn = st.form_submit_button(txt["save"])
-            if p_sub_btn:
+            if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO preorders (branch, customer_name, phone, item, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -588,7 +617,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 9: STOCK ---
     with tab9:
         st.header(f"📦 {txt['tab_stock']} ({global_branch})")
         with st.form("stock_form"):
@@ -597,8 +625,7 @@ elif authentication_status == True:
             st_qty = st.number_input(txt["stock_qty"], min_value=0, step=1, value=10)
             st_price = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
             st_emp = st.text_input(txt["employee"])
-            st_sub_btn = st.form_submit_button(txt["save"])
-            if st_sub_btn:
+            if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO stock (branch, part_name, category, quantity, price, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -607,7 +634,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 10: UNIFIED SEARCH & ARCHIVE ---
     with tab10:
         st.header(f"{txt['tab_search']} ({global_branch})")
         if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_')):
@@ -621,7 +647,6 @@ elif authentication_status == True:
             conn = get_db_connection()
             q_like = f"%{search_query}%" if search_query else "%"
 
-            # 1. Invoices Archive
             st.subheader("📄 Företagsfakturor Arkiv")
             inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, customer_org, phone, amount, invoice_type, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR customer_org LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not inv_res.empty:
@@ -629,12 +654,11 @@ elif authentication_status == True:
                 sel_inv = st.selectbox("🖨️ Välj Faktura ID:", inv_res['id'].tolist(), key="sel_inv_id")
                 if sel_inv and st.button("📄 Visa / Skriv ut Faktura", key=f"btn_inv_{sel_inv}"):
                     row = inv_res[inv_res['id'] == sel_inv].iloc[0]
-                    doc_data = {"branch": global_branch, "invoice_no": row['invoice_no'], "customer_name": row['customer_name'], "customer_org": row['customer_org'], "phone": row['phone'], "issue": "Företagsreparation", "amount": row['amount'], "created_at": str(row['created_at'])[:10]}
+                    doc_data = {"branch": global_branch, "repair_id": row['invoice_no'], "customer_name": row['customer_name'], "customer_org": row['customer_org'], "phone": row['phone'], "issue": "Företagsreparation", "amount": row['amount'], "created_at": str(row['created_at'])[:10]}
                     html = generate_html_document("Faktura", doc_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {'html': html, 'filename': f"{row['invoice_no']}.html", 'key': f"search_inv_{sel_inv}"}
                     st.rerun()
 
-            # 2. Repairs Archive
             st.subheader("🛠️ Reparationer Arkiv")
             rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not rep_res.empty:
@@ -642,12 +666,11 @@ elif authentication_status == True:
                 sel_rep = st.selectbox("🖨️ Välj Inlämning ID:", rep_res['id'].tolist(), key="sel_rep_id")
                 if sel_rep and st.button("📄 Visa / Skriv ut Inlämningskvitto", key=f"btn_rep_{sel_rep}"):
                     row = rep_res[rep_res['id'] == sel_rep].iloc[0]
-                    doc_data = {"branch": global_branch, "repair_id": str(sel_rep), "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issue'], "price": row['price'], "created_at": str(row['created_at'])[:10]}
+                    doc_data = {"branch": global_branch, "repair_id": f"REP-{str(row['created_at'])[:10].replace('-','')}-{sel_rep:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issue'], "price": row['price'], "created_at": str(row['created_at'])[:10]}
                     html = generate_html_document("Inlämningskvitto", doc_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {'html': html, 'filename': f"Inlamningskvitto_{sel_rep}.html", 'key': f"search_rep_{sel_rep}"}
                     st.rerun()
 
-            # 3. Quotes Archive
             st.subheader("💡 Kostnadsförslag Arkiv")
             quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not quote_res.empty:
@@ -655,12 +678,11 @@ elif authentication_status == True:
                 sel_q = st.selectbox("🖨️ Välj Kostnadsförslag ID:", quote_res['id'].tolist(), key="sel_q_id")
                 if sel_q and st.button("📄 Visa / Skriv ut Kostnadsförslag", key=f"btn_q_{sel_q}"):
                     row = quote_res[quote_res['id'] == sel_q].iloc[0]
-                    doc_data = {"branch": global_branch, "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issues'], "total": row['total'], "created_at": str(row['created_at'])[:10]}
+                    doc_data = {"branch": global_branch, "repair_id": f"QUO-{str(row['created_at'])[:10].replace('-','')}-{sel_q:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issues'], "total": row['total'], "created_at": str(row['created_at'])[:10]}
                     html = generate_html_document("Kostnadsförslag", doc_data, COMPANY_INFO)
                     st.session_state['active_doc'] = {'html': html, 'filename': f"Kostnadsforslag_{sel_q}.html", 'key': f"search_q_{sel_q}"}
                     st.rerun()
 
-            # 4. Stock Inventory View
             st.subheader("📦 Lager (Stock)")
             stock_res = pd.read_sql_query("SELECT id, part_name, category, quantity, price, created_at FROM stock WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
             if not stock_res.empty:
