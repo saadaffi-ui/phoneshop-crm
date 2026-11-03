@@ -17,8 +17,16 @@ st.set_page_config(
 global_branch = st.sidebar.selectbox("اختر الفرع / Select Branch", ["Eskilstuna", "Västerås"])
 
 COMPANY_INFO = {
-    "Eskilstuna": {"name": "30 Minutes Phone Fix Eskilstuna", "address": "Drottninggatan X, Eskilstuna", "phone": "016-XXX XX XX"},
-    "Västerås": {"name": "30 Minutes Phone Fix Västerås", "address": "Stora Gatan Y, Västerås", "phone": "021-XXX XX XX"}
+    "Eskilstuna": {
+        "name": "30 Minutes Phone Fix Eskilstuna", 
+        "address": "Drottninggatan X, Eskilstuna", 
+        "phone": "016-XXX XX XX"
+    },
+    "Västerås": {
+        "name": "30 Minutes Phone Fix Västerås", 
+        "address": "Stora Gatan Y, Västerås", 
+        "phone": "021-XXX XX XX"
+    }
 }
 
 t = {
@@ -62,7 +70,7 @@ def init_db():
 
 init_db()
 
-# --- HTML DOCUMENT GENERATOR (FIXES PREVIEW ERRORS ON IOS) ---
+# --- HTML DOCUMENT GENERATOR (FIXES IOS PREVIEW & FORMAT ISSUES) ---
 def generate_html_document(doc_type, data, company_info):
     branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
     html_content = f"""
@@ -79,7 +87,7 @@ def generate_html_document(doc_type, data, company_info):
             .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
             .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 10px 12px; text-align: left; }}
             .details-table th {{ background-color: #f1f3f5; }}
-            .footer {{ text-align: center; margin-top: 30px; font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; pt: 10px; }}
+            .footer {{ text-align: center; margin-top: 30px; font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 10px; }}
         </style>
     </head>
     <body>
@@ -127,7 +135,7 @@ def display_document_preview(html_content, file_name, key_suffix):
             del st.session_state['active_doc']
         st.rerun()
 
-    # عرض المعاينة الحية المباشرة داخل الـ iframe
+    # معاينة حية متوافقة داخل الإطار
     st.components.v1.html(html_content, height=420, scrolling=True)
     
     # زر آمن وفعال للفتح والطباعة والمشاركة على الآيفون
