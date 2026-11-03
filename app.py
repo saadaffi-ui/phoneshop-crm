@@ -76,8 +76,6 @@ elif authentication_status == True:
             "success_repair": "Inlämnandet har sparats framgångsrikt!",
             "preview": "Dokumentförhandsgranskning",
             "back_app": "Tillbaka till appen",
-            "open_web": "Öppna som webbsida",
-            "print_share": "Skriv ut / Dela via AirDrop",
             "download_web": "Ladda ner som webbsida",
             "inv_no": "Fakturarummer",
             "address": "Adress",
@@ -86,8 +84,8 @@ elif authentication_status == True:
             "create_inv": "Skapa och förhandsgranska faktura",
             "success_inv": "Fakturan har skapats framgångsrikt!",
             "search_q": "Sök på namn, telefonnummer eller fakturanummer",
-            "select_field": "Välj fält som ska visas i förhandsgranskningen",
-            "select_item_print": "Välj ID för att skriva ut eller dela dokumentet:"
+            "select_item_print": "Välj ID för att skriva ut eller dela dokumentet:",
+            "service_header": "⚙️ Välj fel och specifika reparationer (Select Repairs)"
         }
     else:
         txt = {
@@ -95,7 +93,7 @@ elif authentication_status == True:
             "branch": "اختر الفرع",
             "tab_dash": "📊 لوحة التحكم",
             "tab_repair": "🛠️ الإصلاحات",
-            "tab_quote": "💡 عرض سعر",
+            "tab_quote": "💡 عرض سعر / Kostnadsförslag",
             "tab_invoice": "📄 الفواتير",
             "tab_sub": "📦 الاشتراكات",
             "tab_buyback": "🔄 شراء الأجهزة",
@@ -114,8 +112,6 @@ elif authentication_status == True:
             "success_repair": "تم حفظ الإصلاح بنجاح!",
             "preview": "معاينة المستند",
             "back_app": "العودة إلى التطبيق",
-            "open_web": "فتح كصفحة ويب",
-            "print_share": "طباعة أو مشاركة عبر AirDrop",
             "download_web": "تحميل كملف ويب",
             "inv_no": "رقم الفاتورة",
             "address": "العنوان",
@@ -124,8 +120,8 @@ elif authentication_status == True:
             "create_inv": "إصدار ومعاينة الفاتورة",
             "success_inv": "تم إصدار الفاتورة بنجاح!",
             "search_q": "بحث بالاسم، رقم الهاتف أو رقم الفاتورة",
-            "select_field": "اختر الحقول المراد إظهارها في المعاينة والطباعة",
-            "select_item_print": "اختر المعرف (ID) لطباعة أو مشاركة المستند:"
+            "select_item_print": "اختر المعرف (ID) لطباعة أو مشاركة المستند:",
+            "service_header": "⚙️ تحديد الأعطال والقطع المطلوبة (Select Repairs)"
         }
 
     st.sidebar.markdown(f"**{txt['welcome']}:** {name}")
@@ -176,11 +172,10 @@ elif authentication_status == True:
                             device TEXT, issues TEXT, total REAL, profit REAL, 
                             employee TEXT, created_at TEXT)''')
         
-        # التأكد من وجود الأعمدة الحديثة في حال كانت قاعدة البيانات قديمة
         try:
             cursor.execute("ALTER TABLE invoices ADD COLUMN invoice_type TEXT")
         except sqlite3.OperationalError:
-            pass # العمود موجود مسبقاً
+            pass
 
         conn.commit()
         conn.close()
@@ -201,20 +196,7 @@ elif authentication_status == True:
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', 0)))
-        
-        inv_type = data.get('invoice_type', 'Inrikes (Sverige - 25% Moms)')
-        
-        if '25%' in inv_type or doc_type != 'Faktura':
-            moms_percent = 25
-            net_amount = raw_amount / 1.25 if doc_type == 'Faktura' else raw_amount
-            moms_amount = raw_amount - net_amount if doc_type == 'Faktura' else 0
-        else:
-            moms_percent = 0
-            net_amount = raw_amount
-            moms_amount = 0
-
         formatted_total = format_price(raw_amount)
-        formatted_net = format_price(net_amount)
 
         html_content = f"""
         <!DOCTYPE html>
@@ -266,14 +248,14 @@ elif authentication_status == True:
                         <td><strong>Telefon:</strong> {data.get('phone', 'N/A')}</td>
                     </tr>
                     <tr>
-                        <td colspan="2"><strong>Adress / Enhet:</strong> {data.get('device', data.get('address', 'N/A'))}</td>
+                        <td colspan="2"><strong>Enhet / Modell:</strong> {data.get('device', 'N/A')}</td>
                     </tr>
                 </table>
             </div>
 
             <table class="details-table">
                 <tr>
-                    <th>Beskrivning / Åtgärd</th>
+                    <th>Felbeskrivning / Valda åtgärder (Repairs & Services)</th>
                     <th style="text-align: right;">Totalt (SEK inkl. moms)</th>
                 </tr>
                 <tr>
@@ -365,8 +347,10 @@ elif authentication_status == True:
                     st.success(txt["success_repair"])
                     st.rerun()
 
+    # --- TAB 3: KOSTNADSFÖRSLAG WITH SPECIFIC REPAIR CHECKLIST ---
     with tab3:
         st.header(f"{txt['tab_quote']} ({global_branch})")
+        
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('quote_new_'):
             display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
         else:
@@ -374,22 +358,47 @@ elif authentication_status == True:
                 q_name = st.text_input(txt["cust_name"], key="q_name")
                 q_phone = st.text_input(txt["phone"], key="q_phone")
                 q_device = st.text_input(txt["device"], key="q_device")
-                q_iss = st.text_area(txt["issue"], key="q_iss")
+                
+                st.markdown(f"### {txt['service_header']}")
+                col_s1, col_s2, col_s3 = st.columns(3)
+                with col_s1:
+                    s_display = st.checkbox("📱 Skärmbyte (Display)", key="q_s_display")
+                    s_battery = st.checkbox("🔋 Batteribyte (Battery)", key="q_s_battery")
+                with col_s2:
+                    s_camera = st.checkbox("📷 Kamerabyte / Kameralins (Camera)", key="q_s_camera")
+                    s_charger = st.checkbox("🔌 Laddkontakt (Charging Port)", key="q_s_charger")
+                with col_s3:
+                    s_back = st.checkbox("🔍 Baksida glas (Back Glass)", key="q_s_back")
+                    s_water = st.checkbox("💧 Vattenskada (Water Damage)", key="q_s_water")
+                
+                q_extra = st.text_area("Övriga kommentarer / Felbeskrivning (Additional notes)", key="q_extra")
                 q_total = st.number_input(txt["price"], min_value=0.0, step=50.0, key="q_total")
                 q_emp = st.text_input(txt["employee"], key="q_emp")
-                q_sub = st.form_submit_button("Spara Kostnadsförslag")
+                
+                q_sub = st.form_submit_button("Spara & Förhandsgranska Kostnadsförslag")
                 if q_sub:
+                    selected_repairs = []
+                    if s_display: selected_repairs.append("Skärmbyte (Display Replacement)")
+                    if s_battery: selected_repairs.append("Batteribyte (Battery Replacement)")
+                    if s_camera: selected_repairs.append("Kamerabyte / Kameralins (Camera Service)")
+                    if s_charger: selected_repairs.append("Laddkontakt reparation (Charging Port)")
+                    if s_back: selected_repairs.append("Baksida byte (Back Glass)")
+                    if s_water: selected_repairs.append("Vattenskada rengöring (Water Damage)")
+                    if q_extra: selected_repairs.append(q_extra)
+                    
+                    full_issue_text = " | ".join(selected_repairs) if selected_repairs else "Allmän undersökning och service"
+                    
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, q_name, q_phone, q_device, q_iss, q_total, q_total * 0.3, q_emp, str(date.today())))
+                                   (global_branch, q_name, q_phone, q_device, full_issue_text, q_total, q_total * 0.3, q_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
                     
                     q_data = {
                         "branch": global_branch, "customer_name": q_name, "phone": q_phone,
-                        "device": q_device, "issue": q_iss, "total": q_total,
+                        "device": q_device, "issue": full_issue_text, "total": q_total,
                         "employee": q_emp, "created_at": str(date.today())
                     }
                     html_doc = generate_html_document("Kostnadsförslag", q_data, COMPANY_INFO)
@@ -398,7 +407,7 @@ elif authentication_status == True:
                         'filename': f"Kostnadsforslag_{last_id}.html",
                         'key': f"quote_new_{last_id}"
                     }
-                    st.success("Sparat!")
+                    st.success("Kostnadsförslag har sparats!")
                     st.rerun()
 
     with tab4:
@@ -458,24 +467,25 @@ elif authentication_status == True:
             conn = get_db_connection()
             q_like = f"%{search_query}%" if search_query else "%"
             
-            inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, phone, amount, invoice_type, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
-            if not inv_res.empty:
-                st.dataframe(inv_res, use_container_width=True)
-                sel_id = st.selectbox(txt["select_item_print"], inv_res['id'].tolist(), key="sel_inv_id")
-                if sel_id:
-                    i_row = inv_res[inv_res['id'] == sel_id].iloc[0]
-                    if st.button("📄 Skriv ut / Visa", key=f"btn_gen_inv_{sel_id}"):
-                        inv_data = {
-                            "branch": global_branch, "invoice_no": i_row['invoice_no'],
-                            "customer_name": i_row['customer_name'], "phone": i_row['phone'],
-                            "issue": "Reparation och reservdelar", "amount": i_row['amount'],
-                            "invoice_type": i_row['invoice_type'], "created_at": str(i_row['created_at'])[:10]
+            quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, employee, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR phone LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+            if not quote_res.empty:
+                st.subheader("💡 Kostnadsförslag Arkiv")
+                st.dataframe(quote_res, use_container_width=True)
+                sel_q_id = st.selectbox(txt["select_item_print"], quote_res['id'].tolist(), key="sel_q_id")
+                if sel_q_id:
+                    q_row = quote_res[quote_res['id'] == sel_q_id].iloc[0]
+                    if st.button("📄 Skriv ut / Visa Kostnadsförslag", key=f"btn_gen_q_{sel_q_id}"):
+                        q_data = {
+                            "branch": global_branch, "customer_name": q_row['customer_name'],
+                            "phone": q_row['phone'], "device": q_row['device'],
+                            "issue": q_row['issues'], "total": q_row['total'],
+                            "employee": q_row['employee'], "created_at": str(q_row['created_at'])[:10]
                         }
-                        html_doc = generate_html_document("Faktura", inv_data, COMPANY_INFO)
+                        html_doc = generate_html_document("Kostnadsförslag", q_data, COMPANY_INFO)
                         st.session_state['active_doc'] = {
                             'html': html_doc,
-                            'filename': f"{i_row['invoice_no']}.html",
-                            'key': f"search_inv_{sel_id}"
+                            'filename': f"Kostnadsforslag_{sel_q_id}.html",
+                            'key': f"search_q_{sel_q_id}"
                         }
                         st.rerun()
             conn.close()
