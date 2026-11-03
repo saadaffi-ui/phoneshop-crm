@@ -72,7 +72,7 @@ def init_db():
 
 init_db()
 
-# --- FORMAT PRICE HELPER (Removes .00 if whole number) ---
+# --- FORMAT PRICE HELPER ---
 def format_price(val):
     try:
         f_val = float(val)
@@ -82,7 +82,7 @@ def format_price(val):
     except:
         return str(val)
 
-# --- HTML DOCUMENT GENERATOR (FIXES IOS WHITE PAGE / AIRDROP & PRICING) ---
+# --- HTML DOCUMENT GENERATOR ---
 def generate_html_document(doc_type, data, company_info):
     branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
     
@@ -153,18 +153,21 @@ def display_document_preview(html_content, file_name, key_suffix):
             del st.session_state['active_doc']
         st.rerun()
 
-    # استخدام container مدمج مع تمرير HTML آمن
-    st.components.v1.html(html_content, height=450, scrolling=True)
+    # معاينة حية داخل الـ Streamlit
+    st.components.v1.html(html_content, height=420, scrolling=True)
     
-    # زر آمن لفتح المستند كملف HTML مستقل لتجنب مشاكل الطباعة والـ AirDrop البيضاء في آبل
-    download_html = f"""
-    <div style="margin: 15px 0; text-align: center;">
-        <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            📥 فتح المستند للطباعة أو AirDrop (Open & Print / AirDrop)
+    # زر تفعيل الطباعة ومشاركة AirDrop المباشر عبر زر JavaScript متوافق مع iOS
+    action_html = f"""
+    <div style="margin: 15px 0; display: flex; gap: 10px;">
+        <button onclick="window.print();" style="flex: 1; background-color: #007AFF; color: white; border: none; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            🖨️ طباعة أو مشاركة (Print / AirDrop)
+        </button>
+        <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="flex: 1; background-color: #34C759; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2); line-height: normal;">
+            📥 تحميل كملف (Download)
         </a>
     </div>
     """
-    st.markdown(download_html, unsafe_allow_html=True)
+    st.markdown(action_html, unsafe_allow_html=True)
 
 # --- SIDEBAR RESET & CONTROLS ---
 if st.sidebar.button("🔄 إعادة ضبط العرض / Reset Session"):
@@ -424,7 +427,7 @@ with tab10:
                         "created_at": str(i_row['created_at'])[:10] if inc_date else ""
                     }
                     html_doc = generate_html_document("Faktura", inv_data, COMPANY_INFO)
-                    st.session_state['active_doc']  = {
+                    st.session_state['active_doc'] = {
                         'html': html_doc,
                         'filename': f"{i_row['invoice_no']}.html",
                         'key': f"search_inv_{selected_inv_id}"
