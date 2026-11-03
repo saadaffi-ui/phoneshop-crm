@@ -42,7 +42,7 @@ except Exception as e:
 if authentication_status == False:
     st.error('اسم المستخدم أو كلمة المرور غير صحيحة / Felaktigt användarnamn eller lösenord')
 elif authentication_status == None:
-    st.warning('الرجاء إدخال اسم المستخدم (tunapark) وكلمة المرور (tuna123) / Vänligen logga in')
+    st.warning('الرجاء إدخال بيانات تسجيل الدخول / Vänligen logga in')
 elif authentication_status == True:
 
     authenticator.logout('تسجيل الخروج / Logga ut', 'sidebar', key='logout_btn')
@@ -94,7 +94,9 @@ elif authentication_status == True:
             "stock_part": "Artikelnamn / Reservdel",
             "stock_qty": "Antal i lager",
             "save": "Spara uppgifter",
-            "saved_success": "Sparat framgångsrikt!"
+            "saved_success": "Sparat framgångsrikt!",
+            "delete_btn": "🗑️ Radera post",
+            "deleted_success": "Posten har raderats!"
         }
     else:
         txt = {
@@ -139,7 +141,9 @@ elif authentication_status == True:
             "stock_part": "اسم القطعة أو المنتج بالمخزون",
             "stock_qty": "الكمية المتوفرة",
             "save": "حفظ البيانات",
-            "saved_success": "تم الحفظ بنجاح!"
+            "saved_success": "تم الحفظ بنجاح!",
+            "delete_btn": "🗑️ حذف السجل",
+            "deleted_success": "تم حذف السجل بنجاح!"
         }
 
     st.sidebar.markdown(f"**{txt['welcome']}:** {name}")
@@ -177,10 +181,17 @@ elif authentication_status == True:
 
     logo_base64 = get_image_base64(LOGO_PATH)
 
-    # --- DATABASE SETUP ---
+    # --- DATABASE SETUP & HELPER FUNCTIONS ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
+
+    def delete_record_by_id(table_name, record_id):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (record_id,))
+        conn.commit()
+        conn.close()
 
     def init_db():
         conn = get_db_connection()
@@ -250,7 +261,6 @@ elif authentication_status == True:
         formatted_total = format_price(raw_amount)
         uniq_id = data.get('repair_id', data.get('invoice_no', data.get('id', '30MIN-001')))
         
-        # Support Personnummer for Buyback (Kvittens)
         person_nr_display = f"<br><strong>Personnummer / ID:</strong> {data.get('person_nr', 'N/A')}" if doc_type.startswith('Kvittens') and data.get('person_nr') else ""
         cust_org_display = f"<br><strong>Org.nr / VAT:</strong> {data.get('customer_org', 'N/A')}" if doc_type == 'Faktura' and data.get('customer_org') else ""
         
@@ -628,7 +638,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 6: BUYBACK / KVITTENS (WITH PERSONNUMMER & SIGNATURE) ---
     with tab6:
         st.header(f"{txt['tab_buyback']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('buy_new_'):
@@ -717,7 +726,7 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 10: UNIFIED SEARCH & ARCHIVE (LINKED TO ALL SECTIONS) ---
+    # --- TAB 10: UNIFIED SEARCH & ARCHIVE (WITH DELETE OPTIONS FOR ALL SECTIONS) ---
     with tab10:
         st.header(f"{txt['tab_search']} ({global_branch})")
         if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_')):
@@ -736,57 +745,93 @@ elif authentication_status == True:
             inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, customer_org, phone, amount, invoice_type, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR customer_org LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not inv_res.empty:
                 st.dataframe(inv_res, use_container_width=True)
-                sel_inv = st.selectbox("🖨️ Välj Faktura ID:", inv_res['id'].tolist(), key="sel_inv_id")
-                if sel_inv and st.button("📄 Visa / Skriv ut Faktura", key=f"btn_inv_{sel_inv}"):
-                    row = inv_res[inv_res['id'] == sel_inv].iloc[0]
-                    doc_data = {"branch": global_branch, "repair_id": row['invoice_no'], "customer_name": row['customer_name'], "customer_org": row['customer_org'], "phone": row['phone'], "issue": "Företagsreparation", "amount": row['amount'], "created_at": str(row['created_at'])[:10]}
-                    html = generate_html_document("Faktura", doc_data, COMPANY_INFO)
-                    st.session_state['active_doc'] = {'html': html, 'filename': f"{row['invoice_no']}.html", 'key': f"search_inv_{sel_inv}"}
-                    st.rerun()
+                col_inv_a, col_inv_b = st.columns([2, 1])
+                with col_inv_a:
+                    sel_inv = st.selectbox("🖨️ Välj Faktura ID:", inv_res['id'].tolist(), key="sel_inv_id")
+                with col_inv_b:
+                    if sel_inv and st.button("📄 Visa / Skriv ut Faktura", key=f"btn_inv_{sel_inv}"):
+                        row = inv_res[inv_res['id'] == sel_inv].iloc[0]
+                        doc_data = {"branch": global_branch, "repair_id": row['invoice_no'], "customer_name": row['customer_name'], "customer_org": row['customer_org'], "phone": row['phone'], "issue": "Företagsreparation", "amount": row['amount'], "created_at": str(row['created_at'])[:10]}
+                        html = generate_html_document("Faktura", doc_data, COMPANY_INFO)
+                        st.session_state['active_doc'] = {'html': html, 'filename': f"{row['invoice_no']}.html", 'key': f"search_inv_{sel_inv}"}
+                        st.rerun()
+                    if sel_inv and st.button(txt["delete_btn"], key=f"del_inv_{sel_inv}"):
+                        delete_record_by_id("invoices", sel_inv)
+                        st.success(txt["deleted_success"])
+                        st.rerun()
 
             # 2. Repairs Archive
             st.subheader("🛠️ Reparationer Arkiv")
             rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not rep_res.empty:
                 st.dataframe(rep_res, use_container_width=True)
-                sel_rep = st.selectbox("🖨️ Välj Inlämning ID:", rep_res['id'].tolist(), key="sel_rep_id")
-                if sel_rep and st.button("📄 Visa / Skriv ut Inlämningskvitto", key=f"btn_rep_{sel_rep}"):
-                    row = rep_res[rep_res['id'] == sel_rep].iloc[0]
-                    doc_data = {"branch": global_branch, "repair_id": f"REP-{str(row['created_at'])[:10].replace('-','')}-{sel_rep:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issue'], "price": row['price'], "created_at": str(row['created_at'])[:10]}
-                    html = generate_html_document("Inlämningskvitto", doc_data, COMPANY_INFO)
-                    st.session_state['active_doc'] = {'html': html, 'filename': f"Inlamningskvitto_{sel_rep}.html", 'key': f"search_rep_{sel_rep}"}
-                    st.rerun()
+                col_rep_a, col_rep_b = st.columns([2, 1])
+                with col_rep_a:
+                    sel_rep = st.selectbox("🖨️ Välj Inlämning ID:", rep_res['id'].tolist(), key="sel_rep_id")
+                with col_rep_b:
+                    if sel_rep and st.button("📄 Visa / Skriv ut Inlämningskvitto", key=f"btn_rep_{sel_rep}"):
+                        row = rep_res[rep_res['id'] == sel_rep].iloc[0]
+                        doc_data = {"branch": global_branch, "repair_id": f"REP-{str(row['created_at'])[:10].replace('-','')}-{sel_rep:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issue'], "price": row['price'], "created_at": str(row['created_at'])[:10]}
+                        html = generate_html_document("Inlämningskvitto", doc_data, COMPANY_INFO)
+                        st.session_state['active_doc'] = {'html': html, 'filename': f"Inlamningskvitto_{sel_rep}.html", 'key': f"search_rep_{sel_rep}"}
+                        st.rerun()
+                    if sel_rep and st.button(txt["delete_btn"], key=f"del_rep_{sel_rep}"):
+                        delete_record_by_id("repairs", sel_rep)
+                        st.success(txt["deleted_success"])
+                        st.rerun()
 
             # 3. Quotes Archive
             st.subheader("💡 Kostnadsförslag Arkiv")
             quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not quote_res.empty:
                 st.dataframe(quote_res, use_container_width=True)
-                sel_q = st.selectbox("🖨️ Välj Kostnadsförslag ID:", quote_res['id'].tolist(), key="sel_q_id")
-                if sel_q and st.button("📄 Visa / Skriv ut Kostnadsförslag", key=f"btn_q_{sel_q}"):
-                    row = quote_res[quote_res['id'] == sel_q].iloc[0]
-                    doc_data = {"branch": global_branch, "repair_id": f"QUO-{str(row['created_at'])[:10].replace('-','')}-{sel_q:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issues'], "total": row['total'], "created_at": str(row['created_at'])[:10]}
-                    html = generate_html_document("Kostnadsförslag", doc_data, COMPANY_INFO)
-                    st.session_state['active_doc'] = {'html': html, 'filename': f"Kostnadsforslag_{sel_q}.html", 'key': f"search_q_{sel_q}"}
-                    st.rerun()
+                col_q_a, col_q_b = st.columns([2, 1])
+                with col_q_a:
+                    sel_q = st.selectbox("🖨️ Välj Kostnadsförslag ID:", quote_res['id'].tolist(), key="sel_q_id")
+                with col_q_b:
+                    if sel_q and st.button("📄 Visa / Skriv ut Kostnadsförslag", key=f"btn_q_{sel_q}"):
+                        row = quote_res[quote_res['id'] == sel_q].iloc[0]
+                        doc_data = {"branch": global_branch, "repair_id": f"QUO-{str(row['created_at'])[:10].replace('-','')}-{sel_q:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issues'], "total": row['total'], "created_at": str(row['created_at'])[:10]}
+                        html = generate_html_document("Kostnadsförslag", doc_data, COMPANY_INFO)
+                        st.session_state['active_doc'] = {'html': html, 'filename': f"Kostnadsforslag_{sel_q}.html", 'key': f"search_q_{sel_q}"}
+                        st.rerun()
+                    if sel_q and st.button(txt["delete_btn"], key=f"del_q_{sel_q}"):
+                        delete_record_by_id("quotes", sel_q)
+                        st.success(txt["deleted_success"])
+                        st.rerun()
 
             # 4. Buyback / Kvittens Archive
             st.subheader("🔄 Uppköp / Kvittens Arkiv (Buyback)")
             buy_res = pd.read_sql_query("SELECT id, customer_name, person_nr, phone, device, payout, created_at FROM buyback WHERE branch = ? AND (customer_name LIKE ? OR person_nr LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not buy_res.empty:
                 st.dataframe(buy_res, use_container_width=True)
-                sel_buy = st.selectbox("🖨️ Välj Kvittens ID:", buy_res['id'].tolist(), key="sel_buy_id")
-                if sel_buy and st.button("📄 Visa / Skriv ut Kvittens", key=f"btn_buy_{sel_buy}"):
-                    row = buy_res[buy_res['id'] == sel_buy].iloc[0]
-                    doc_data = {"branch": global_branch, "repair_id": f"BUY-{str(row['created_at'])[:10].replace('-','')}-{sel_buy:03d}", "customer_name": row['customer_name'], "person_nr": row['person_nr'], "phone": row['phone'], "device": row['device'], "price": row['payout'], "created_at": str(row['created_at'])[:10]}
-                    html = generate_html_document("Kvittens - Enhetsköp (Buyback)", doc_data, COMPANY_INFO)
-                    st.session_state['active_doc'] = {'html': html, 'filename': f"Kvittens_{sel_buy}.html", 'key': f"search_buy_{sel_buy}"}
-                    st.rerun()
+                col_buy_a, col_buy_b = st.columns([2, 1])
+                with col_buy_a:
+                    sel_buy = st.selectbox("🖨️ Välj Kvittens ID:", buy_res['id'].tolist(), key="sel_buy_id")
+                with col_buy_b:
+                    if sel_buy and st.button("📄 Visa / Skriv ut Kvittens", key=f"btn_buy_{sel_buy}"):
+                        row = buy_res[buy_res['id'] == sel_buy].iloc[0]
+                        doc_data = {"branch": global_branch, "repair_id": f"BUY-{str(row['created_at'])[:10].replace('-','')}-{sel_buy:03d}", "customer_name": row['customer_name'], "person_nr": row['person_nr'], "phone": row['phone'], "device": row['device'], "price": row['payout'], "created_at": str(row['created_at'])[:10]}
+                        html = generate_html_document("Kvittens - Enhetsköp (Buyback)", doc_data, COMPANY_INFO)
+                        st.session_state['active_doc'] = {'html': html, 'filename': f"Kvittens_{sel_buy}.html", 'key': f"search_buy_{sel_buy}"}
+                        st.rerun()
+                    if sel_buy and st.button(txt["delete_btn"], key=f"del_buy_{sel_buy}"):
+                        delete_record_by_id("buyback", sel_buy)
+                        st.success(txt["deleted_success"])
+                        st.rerun()
 
-            # 5. Stock Inventory View
+            # 5. Stock Inventory View & Delete
             st.subheader("📦 Lager (Stock)")
             stock_res = pd.read_sql_query("SELECT id, part_name, category, quantity, price, created_at FROM stock WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
             if not stock_res.empty:
                 st.dataframe(stock_res, use_container_width=True)
+                col_st_a, col_st_b = st.columns([2, 1])
+                with col_st_a:
+                    sel_st = st.selectbox("🗑️ Välj Lager ID för radering:", stock_res['id'].tolist(), key="sel_st_id")
+                with col_st_b:
+                    if sel_st and st.button(txt["delete_btn"], key=f"del_st_{sel_st}"):
+                        delete_record_by_id("stock", sel_st)
+                        st.success(txt["deleted_success"])
+                        st.rerun()
 
             conn.close()
