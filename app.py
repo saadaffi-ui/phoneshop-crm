@@ -15,13 +15,12 @@ st.set_page_config(
 )
 
 # --- AUTHENTICATION SETUP (TUNAPARK LOGIN WITH PERSISTENT COOKIE) ---
-# اسم المستخدم: tunapark | كلمة المرور: tuna123 (يمكنك تغييرها لاحقاً)
 names = ['Tunapark Admin']
 usernames = ['tunapark']
-passwords = ['tuna123'] # ملاحظة: في الإنتاج يفضل استخدام الـ Hasher لتشفير كلمات المرور
+passwords = ['tuna123']
 
-# توليد الـ Hasher التلقائي لكلمات المرور
-hashed_passwords = stauth.Hasher(passwords).generate()
+# تحديث طريقة التشفير لتتوافق مع الإصدارات الحديثة من المكتبة
+hashed_passwords = [stauth.Hasher.hash(password) for password in passwords]
 
 authenticator = stauth.Authenticate(
     names=names,
@@ -29,10 +28,9 @@ authenticator = stauth.Authenticate(
     passwords=hashed_passwords,
     cookie_name='tunapark_crm_cookie',
     key='tunapark_signature_key',
-    cookie_expiry_days=30 # تذكر الدخول على الجهاز لمدة 30 يوماً تلقائياً
+    cookie_expiry_days=30
 )
 
-# عرض شاشة تسجيل الدخول
 name, authentication_status, username = authenticator.login('تسجيل الدخول / Login', 'main')
 
 if authentication_status == False:
@@ -41,7 +39,6 @@ elif authentication_status == None:
     st.warning('الرجاء إدخال اسم المستخدم وكلمة المرور / Please enter your username and password')
 elif authentication_status == True:
 
-    # --- إذا تم تسجيل الدخول بنجاح، يتم تشغيل التطبيق بالكامل هنا ---
     authenticator.logout('تسجيل الخروج / Logout', 'sidebar', key='logout_btn')
     st.sidebar.markdown(f"**مرحباً بك / Welcome:** {name}")
 
@@ -114,7 +111,7 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- HTML DOCUMENT GENERATOR (WEBSITE / HTML VIEW) ---
+    # --- HTML DOCUMENT GENERATOR ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_price = data.get('price', data.get('amount', data.get('total', 0)))
@@ -186,16 +183,13 @@ elif authentication_status == True:
                     del st.session_state['active_doc']
                 st.rerun()
         with col_web:
-            # زر إضافي لفتح الملف كصفحة ويب مستقلة تماماً (Website View)
             st.markdown(
                 f'<a href="data:text/html;charset=utf-8;base64,{b64_html}" target="_blank" style="display:block; background-color:#6c757d; color:white; text-align:center; padding:10px 15px; border-radius:8px; font-weight:bold; text-decoration:none;">🌐 فتح كصفحة ويب (Open as Website)</a>',
                 unsafe_allow_html=True
             )
 
-        # معاينة حية داخل التطبيق
         st.components.v1.html(html_content, height=420, scrolling=True)
         
-        # زر الطباعة ومشاركة AirDrop
         action_html = f"""
         <div style="margin: 15px 0;">
             <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
