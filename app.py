@@ -72,9 +72,23 @@ def init_db():
 
 init_db()
 
-# --- HTML DOCUMENT GENERATOR (FIXES IOS PREVIEW & FORMAT ISSUES) ---
+# --- FORMAT PRICE HELPER (Removes .00 if whole number) ---
+def format_price(val):
+    try:
+        f_val = float(val)
+        if f_val.is_integer():
+            return str(int(f_val))
+        return f"{f_val:.2f}"
+    except:
+        return str(val)
+
+# --- HTML DOCUMENT GENERATOR (FIXES IOS WHITE PAGE / AIRDROP & PRICING) ---
 def generate_html_document(doc_type, data, company_info):
     branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
+    
+    raw_price = data.get('price', data.get('amount', data.get('total', 0)))
+    formatted_price = format_price(raw_price)
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang="sv">
@@ -82,7 +96,7 @@ def generate_html_document(doc_type, data, company_info):
         <meta charset="UTF-8">
         <title>{doc_type.upper()}</title>
         <style>
-            body {{ font-family: Helvetica, Arial, sans-serif; padding: 25px; color: #111; background: #fff; }}
+            body {{ font-family: Helvetica, Arial, sans-serif; padding: 25px; color: #111; background: #fff; margin: 0; }}
             .header {{ text-align: center; border-bottom: 2px solid #007AFF; padding-bottom: 15px; margin-bottom: 20px; }}
             .header h2 {{ margin: 0; color: #007AFF; }}
             .info-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e9ecef; }}
@@ -115,7 +129,7 @@ def generate_html_document(doc_type, data, company_info):
             </tr>
             <tr>
                 <td>{data.get('issue', data.get('issues', data.get('item_desc', 'Allmän service')))}</td>
-                <td><strong>{data.get('price', data.get('amount', data.get('total', 0.0)))} SEK</strong></td>
+                <td><strong>{formatted_price} SEK</strong></td>
             </tr>
         </table>
 
@@ -139,14 +153,14 @@ def display_document_preview(html_content, file_name, key_suffix):
             del st.session_state['active_doc']
         st.rerun()
 
-    # معاينة حية متوافقة داخل الإطار
-    st.components.v1.html(html_content, height=420, scrolling=True)
+    # استخدام container مدمج مع تمرير HTML آمن
+    st.components.v1.html(html_content, height=450, scrolling=True)
     
-    # زر آمن وفعال للفتح والطباعة والمشاركة على الآيفون
+    # زر آمن لفتح المستند كملف HTML مستقل لتجنب مشاكل الطباعة والـ AirDrop البيضاء في آبل
     download_html = f"""
-    <div style="margin: 15px 0;">
-        <a href="data:text/html;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            🖨️ فتح للطباعة والمشاركة (Open & Print / Share)
+    <div style="margin: 15px 0; text-align: center;">
+        <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            📥 فتح المستند للطباعة أو AirDrop (Open & Print / AirDrop)
         </a>
     </div>
     """
@@ -410,7 +424,7 @@ with tab10:
                         "created_at": str(i_row['created_at'])[:10] if inc_date else ""
                     }
                     html_doc = generate_html_document("Faktura", inv_data, COMPANY_INFO)
-                    st.session_state['active_doc'] = {
+                    st.session_state['active_doc']  = {
                         'html': html_doc,
                         'filename': f"{i_row['invoice_no']}.html",
                         'key': f"search_inv_{selected_inv_id}"
