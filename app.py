@@ -153,17 +153,14 @@ def display_document_preview(html_content, file_name, key_suffix):
             del st.session_state['active_doc']
         st.rerun()
 
-    # معاينة حية داخل الـ Streamlit
+    # معاينة حية للمستند
     st.components.v1.html(html_content, height=420, scrolling=True)
     
-    # زر تفعيل الطباعة ومشاركة AirDrop المباشر عبر زر JavaScript متوافق مع iOS
+    # زر آمن ومتوافق 100% مع الآيفون يفتح المستند لتمكين الـ AirDrop والطباعة الرسمية
     action_html = f"""
-    <div style="margin: 15px 0; display: flex; gap: 10px;">
-        <button onclick="window.print();" style="flex: 1; background-color: #007AFF; color: white; border: none; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            🖨️ طباعة أو مشاركة (Print / AirDrop)
-        </button>
-        <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="flex: 1; background-color: #34C759; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2); line-height: normal;">
-            📥 تحميل كملف (Download)
+    <div style="margin: 15px 0;">
+        <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            📤 فتح للطباعة ومشاركة AirDrop (Open & Share)
         </a>
     </div>
     """
