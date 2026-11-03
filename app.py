@@ -14,18 +14,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- AUTHENTICATION SETUP (TUNAPARK LOGIN WITH PERSISTENT COOKIE) ---
-names = ['Tunapark Admin']
-usernames = ['tunapark']
-passwords = ['tuna123']
-
-hashed_passwords = [stauth.Hasher.hash(password) for password in passwords]
-
+# --- AUTHENTICATION SETUP (TUNAPARK LOGIN) ---
 credentials = {
     'usernames': {
-        usernames[0]: {
-            'name': names[0],
-            'password': hashed_passwords[0]
+        'tunapark': {
+            'name': 'Tunapark Admin',
+            'password': stauth.Hasher.hash('tuna123')
         }
     }
 }
@@ -37,20 +31,18 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=30
 )
 
-# تم تغيير استدعاء الـ login ليتوافق مع الإصدارات الحديثة
 try:
     authenticator.login('main')
     authentication_status = st.session_state.get('authentication_status')
     name = st.session_state.get('name')
     username = st.session_state.get('username')
 except Exception as e:
-    # توافق احتياطي مع الإصدارات الأخرى
     name, authentication_status, username = authenticator.login('تسجيل الدخول / Login', 'main')
 
 if authentication_status == False:
     st.error('اسم المستخدم أو كلمة المرور غير صحيحة / Username/password is incorrect')
 elif authentication_status == None:
-    st.warning('الرجاء إدخال اسم المستخدم وكلمة المرور / Please enter your username and password')
+    st.warning('الرجاء إدخال اسم المستخدم (tunapark) وكلمة المرور (tuna123)')
 elif authentication_status == True:
 
     authenticator.logout('تسجيل الخروج / Logout', 'sidebar', key='logout_btn')
@@ -186,8 +178,6 @@ elif authentication_status == True:
         return html_content
 
     def display_document_preview(html_content, file_name, key_suffix):
-        b64_html = base64.b64encode(html_content.encode('utf-8')).decode('utf-8')
-        
         st.markdown("### 📄 معاينة المستند (Document Preview)")
         
         col_back, col_web = st.columns([1, 1])
@@ -197,21 +187,17 @@ elif authentication_status == True:
                     del st.session_state['active_doc']
                 st.rerun()
         with col_web:
-            st.markdown(
-                f'<a href="data:text/html;charset=utf-8;base64,{b64_html}" target="_blank" style="display:block; background-color:#6c757d; color:white; text-align:center; padding:10px 15px; border-radius:8px; font-weight:bold; text-decoration:none;">🌐 فتح كصفحة ويب (Open as Website)</a>',
-                unsafe_allow_html=True
+            # استخدام زر تحميل رسمي آمن يتجاوز قيود الـ about:blank في الآيفون
+            st.download_button(
+                label="🌐 تحميل كصفحة ويب (Download Website)",
+                data=html_content,
+                file_name=file_name,
+                mime="text/html",
+                key=f"download_web_btn_{key_suffix}"
             )
 
+        # معاينة حية للمستند داخل التطبيق
         st.components.v1.html(html_content, height=420, scrolling=True)
-        
-        action_html = f"""
-        <div style="margin: 15px 0;">
-            <a href="data:text/html;charset=utf-8;base64,{b64_html}" download="{file_name}" target="_blank" style="display: block; background-color: #007AFF; color: white; text-align: center; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                📤 فتح للطباعة ومشاركة AirDrop (Open & Share)
-            </a>
-        </div>
-        """
-        st.markdown(action_html, unsafe_allow_html=True)
 
     # --- SIDEBAR RESET & CONTROLS ---
     if st.sidebar.button("🔄 إعادة ضبط العرض / Reset Session"):
