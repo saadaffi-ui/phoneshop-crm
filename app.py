@@ -32,6 +32,7 @@ authenticator = stauth.Authenticate(
 )
 
 try:
+    # تم إخفاء كلمة المرور تلقائياً عبر واجهة تسجيل الدخول الآمنة
     authenticator.login('main')
     authentication_status = st.session_state.get('authentication_status')
     name = st.session_state.get('name')
@@ -250,7 +251,6 @@ elif authentication_status == True:
         uniq_id = data.get('repair_id', data.get('invoice_no', data.get('id', '30MIN-001')))
         cust_org_display = f"<br><strong>Org.nr / VAT:</strong> {data.get('customer_org', 'N/A')}" if doc_type == 'Faktura' and data.get('customer_org') else ""
         
-        # Format breakdown if itemized repairs exist
         items = data.get('items_breakdown', [])
         if items:
             rows_html = "".join([f"<tr><td>{item['name']}</td><td style='text-align: right;'>{format_price(item['price'])} SEK</td></tr>" for item in items])
@@ -415,7 +415,6 @@ elif authentication_status == True:
         col_d3.metric("💡 Quotes", quote_count)
         col_d4.metric("📦 Stock Items", stock_count if stock_count else 0)
 
-    # --- TAB 2: REPAIRS (ITEMIZED REPAIRS WITH INDIVIDUAL PRICES) ---
     with tab2:
         st.header(f"{txt['tab_repair']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('rep_new_'):
@@ -501,45 +500,57 @@ elif authentication_status == True:
                 q_device = st.text_input(txt["device"], key="q_device")
                 
                 st.markdown(f"### {txt['service_header']}")
-                col_s1, col_s2, col_s3 = st.columns(3)
-                with col_s1:
-                    s_display = st.checkbox("📱 Skärmbyte (Display)", key="q_s_display")
-                    s_battery = st.checkbox("🔋 Batteribyte (Battery)", key="q_s_battery")
-                with col_s2:
-                    s_camera = st.checkbox("📷 Kamerabyte / Kameralins", key="q_s_camera")
-                    s_charger = st.checkbox("🔌 Laddkontakt (Charging Port)", key="q_s_charger")
-                with col_s3:
-                    s_back = st.checkbox("🔍 Baksida glas (Back Glass)", key="q_s_back")
-                    s_water = st.checkbox("💧 Vattenskada (Water Damage)", key="q_s_water")
+                col_q1, col_q2 = st.columns(2)
+                with col_q1:
+                    q_chk_display = st.checkbox("📱 Skärmbyte (Display)", key="q_chk_disp")
+                    qp_display = st.number_input("Pris: Skärmbyte (SEK)", min_value=0.0, step=50.0, key="qp_disp")
+                    
+                    q_chk_battery = st.checkbox("🔋 Batteribyte (Battery)", key="q_chk_batt")
+                    qp_battery = st.number_input("Pris: Batteribyte (SEK)", min_value=0.0, step=50.0, key="qp_batt")
+                    
+                    q_chk_camera = st.checkbox("📷 Kamerabyte / Kameralins", key="q_chk_cam")
+                    qp_camera = st.number_input("Pris: Kamerabyte (SEK)", min_value=0.0, step=50.0, key="qp_cam")
                 
+                with col_q2:
+                    q_chk_charger = st.checkbox("🔌 Laddkontakt (Charging Port)", key="q_chk_charg")
+                    qp_charger = st.number_input("Pris: Laddkontakt (SEK)", min_value=0.0, step=50.0, key="qp_charg")
+                    
+                    q_chk_back = st.checkbox("🔍 Baksida glas (Back Glass)", key="q_chk_bg")
+                    qp_back = st.number_input("Pris: Baksida glas (SEK)", min_value=0.0, step=50.0, key="qp_bg")
+                    
+                    q_chk_water = st.checkbox("💧 Vattenskada (Water Damage)", key="q_chk_wat")
+                    qp_water = st.number_input("Pris: Vattenskada (SEK)", min_value=0.0, step=50.0, key="qp_wat")
+
+                st.markdown("---")
                 q_extra = st.text_area("Övriga kommentarer / Felbeskrivning", key="q_extra")
-                q_total = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d", key="q_total")
+                qp_extra = st.number_input("Pris: Övrigt arbete (SEK)", min_value=0.0, step=50.0, key="qp_ext")
                 q_emp = st.text_input(txt["employee"], key="q_emp")
                 
                 q_sub = st.form_submit_button("Spara & Förhandsgranska Kostnadsförslag")
                 if q_sub:
-                    selected_repairs = []
-                    if s_display: selected_repairs.append("Skärmbyte (Display Replacement)")
-                    if s_battery: selected_repairs.append("Batteribyte (Battery Replacement)")
-                    if s_camera: selected_repairs.append("Kamerabyte / Kameralins (Camera Service)")
-                    if s_charger: selected_repairs.append("Laddkontakt reparation (Charging Port)")
-                    if s_back: selected_repairs.append("Baksida byte (Back Glass)")
-                    if s_water: selected_repairs.append("Vattenskada rengöring (Water Damage)")
-                    if q_extra: selected_repairs.append(q_extra)
+                    items_breakdown = []
+                    if q_chk_display and qp_display > 0: items_breakdown.append({'name': '📱 Skärmbyte (Display)', 'price': qp_display})
+                    if q_chk_battery and qp_battery > 0: items_breakdown.append({'name': '🔋 Batteribyte (Battery)', 'price': qp_battery})
+                    if q_chk_camera and qp_camera > 0: items_breakdown.append({'name': '📷 Kamerabyte / Kameralins', 'price': qp_camera})
+                    if q_chk_charger and qp_charger > 0: items_breakdown.append({'name': '🔌 Laddkontakt (Charging Port)', 'price': qp_charger})
+                    if q_chk_back and qp_back > 0: items_breakdown.append({'name': '🔍 Baksida glas (Back Glass)', 'price': qp_back})
+                    if q_chk_water and qp_water > 0: items_breakdown.append({'name': '💧 Vattenskada sanering', 'price': qp_water})
+                    if q_extra and qp_extra > 0: items_breakdown.append({'name': f"Övrigt: {q_extra}", 'price': qp_extra})
                     
-                    full_issue_text = " | ".join(selected_repairs) if selected_repairs else "Allmän undersökning och service"
+                    total_calculated = sum(item['price'] for item in items_breakdown)
+                    summary_text = " | ".join([f"{item['name']} ({format_price(item['price'])} kr)" for item in items_breakdown]) if items_breakdown else "Allmän undersökning"
                     
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, q_name, q_phone, q_device, full_issue_text, q_total, q_total * 0.3, q_emp, str(date.today())))
+                                   (global_branch, q_name, q_phone, q_device, summary_text, total_calculated, total_calculated * 0.3, q_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
                     
                     q_data = {
                         "branch": global_branch, "repair_id": f"QUO-{date.today().strftime('%Y%m%d')}-{last_id:03d}",
-                        "customer_name": q_name, "phone": q_phone, "device": q_device, "issue": full_issue_text, "total": q_total,
+                        "customer_name": q_name, "phone": q_phone, "device": q_device, "items_breakdown": items_breakdown, "total": total_calculated,
                         "employee": q_emp, "created_at": str(date.today())
                     }
                     html_doc = generate_html_document("Kostnadsförslag", q_data, COMPANY_INFO)
