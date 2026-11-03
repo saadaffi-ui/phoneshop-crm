@@ -139,7 +139,7 @@ elif authentication_status == True:
             "org_nr": "559370-8034",
             "moms_reg": "SE559370803401",
             "bankgiro": "123-4567",
-            "logo_url": "https://i.imgur.com/3Z50x08.png" # يمكنك استبدال هذا الرابط برابط شعار شركتك الفعلي
+            "logo_url": "https://i.imgur.com/3Z50x08.png"
         },
         "Västerås": {
             "name": "30 Minutes Phone Fix Västerås AB", 
@@ -148,11 +148,11 @@ elif authentication_status == True:
             "org_nr": "559537-1724",
             "moms_reg": "SE559537172401",
             "bankgiro": "765-4321",
-            "logo_url": "https://i.imgur.com/3Z50x08.png" # يمكنك استبدال هذا الرابط برابط شعار شركتك الفعلي
+            "logo_url": "https://i.imgur.com/3Z50x08.png"
         }
     }
 
-    # --- DATABASE SETUP & AUTO MIGRATION ---
+    # --- DATABASE SETUP & AUTO MIGRATION (SAFE) ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -176,11 +176,12 @@ elif authentication_status == True:
                             device TEXT, issues TEXT, total REAL, profit REAL, 
                             employee TEXT, created_at TEXT)''')
         
-        try:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN invoice_type TEXT")
-            cursor.execute("ALTER TABLE invoices ADD COLUMN customer_org TEXT")
-        except sqlite3.OperationalError:
-            pass
+        # التحديث التلقائي للأعمدة الناقصة بأمان تام
+        for col_name, col_type in [("invoice_type", "TEXT"), ("customer_org", "TEXT")]:
+            try:
+                cursor.execute(f"ALTER TABLE invoices ADD COLUMN {col_name} {col_type}")
+            except sqlite3.OperationalError:
+                pass
 
         conn.commit()
         conn.close()
@@ -195,7 +196,7 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- SWEDISH PROFESSIONAL B2B INVOICE & DOCUMENT GENERATOR WITH LOGO ---
+    # --- SWEDISH PROFESSIONAL B2B INVOICE & DOCUMENT GENERATOR ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', 0)))
