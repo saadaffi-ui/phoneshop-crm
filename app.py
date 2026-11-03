@@ -152,7 +152,7 @@ elif authentication_status == True:
         }
     }
 
-    # --- DATABASE SETUP ---
+    # --- DATABASE SETUP & AUTO MIGRATION ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -175,12 +175,19 @@ elif authentication_status == True:
                             branch TEXT, customer_name TEXT, phone TEXT, 
                             device TEXT, issues TEXT, total REAL, profit REAL, 
                             employee TEXT, created_at TEXT)''')
+        
+        # التأكد من وجود الأعمدة الحديثة في حال كانت قاعدة البيانات قديمة
+        try:
+            cursor.execute("ALTER TABLE invoices ADD COLUMN invoice_type TEXT")
+        except sqlite3.OperationalError:
+            pass # العمود موجود مسبقاً
+
         conn.commit()
         conn.close()
 
     init_db()
 
-    # --- FORMAT PRICE HELPER (Whole numbers without .00) ---
+    # --- FORMAT PRICE HELPER ---
     def format_price(val):
         try:
             f_val = float(val)
@@ -208,7 +215,6 @@ elif authentication_status == True:
 
         formatted_total = format_price(raw_amount)
         formatted_net = format_price(net_amount)
-        formatted_moms = format_price(moms_amount)
 
         html_content = f"""
         <!DOCTYPE html>
@@ -228,10 +234,6 @@ elif authentication_status == True:
                 .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; }}
                 .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 12px; text-align: left; font-size: 14px; }}
                 .details-table th {{ background-color: #f1f3f5; color: #333; }}
-                .totals-section {{ width: 100%; margin-bottom: 30px; }}
-                .totals-table {{ width: 300px; margin-left: auto; border-collapse: collapse; }}
-                .totals-table td {{ padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #dee2e6; }}
-                .totals-table td:last-child {{ text-align: right; font-weight: bold; }}
                 .f-skatt {{ font-size: 12px; color: #555; margin-top: 10px; }}
                 .footer {{ text-align: center; margin-top: 40px; font-size: 11px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 15px; }}
             </style>
