@@ -32,7 +32,6 @@ authenticator = stauth.Authenticate(
 )
 
 try:
-    # تم إخفاء كلمة المرور تلقائياً عبر واجهة تسجيل الدخول الآمنة
     authenticator.login('main')
     authentication_status = st.session_state.get('authentication_status')
     name = st.session_state.get('name')
@@ -61,14 +60,14 @@ elif authentication_status == True:
             "tab_quote": "💡 Kostnadsförslag",
             "tab_invoice": "📄 Företagsfakturor",
             "tab_sub": "📦 Prenumerationer",
-            "tab_buyback": "🔄 Uppköp / Buyback",
+            "tab_buyback": "🔄 Uppköp / Kvittens (Buyback)",
             "tab_campaign": "🎯 Kampanjer",
             "tab_preorder": "📋 Förbeställningar",
             "tab_stock": "📦 Lagerhantering",
             "tab_search": "🔍 Sök & Arkiv",
             "reset": "🔄 Återställ session",
             "comp_name": "Företagsnamn / Kund",
-            "org_nr_cust": "Org.nr / VAT-nr",
+            "org_nr_cust": "Org.nr / VAT-nr / Personnummer",
             "phone": "Telefonnummer",
             "address": "Adress",
             "device": "Enhet / Modell",
@@ -85,11 +84,11 @@ elif authentication_status == True:
             "inv_type": "Fakturatyp (B2B)",
             "create_inv": "Skapa och förhandsgranska faktura",
             "success_inv": "Fakturan har sparats!",
-            "search_q": "Sök på namn, org.nr, enhet eller nummer...",
+            "search_q": "Sök på namn, org.nr, personnummer, enhet eller nummer...",
             "select_item_print": "Välj ID för att skriva ut eller visa:",
             "service_header": "⚙️ Välj fel och specifika reparationer (Pris per del)",
             "sub_plan": "Prenumerationstyp / Plan",
-            "buy_model": "Enhet / Skick (Gradering A/B/C)",
+            "buy_model": "Enhet / Skick (Gradering A/B/C) & IMEI-nr",
             "camp_name": "Kampanjnamn / Rabatt",
             "pre_item": "Förbeställd produkt / Reservdel",
             "stock_part": "Artikelnamn / Reservdel",
@@ -106,14 +105,14 @@ elif authentication_status == True:
             "tab_quote": "💡 عرض سعر",
             "tab_invoice": "📄 فواتير الشركات (B2B)",
             "tab_sub": "📦 الاشتراكات",
-            "tab_buyback": "🔄 شراء الأجهزة",
+            "tab_buyback": "🔄 شراء الأجهزة / Kvittens (Buyback)",
             "tab_campaign": "🎯 الحملات",
             "tab_preorder": "📋 الطلبات المسبقة",
             "tab_stock": "📦 المخزون",
             "tab_search": "🔍 البحث والأرشيف",
             "reset": "🔄 إعادة ضبط العرض",
-            "comp_name": "اسم الشركة / العميل",
-            "org_nr_cust": "رقم تسجيل الشركة Org.nr",
+            "comp_name": "اسم العميل / البائع",
+            "org_nr_cust": "رقم الهوية الشخصية (Personnummer) / Org.nr",
             "phone": "رقم الهاتف",
             "address": "العنوان",
             "device": "نوع الجهاز / الموديل",
@@ -130,11 +129,11 @@ elif authentication_status == True:
             "inv_type": "نوع الفاتورة (B2B)",
             "create_inv": "إصدار ومعاينة الفاتورة",
             "success_inv": "تم إصدار الفاتورة بنجاح!",
-            "search_q": "بحث بالاسم، رقم التسجيل، الجهاز أو الرقم...",
+            "search_q": "بحث بالاسم، رقم الهوية الشخصية، الجهاز أو الرقم...",
             "select_item_print": "اختر المعرف (ID) لطباعة أو عرض المستند:",
             "service_header": "⚙️ تحديد الأعطال وتكلفة كل قطعة منفصلة",
             "sub_plan": "نوع الاشتراكات / الخطة",
-            "buy_model": "الجهاز المراد شراؤه / الحالة",
+            "buy_model": "الجهاز المراد شراؤه / الحالة / رقم IMEI",
             "camp_name": "اسم الحملة التسويقية / العرض",
             "pre_item": "المنتج أو القطعة المطلوبة مسبقاً",
             "stock_part": "اسم القطعة أو المنتج بالمخزون",
@@ -207,7 +206,7 @@ elif authentication_status == True:
                             plan TEXT, price REAL, employee TEXT, created_at TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS buyback (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            branch TEXT, customer_name TEXT, phone TEXT, 
+                            branch TEXT, customer_name TEXT, person_nr TEXT, phone TEXT, 
                             device TEXT, payout REAL, employee TEXT, created_at TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS campaigns (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -224,7 +223,8 @@ elif authentication_status == True:
 
         for table, col, col_type in [
             ("invoices", "invoice_type", "TEXT"), 
-            ("invoices", "customer_org", "TEXT")
+            ("invoices", "customer_org", "TEXT"),
+            ("buyback", "person_nr", "TEXT")
         ]:
             try:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
@@ -243,12 +243,15 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- DOCUMENT GENERATOR WITH ITEMIZED COSTS AND TOTAL SUM ---
+    # --- DOCUMENT GENERATOR (DUAL COPY WITH TERMS & SIGNATURES) ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
         formatted_total = format_price(raw_amount)
         uniq_id = data.get('repair_id', data.get('invoice_no', data.get('id', '30MIN-001')))
+        
+        # Support Personnummer for Buyback (Kvittens)
+        person_nr_display = f"<br><strong>Personnummer / ID:</strong> {data.get('person_nr', 'N/A')}" if doc_type.startswith('Kvittens') and data.get('person_nr') else ""
         cust_org_display = f"<br><strong>Org.nr / VAT:</strong> {data.get('customer_org', 'N/A')}" if doc_type == 'Faktura' and data.get('customer_org') else ""
         
         items = data.get('items_breakdown', [])
@@ -258,20 +261,27 @@ elif authentication_status == True:
             issue_desc = data.get('issue', data.get('issues', data.get('plan', data.get('item', data.get('campaign_name', 'Service')))))
             rows_html = f"<tr><td>{issue_desc}</td><td style='text-align: right;'>{formatted_total} SEK</td></tr>"
 
-        terms_html = """
-        <div class="terms">
+        if doc_type.startswith('Kvittens'):
+            terms_text = """
+            <strong>Kvittens & Uppköpsvillkor (Buyback Terms & Conditions):</strong><br>
+            1. Säljaren intygar härmed att enheten är hens lagliga egendom, är fri från operatörs- eller kontobindningar (t.ex. iCloud/Google Lock) och inte är anmäld stulen.<br>
+            2. Personnummer har lämnats i enlighet med svensk polislag för uppköp av begagnad elektronik.<br>
+            3. Äganderätten till enheten övergår fullständigt till 30 Minutes Phone Fix vid utbetalning.
+            """
+        else:
+            terms_text = """
             <strong>Villkor & Apple Service Villkor (Repair Terms & Conditions):</strong><br>
             1. Enheten lämnas in på egen risk. Kunden ansvarar för att säkerhetskopiera data (Backup) innan reparation.<br>
-            2. 30 Minutes Phone Fix lämnar 3 månaders garanti på utbytta reservdelar (gäller ej fuktskadade eller handhavandeskadade enheter).<br>
-            3. Vid Apple-enheter (iPhone/iPad/Mac) rekommenderas att "Hitta min iPhone" (Find My) stängs av före inlämning.<br>
-            4. Ej uthämtade enheter efter 90 dagar tillfaller verkstaden enligt svensk lag om kvarglömd egendom.
-        </div>
-        """
+            2. 30 Minutes Phone Fix lämnar 3 månaders garanti på utbytta reservdelar.<br>
+            3. Vid Apple-enheter rekommenderas att "Hitta min iPhone" stängs av före inlämning.
+            """
+
+        terms_html = f'<div class="terms">{terms_text}</div>'
 
         signature_block = f"""
         <table class="sig-table">
             <tr>
-                <td>Kundens undersökningsgodkännande / Signatur:<br><br>________________________________________</td>
+                <td>Säljarens / Kundens signatur (Underskrift):<br><br>________________________________________</td>
                 <td>Handläggares signatur ({data.get('employee', 'Admin')}):<br><br>________________________________________</td>
             </tr>
         </table>
@@ -301,11 +311,11 @@ elif authentication_status == True:
             <div class="meta-box">
                 <table>
                     <tr>
-                        <td><strong>Kund / Företag:</strong> {data.get('customer_name', 'N/A')} {cust_org_display}</td>
+                        <td><strong>Kund / Säljare:</strong> {data.get('customer_name', 'N/A')} {person_nr_display} {cust_org_display}</td>
                         <td><strong>Telefon:</strong> {data.get('phone', 'N/A')}</td>
                     </tr>
                     <tr>
-                        <td colspan="2"><strong>Enhet / Modell:</strong> {data.get('device', data.get('item', data.get('address', 'N/A')))}</td>
+                        <td colspan="2"><strong>Enhet / Modell & IMEI:</strong> {data.get('device', data.get('item', data.get('address', 'N/A')))}</td>
                     </tr>
                 </table>
             </div>
@@ -313,8 +323,8 @@ elif authentication_status == True:
             <table class="details-table">
                 <thead>
                     <tr>
-                        <th>Åtgärd / Beskrivning (Service & Parts)</th>
-                        <th style="text-align: right;">Pris (SEK inkl. moms)</th>
+                        <th>Beskrivning / Enhetsskick (Description)</th>
+                        <th style="text-align: right;">Belopp (SEK)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -406,14 +416,14 @@ elif authentication_status == True:
         rep_count = pd.read_sql_query("SELECT COUNT(*) FROM repairs WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
         inv_count = pd.read_sql_query("SELECT COUNT(*) FROM invoices WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
         quote_count = pd.read_sql_query("SELECT COUNT(*) FROM quotes WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
-        stock_count = pd.read_sql_query("SELECT SUM(quantity) FROM stock WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
+        buy_count = pd.read_sql_query("SELECT COUNT(*) FROM buyback WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
         conn.close()
 
         col_d1, col_d2, col_d3, col_d4 = st.columns(4)
         col_d1.metric("🛠️ Total Repairs", rep_count)
         col_d2.metric("📄 B2B Invoices", inv_count)
         col_d3.metric("💡 Quotes", quote_count)
-        col_d4.metric("📦 Stock Items", stock_count if stock_count else 0)
+        col_d4.metric("🔄 Buyback Kvittens", buy_count)
 
     with tab2:
         st.header(f"{txt['tab_repair']} ({global_branch})")
@@ -618,22 +628,43 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
+    # --- TAB 6: BUYBACK / KVITTENS (WITH PERSONNUMMER & SIGNATURE) ---
     with tab6:
-        st.header(f"🔄 {txt['tab_buyback']} ({global_branch})")
-        with st.form("buyback_form"):
-            b_name = st.text_input(txt["comp_name"])
-            b_phone = st.text_input(txt["phone"])
-            b_device = st.text_input(txt["buy_model"], value="iPhone 13 - Grade A")
-            b_payout = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
-            b_emp = st.text_input(txt["employee"])
-            if st.form_submit_button(txt["save"]):
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO buyback (branch, customer_name, phone, device, payout, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                               (global_branch, b_name, b_phone, b_device, b_payout, b_emp, str(date.today())))
-                conn.commit()
-                conn.close()
-                st.success(txt["saved_success"])
+        st.header(f"{txt['tab_buyback']} ({global_branch})")
+        if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('buy_new_'):
+            display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
+        else:
+            with st.form("buyback_form"):
+                b_name = st.text_input(txt["comp_name"])
+                b_person_nr = st.text_input(txt["org_nr_cust"], value="ÅÅMMDD-XXXX")
+                b_phone = st.text_input(txt["phone"])
+                b_device = st.text_input(txt["buy_model"], value="iPhone 13 - Grade A (IMEI: ...)")
+                b_payout = st.number_input(txt["price"], min_value=0.0, step=50.0, format="%d")
+                b_emp = st.text_input(txt["employee"])
+                b_sub_btn = st.form_submit_button("Spara & Skriv ut Kvittens (Buyback)")
+                if b_sub_btn:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO buyback (branch, customer_name, person_nr, phone, device, payout, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (global_branch, b_name, b_person_nr, b_phone, b_device, b_payout, b_emp, str(date.today())))
+                    conn.commit()
+                    last_id = cursor.lastrowid
+                    conn.close()
+                    
+                    buy_data = {
+                        "branch": global_branch, "repair_id": f"BUY-{date.today().strftime('%Y%m%d')}-{last_id:03d}",
+                        "customer_name": b_name, "person_nr": b_person_nr, "phone": b_phone,
+                        "device": b_device, "price": b_payout, "employee": b_emp,
+                        "created_at": str(date.today())
+                    }
+                    html_doc = generate_html_document("Kvittens - Enhetsköp (Buyback)", buy_data, COMPANY_INFO)
+                    st.session_state['active_doc'] = {
+                        'html': html_doc,
+                        'filename': f"Kvittens_Buyback_{last_id}.html",
+                        'key': f"buy_new_{last_id}"
+                    }
+                    st.success("Kvittens har sparats framgångsrikt!")
+                    st.rerun()
 
     with tab7:
         st.header(f"🎯 {txt['tab_campaign']} ({global_branch})")
@@ -686,9 +717,10 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
+    # --- TAB 10: UNIFIED SEARCH & ARCHIVE (LINKED TO ALL SECTIONS) ---
     with tab10:
         st.header(f"{txt['tab_search']} ({global_branch})")
-        if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_')):
+        if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_')):
             doc_info = st.session_state['active_doc']
             if st.button(f"🔙 {txt['back_app']}", type="primary", key="top_back_nav_search"):
                 del st.session_state['active_doc']
@@ -699,6 +731,7 @@ elif authentication_status == True:
             conn = get_db_connection()
             q_like = f"%{search_query}%" if search_query else "%"
 
+            # 1. Invoices Archive
             st.subheader("📄 Företagsfakturor Arkiv")
             inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, customer_org, phone, amount, invoice_type, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR customer_org LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not inv_res.empty:
@@ -711,6 +744,7 @@ elif authentication_status == True:
                     st.session_state['active_doc'] = {'html': html, 'filename': f"{row['invoice_no']}.html", 'key': f"search_inv_{sel_inv}"}
                     st.rerun()
 
+            # 2. Repairs Archive
             st.subheader("🛠️ Reparationer Arkiv")
             rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not rep_res.empty:
@@ -723,6 +757,7 @@ elif authentication_status == True:
                     st.session_state['active_doc'] = {'html': html, 'filename': f"Inlamningskvitto_{sel_rep}.html", 'key': f"search_rep_{sel_rep}"}
                     st.rerun()
 
+            # 3. Quotes Archive
             st.subheader("💡 Kostnadsförslag Arkiv")
             quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not quote_res.empty:
@@ -735,6 +770,20 @@ elif authentication_status == True:
                     st.session_state['active_doc'] = {'html': html, 'filename': f"Kostnadsforslag_{sel_q}.html", 'key': f"search_q_{sel_q}"}
                     st.rerun()
 
+            # 4. Buyback / Kvittens Archive
+            st.subheader("🔄 Uppköp / Kvittens Arkiv (Buyback)")
+            buy_res = pd.read_sql_query("SELECT id, customer_name, person_nr, phone, device, payout, created_at FROM buyback WHERE branch = ? AND (customer_name LIKE ? OR person_nr LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+            if not buy_res.empty:
+                st.dataframe(buy_res, use_container_width=True)
+                sel_buy = st.selectbox("🖨️ Välj Kvittens ID:", buy_res['id'].tolist(), key="sel_buy_id")
+                if sel_buy and st.button("📄 Visa / Skriv ut Kvittens", key=f"btn_buy_{sel_buy}"):
+                    row = buy_res[buy_res['id'] == sel_buy].iloc[0]
+                    doc_data = {"branch": global_branch, "repair_id": f"BUY-{str(row['created_at'])[:10].replace('-','')}-{sel_buy:03d}", "customer_name": row['customer_name'], "person_nr": row['person_nr'], "phone": row['phone'], "device": row['device'], "price": row['payout'], "created_at": str(row['created_at'])[:10]}
+                    html = generate_html_document("Kvittens - Enhetsköp (Buyback)", doc_data, COMPANY_INFO)
+                    st.session_state['active_doc'] = {'html': html, 'filename': f"Kvittens_{sel_buy}.html", 'key': f"search_buy_{sel_buy}"}
+                    st.rerun()
+
+            # 5. Stock Inventory View
             st.subheader("📦 Lager (Stock)")
             stock_res = pd.read_sql_query("SELECT id, part_name, category, quantity, price, created_at FROM stock WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
             if not stock_res.empty:
