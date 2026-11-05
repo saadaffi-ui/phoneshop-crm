@@ -78,7 +78,7 @@ elif authentication_status == True:
             "success_repair": "Inlämnandet har sparats!",
             "preview": "Dokumentförhandsgranskning",
             "back_app": "Tillbaka till appen",
-            "download_web": "Ladda ner som webbsida",
+            "download_web": "🌐 Öppna / Ladda ner dokument",
             "inv_no": "Fakturarummer",
             "total_amt": "Totalt belopp (SEK)",
             "inv_type": "Fakturatyp (B2B)",
@@ -125,7 +125,7 @@ elif authentication_status == True:
             "success_repair": "تم حفظ الإصلاح بنجاح!",
             "preview": "معاينة المستند",
             "back_app": "العودة إلى التطبيق",
-            "download_web": "تحميل كملف ويب",
+            "download_web": "🌐 فتح أو تحميل المستند مباشرة",
             "inv_no": "رقم الفاتورة",
             "total_amt": "المبلغ الإجمالي (SEK)",
             "inv_type": "نوع الفاتورة (B2B)",
@@ -397,12 +397,16 @@ elif authentication_status == True:
                 st.rerun()
         with col_web:
             st.download_button(
-                label=f"🌐 {txt['download_web']}",
+                label=txt["download_web"],
                 data=html_content,
                 file_name=file_name,
                 mime="text/html",
                 key=f"download_web_btn_{key_suffix}"
             )
+        
+        # Display helper instruction for iPhone users
+        st.info("💡 **ملاحظة لمستخدمي الآيفون / iPhone:** اضغط على زر التحميل أعلاه لفتح المستند في صفحة مستقلة، ثم اضغط على زر المشاركة في متصفح سفاري (Share) لاختيار 'طباعة' أو 'حفظ كـ PDF'.")
+        
         st.components.v1.html(html_content, height=750, scrolling=True)
 
     if st.sidebar.button(txt["reset"]):
