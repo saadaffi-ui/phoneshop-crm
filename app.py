@@ -42,7 +42,7 @@ except Exception as e:
 if authentication_status == False:
     st.error('اسم المستخدم أو كلمة المرور غير صحيحة / Felaktigt användarnamn eller lösenord')
 elif authentication_status == None:
-    st.warning('الرجاء إدخال بيانات تسجيل الدخول / Vänligen logga in')
+    st.warning('Vänligen logga in')
 elif authentication_status == True:
 
     authenticator.logout('تسجيل الخروج / Logga ut', 'sidebar', key='logout_btn')
@@ -181,7 +181,7 @@ elif authentication_status == True:
 
     logo_base64 = get_image_base64(LOGO_PATH)
 
-    # --- DATABASE SETUP & HELPER FUNCTIONS ---
+    # --- SAFE DATABASE SETUP WITH NON-DESTRUCTIVE MIGRATIONS ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -196,6 +196,8 @@ elif authentication_status == True:
     def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Safe table creation (Preserves all existing data)
         cursor.execute('''CREATE TABLE IF NOT EXISTS repairs (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, customer_name TEXT, phone TEXT, 
@@ -232,15 +234,18 @@ elif authentication_status == True:
                             branch TEXT, part_name TEXT, category TEXT, 
                             quantity INTEGER, price REAL, employee TEXT, created_at TEXT)''')
 
-        for table, col, col_type in [
-            ("invoices", "invoice_type", "TEXT"), 
+        # Non-destructive column addition check
+        migrations = [
+            ("invoices", "invoice_type", "TEXT"),
             ("invoices", "customer_org", "TEXT"),
             ("buyback", "person_nr", "TEXT")
-        ]:
-            try:
+        ]
+        
+        for table, col, col_type in migrations:
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing_cols = [row[1] for row in cursor.fetchall()]
+            if col not in existing_cols:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
-            except sqlite3.OperationalError:
-                pass
 
         conn.commit()
         conn.close()
@@ -254,7 +259,7 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- DOCUMENT GENERATOR (DUAL COPY WITH TERMS & SIGNATURES) ---
+    # --- DOCUMENT GENERATOR ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
@@ -274,14 +279,14 @@ elif authentication_status == True:
         if doc_type.startswith('Kvittens'):
             terms_text = """
             <strong>Kvittens & Uppköpsvillkor (Buyback Terms & Conditions):</strong><br>
-            1. Säljaren intygar härmed att enheten är hens lagliga egendom, är fri från operatörs- eller kontobindningar (t.ex. iCloud/Google Lock) och inte är anmäld stulen.<br>
+            1. Säljaren intygar härmed att enheten är hens lagliga egendom, är fri från operatörs- eller kontobindningar och inte är anmäld stulen.<br>
             2. Personnummer har lämnats i enlighet med svensk polislag för uppköp av begagnad elektronik.<br>
             3. Äganderätten till enheten övergår fullständigt till 30 Minutes Phone Fix vid utbetalning.
             """
         else:
             terms_text = """
             <strong>Villkor & Apple Service Villkor (Repair Terms & Conditions):</strong><br>
-            1. Enheten lämnas in på egen risk. Kunden ansvarar för att säkerhetskopiera data (Backup) innan reparation.<br>
+            1. Enheten lämnas in på egen risk. Kunden ansvarar för att säkerhetskopiera data innan reparation.<br>
             2. 30 Minutes Phone Fix lämnar 3 månaders garanti på utbytta reservdelar.<br>
             3. Vid Apple-enheter rekommenderas att "Hitta min iPhone" stängs av före inlämning.
             """
@@ -291,7 +296,7 @@ elif authentication_status == True:
         signature_block = f"""
         <table class="sig-table">
             <tr>
-                <td>Säljarens / Kundens signatur (Underskrift):<br><br>________________________________________</td>
+                <td>Kundens / Säljarens signatur:<br><br>________________________________________</td>
                 <td>Handläggares signatur ({data.get('employee', 'Admin')}):<br><br>________________________________________</td>
             </tr>
         </table>
@@ -325,7 +330,7 @@ elif authentication_status == True:
                         <td><strong>Telefon:</strong> {data.get('phone', 'N/A')}</td>
                     </tr>
                     <tr>
-                        <td colspan="2"><strong>Enhet / Modell & IMEI:</strong> {data.get('device', data.get('item', data.get('address', 'N/A')))}</td>
+                        <td colspan="2"><strong>Detaljer / Enhet / Artikel:</strong> {data.get('device', data.get('item', data.get('address', 'N/A')))}</td>
                     </tr>
                 </table>
             </div>
@@ -333,14 +338,14 @@ elif authentication_status == True:
             <table class="details-table">
                 <thead>
                     <tr>
-                        <th>Beskrivning / Enhetsskick (Description)</th>
+                        <th>Beskrivning</th>
                         <th style="text-align: right;">Belopp (SEK)</th>
                     </tr>
                 </thead>
                 <tbody>
                     {rows_html}
                     <tr style="background-color: #f8f9fa;">
-                        <td><strong>Totalt belopp (Total Summa):</strong></td>
+                        <td><strong>Totalt belopp:</strong></td>
                         <td style="text-align: right;"><strong>{formatted_total} SEK</strong></td>
                     </tr>
                 </tbody>
@@ -427,13 +432,14 @@ elif authentication_status == True:
         inv_count = pd.read_sql_query("SELECT COUNT(*) FROM invoices WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
         quote_count = pd.read_sql_query("SELECT COUNT(*) FROM quotes WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
         buy_count = pd.read_sql_query("SELECT COUNT(*) FROM buyback WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
+        pre_count = pd.read_sql_query("SELECT COUNT(*) FROM preorders WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
         conn.close()
 
         col_d1, col_d2, col_d3, col_d4 = st.columns(4)
         col_d1.metric("🛠️ Total Repairs", rep_count)
         col_d2.metric("📄 B2B Invoices", inv_count)
         col_d3.metric("💡 Quotes", quote_count)
-        col_d4.metric("🔄 Buyback Kvittens", buy_count)
+        col_d4.metric("📋 Preorders", pre_count)
 
     with tab2:
         st.header(f"{txt['tab_repair']} ({global_branch})")
@@ -692,14 +698,15 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
+    # --- TAB 8: PREORDERS ---
     with tab8:
         st.header(f"📋 {txt['tab_preorder']} ({global_branch})")
         with st.form("preorder_form"):
-            p_name = st.text_input(txt["comp_name"])
-            p_phone = st.text_input(txt["phone"])
-            p_item = st.text_input(txt["pre_item"], value="iPhone 16 Pro Max Reservdel")
-            p_dep = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0, format="%d")
-            p_emp = st.text_input(txt["employee"])
+            p_name = st.text_input(txt["comp_name"], key="pre_name")
+            p_phone = st.text_input(txt["phone"], key="pre_phone")
+            p_item = st.text_input(txt["pre_item"], value="iPhone 16 Pro Max Reservdel", key="pre_item_val")
+            p_dep = st.number_input("Handpenning / Deposit (SEK)", min_value=0.0, step=50.0, format="%d", key="pre_dep")
+            p_emp = st.text_input(txt["employee"], key="pre_emp")
             if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -726,7 +733,7 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 10: UNIFIED SEARCH & ARCHIVE (WITH DELETE OPTIONS FOR ALL SECTIONS) ---
+    # --- TAB 10: UNIFIED SEARCH & ARCHIVE ---
     with tab10:
         st.header(f"{txt['tab_search']} ({global_branch})")
         if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_')):
@@ -749,7 +756,7 @@ elif authentication_status == True:
                 with col_inv_a:
                     sel_inv = st.selectbox("🖨️ Välj Faktura ID:", inv_res['id'].tolist(), key="sel_inv_id")
                 with col_inv_b:
-                    if sel_inv and st.button("📄 Visa / Skriv ut Faktura", key=f"btn_inv_{sel_inv}"):
+                    if sel_inv and st.button("📄 Visa / Skriv ut", key=f"btn_inv_{sel_inv}"):
                         row = inv_res[inv_res['id'] == sel_inv].iloc[0]
                         doc_data = {"branch": global_branch, "repair_id": row['invoice_no'], "customer_name": row['customer_name'], "customer_org": row['customer_org'], "phone": row['phone'], "issue": "Företagsreparation", "amount": row['amount'], "created_at": str(row['created_at'])[:10]}
                         html = generate_html_document("Faktura", doc_data, COMPANY_INFO)
@@ -769,7 +776,7 @@ elif authentication_status == True:
                 with col_rep_a:
                     sel_rep = st.selectbox("🖨️ Välj Inlämning ID:", rep_res['id'].tolist(), key="sel_rep_id")
                 with col_rep_b:
-                    if sel_rep and st.button("📄 Visa / Skriv ut Inlämningskvitto", key=f"btn_rep_{sel_rep}"):
+                    if sel_rep and st.button("📄 Visa / Skriv ut", key=f"btn_rep_{sel_rep}"):
                         row = rep_res[rep_res['id'] == sel_rep].iloc[0]
                         doc_data = {"branch": global_branch, "repair_id": f"REP-{str(row['created_at'])[:10].replace('-','')}-{sel_rep:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issue'], "price": row['price'], "created_at": str(row['created_at'])[:10]}
                         html = generate_html_document("Inlämningskvitto", doc_data, COMPANY_INFO)
@@ -789,7 +796,7 @@ elif authentication_status == True:
                 with col_q_a:
                     sel_q = st.selectbox("🖨️ Välj Kostnadsförslag ID:", quote_res['id'].tolist(), key="sel_q_id")
                 with col_q_b:
-                    if sel_q and st.button("📄 Visa / Skriv ut Kostnadsförslag", key=f"btn_q_{sel_q}"):
+                    if sel_q and st.button("📄 Visa / Skriv ut", key=f"btn_q_{sel_q}"):
                         row = quote_res[quote_res['id'] == sel_q].iloc[0]
                         doc_data = {"branch": global_branch, "repair_id": f"QUO-{str(row['created_at'])[:10].replace('-','')}-{sel_q:03d}", "customer_name": row['customer_name'], "phone": row['phone'], "device": row['device'], "issue": row['issues'], "total": row['total'], "created_at": str(row['created_at'])[:10]}
                         html = generate_html_document("Kostnadsförslag", doc_data, COMPANY_INFO)
@@ -809,7 +816,7 @@ elif authentication_status == True:
                 with col_buy_a:
                     sel_buy = st.selectbox("🖨️ Välj Kvittens ID:", buy_res['id'].tolist(), key="sel_buy_id")
                 with col_buy_b:
-                    if sel_buy and st.button("📄 Visa / Skriv ut Kvittens", key=f"btn_buy_{sel_buy}"):
+                    if sel_buy and st.button("📄 Visa / Skriv ut", key=f"btn_buy_{sel_buy}"):
                         row = buy_res[buy_res['id'] == sel_buy].iloc[0]
                         doc_data = {"branch": global_branch, "repair_id": f"BUY-{str(row['created_at'])[:10].replace('-','')}-{sel_buy:03d}", "customer_name": row['customer_name'], "person_nr": row['person_nr'], "phone": row['phone'], "device": row['device'], "price": row['payout'], "created_at": str(row['created_at'])[:10]}
                         html = generate_html_document("Kvittens - Enhetsköp (Buyback)", doc_data, COMPANY_INFO)
@@ -820,14 +827,28 @@ elif authentication_status == True:
                         st.success(txt["deleted_success"])
                         st.rerun()
 
-            # 5. Stock Inventory View & Delete
+            # 5. Preorders Archive & Delete
+            st.subheader("📋 Förbeställningar Arkiv (Preorders)")
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
+            if not pre_res.empty:
+                st.dataframe(pre_res, use_container_width=True)
+                col_pre_a, col_pre_b = st.columns([2, 1])
+                with col_pre_a:
+                    sel_pre = st.selectbox("🗑️ Välj Förbeställning ID:", pre_res['id'].tolist(), key="sel_pre_id")
+                with col_pre_b:
+                    if sel_pre and st.button(txt["delete_btn"], key=f"del_pre_{sel_pre}"):
+                        delete_record_by_id("preorders", sel_pre)
+                        st.success(txt["deleted_success"])
+                        st.rerun()
+
+            # 6. Stock Inventory View & Delete
             st.subheader("📦 Lager (Stock)")
             stock_res = pd.read_sql_query("SELECT id, part_name, category, quantity, price, created_at FROM stock WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
             if not stock_res.empty:
                 st.dataframe(stock_res, use_container_width=True)
                 col_st_a, col_st_b = st.columns([2, 1])
                 with col_st_a:
-                    sel_st = st.selectbox("🗑️ Välj Lager ID för radering:", stock_res['id'].tolist(), key="sel_st_id")
+                    sel_st = st.selectbox("🗑️ Välj Lager ID:", stock_res['id'].tolist(), key="sel_st_id")
                 with col_st_b:
                     if sel_st and st.button(txt["delete_btn"], key=f"del_st_{sel_st}"):
                         delete_record_by_id("stock", sel_st)
