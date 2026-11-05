@@ -197,7 +197,6 @@ elif authentication_status == True:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Safe table creation (Preserves all existing data)
         cursor.execute('''CREATE TABLE IF NOT EXISTS repairs (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, customer_name TEXT, phone TEXT, 
@@ -234,7 +233,6 @@ elif authentication_status == True:
                             branch TEXT, part_name TEXT, category TEXT, 
                             quantity INTEGER, price REAL, employee TEXT, created_at TEXT)''')
 
-        # Non-destructive column addition check
         migrations = [
             ("invoices", "invoice_type", "TEXT"),
             ("invoices", "customer_org", "TEXT"),
@@ -259,7 +257,7 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- DOCUMENT GENERATOR ---
+    # --- DOCUMENT GENERATOR (SINGLE A4 PAGE FOR CUSTOMER) ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
@@ -362,36 +360,28 @@ elif authentication_status == True:
             <meta charset="UTF-8">
             <title>{doc_type.upper()} - {uniq_id}</title>
             <style>
-                body {{ font-family: Helvetica, Arial, sans-serif; padding: 20px; color: #222; background: #fff; margin: 0; font-size: 12px; }}
-                .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border-bottom: 1.5px solid #007AFF; padding-bottom: 10px; }}
+                body {{ font-family: Helvetica, Arial, sans-serif; padding: 20px; color: #222; background: #fff; margin: 0; font-size: 13px; }}
+                .page-container {{ max-width: 700px; margin: 0 auto; background: #fff; padding: 20px; }}
+                .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; border-bottom: 2px solid #007AFF; padding-bottom: 12px; }}
                 .header-table td {{ vertical-align: top; }}
-                .logo {{ max-height: 50px; max-width: 150px; margin-bottom: 8px; object-fit: contain; }}
-                .company-title {{ font-size: 16px; font-weight: bold; color: #007AFF; margin: 0; }}
-                .invoice-title {{ font-size: 20px; font-weight: bold; text-align: right; color: #333; margin: 0; }}
-                .meta-box {{ background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #e9ecef; }}
+                .logo {{ max-height: 60px; max-width: 160px; margin-bottom: 8px; object-fit: contain; }}
+                .company-title {{ font-size: 18px; font-weight: bold; color: #007AFF; margin: 0; }}
+                .invoice-title {{ font-size: 22px; font-weight: bold; text-align: right; color: #333; margin: 0; }}
+                .meta-box {{ background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #e9ecef; }}
                 .meta-box table {{ width: 100%; border-collapse: collapse; }}
-                .meta-box td {{ padding: 3px; font-size: 12px; }}
-                .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
-                .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 8px; text-align: left; font-size: 12px; }}
+                .meta-box td {{ padding: 5px; font-size: 13px; }}
+                .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+                .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 10px; text-align: left; font-size: 13px; }}
                 .details-table th {{ background-color: #f1f3f5; color: #333; }}
-                .terms {{ font-size: 9px; color: #666; margin-bottom: 15px; line-height: 1.3; border-left: 3px solid #007AFF; padding-left: 8px; }}
-                .sig-table {{ width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 11px; }}
-                .sig-table td {{ width: 50%; padding: 5px; vertical-align: bottom; }}
-                .copy-tag {{ font-weight: bold; color: #007AFF; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; }}
-                .cut-line {{ border-top: 2px dashed #bbb; margin: 25px 0; position: relative; }}
-                .cut-text {{ position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 10px; font-size: 10px; color: #777; }}
+                .terms {{ font-size: 10px; color: #666; margin-bottom: 25px; line-height: 1.4; border-left: 3px solid #007AFF; padding-left: 10px; }}
+                .sig-table {{ width: 100%; margin-top: 25px; border-collapse: collapse; font-size: 12px; }}
+                .sig-table td {{ width: 50%; padding: 10px; vertical-align: bottom; }}
             </style>
         </head>
         <body>
-            <div class="copy-tag">📱 1. KUNDENS EXEMPLAR (Customer Copy)</div>
-            {single_receipt_content}
-
-            <div class="cut-line">
-                <span class="cut-text">Klipp här / Vik här (Kvitto för Butik & Kund)</span>
+            <div class="page-container">
+                {single_receipt_content}
             </div>
-
-            <div class="copy-tag">📂 2. BUTIKENS EXEMPLAR (Store Archive Copy)</div>
-            {single_receipt_content}
         </body>
         </html>
         """
@@ -413,7 +403,7 @@ elif authentication_status == True:
                 mime="text/html",
                 key=f"download_web_btn_{key_suffix}"
             )
-        st.components.v1.html(html_content, height=650, scrolling=True)
+        st.components.v1.html(html_content, height=750, scrolling=True)
 
     if st.sidebar.button(txt["reset"]):
         if 'active_doc' in st.session_state:
@@ -698,7 +688,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 8: PREORDERS ---
     with tab8:
         st.header(f"📋 {txt['tab_preorder']} ({global_branch})")
         with st.form("preorder_form"):
@@ -733,7 +722,6 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
-    # --- TAB 10: UNIFIED SEARCH & ARCHIVE ---
     with tab10:
         st.header(f"{txt['tab_search']} ({global_branch})")
         if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_')):
@@ -747,7 +735,6 @@ elif authentication_status == True:
             conn = get_db_connection()
             q_like = f"%{search_query}%" if search_query else "%"
 
-            # 1. Invoices Archive
             st.subheader("📄 Företagsfakturor Arkiv")
             inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, customer_org, phone, amount, invoice_type, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR customer_org LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not inv_res.empty:
@@ -767,7 +754,6 @@ elif authentication_status == True:
                         st.success(txt["deleted_success"])
                         st.rerun()
 
-            # 2. Repairs Archive
             st.subheader("🛠️ Reparationer Arkiv")
             rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not rep_res.empty:
@@ -787,7 +773,6 @@ elif authentication_status == True:
                         st.success(txt["deleted_success"])
                         st.rerun()
 
-            # 3. Quotes Archive
             st.subheader("💡 Kostnadsförslag Arkiv")
             quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not quote_res.empty:
@@ -807,7 +792,6 @@ elif authentication_status == True:
                         st.success(txt["deleted_success"])
                         st.rerun()
 
-            # 4. Buyback / Kvittens Archive
             st.subheader("🔄 Uppköp / Kvittens Arkiv (Buyback)")
             buy_res = pd.read_sql_query("SELECT id, customer_name, person_nr, phone, device, payout, created_at FROM buyback WHERE branch = ? AND (customer_name LIKE ? OR person_nr LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not buy_res.empty:
@@ -827,7 +811,6 @@ elif authentication_status == True:
                         st.success(txt["deleted_success"])
                         st.rerun()
 
-            # 5. Preorders Archive & Delete
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
             pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not pre_res.empty:
@@ -841,7 +824,6 @@ elif authentication_status == True:
                         st.success(txt["deleted_success"])
                         st.rerun()
 
-            # 6. Stock Inventory View & Delete
             st.subheader("📦 Lager (Stock)")
             stock_res = pd.read_sql_query("SELECT id, part_name, category, quantity, price, created_at FROM stock WHERE branch = ? AND part_name LIKE ?", conn, params=(global_branch, q_like))
             if not stock_res.empty:
