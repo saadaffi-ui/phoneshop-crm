@@ -871,7 +871,7 @@ elif authentication_status == True:
                     if sel_buy and st.button("📄 Visa / Skriv ut", key=f"btn_buy_{sel_buy}"):
                         row = buy_res[buy_res['id'] == sel_buy].iloc[0]
                         doc_data = {"branch": global_branch, "repair_id": f"BUY-{str(row['created_at'])[:10].replace('-','')}-{sel_buy:03d}", "customer_name": row['customer_name'], "person_nr": row['person_nr'], "phone": row['phone'], "device": row['device'], "price": row['payout'], "created_at": str(row['created_at'])[:10]}
-                        html = generate_html_document("Kvittens - Enhetsköp (Buyback)", buy_data, COMPANY_INFO)
+                        html = generate_html_document("Kvittens - Enhetsköp (Buyback)", doc_data, COMPANY_INFO)
                         st.session_state['active_doc'] = {'html': html, 'filename': f"Kvittens_{sel_buy}.html", 'key': f"search_buy_{sel_buy}"}
                         st.rerun()
                     if sel_buy and st.button(txt["delete_btn"], key=f"del_buy_{sel_buy}"):
@@ -880,7 +880,7 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like))
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
