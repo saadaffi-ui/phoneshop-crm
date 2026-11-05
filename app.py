@@ -257,7 +257,7 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- DOCUMENT GENERATOR (SINGLE A4 PAGE FOR CUSTOMER) ---
+    # --- DOCUMENT GENERATOR (OPTIMIZED TO FIT EXACTLY ONE A4 PAGE) ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
@@ -306,8 +306,8 @@ elif authentication_status == True:
                     <td>
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo" class="logo">
                         <p class="company-title">30 Minutes Phone Fix</p>
-                        <p style="margin: 4px 0; font-size: 13px;"><strong>{branch_info['name']}</strong></p>
-                        <p style="margin: 2px 0; font-size: 11px; color: #555;">
+                        <p style="margin: 2px 0; font-size: 11px;"><strong>{branch_info['name']}</strong></p>
+                        <p style="margin: 1px 0; font-size: 10px; color: #555;">
                             Adress: {branch_info['address']}<br>
                             Org.nr: {branch_info['org_nr']} | Momsreg: {branch_info['moms_reg']}<br>
                             Tel: {branch_info['phone']} | Bankgiro: {branch_info['bankgiro']}
@@ -315,8 +315,8 @@ elif authentication_status == True:
                     </td>
                     <td style="text-align: right;">
                         <p class="invoice-title">{doc_type.upper()}</p>
-                        <p style="margin: 4px 0; font-size: 13px; color: #d9534f;"><strong>ID / Ref:</strong> {uniq_id}</p>
-                        <p style="margin: 2px 0; font-size: 12px;"><strong>Datum:</strong> {data.get('created_at', date.today())}</p>
+                        <p style="margin: 2px 0; font-size: 12px; color: #d9534f;"><strong>ID / Ref:</strong> {uniq_id}</p>
+                        <p style="margin: 1px 0; font-size: 11px;"><strong>Datum:</strong> {data.get('created_at', date.today())}</p>
                     </td>
                 </tr>
             </table>
@@ -360,22 +360,23 @@ elif authentication_status == True:
             <meta charset="UTF-8">
             <title>{doc_type.upper()} - {uniq_id}</title>
             <style>
-                body {{ font-family: Helvetica, Arial, sans-serif; padding: 20px; color: #222; background: #fff; margin: 0; font-size: 13px; }}
-                .page-container {{ max-width: 700px; margin: 0 auto; background: #fff; padding: 20px; }}
-                .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; border-bottom: 2px solid #007AFF; padding-bottom: 12px; }}
+                @page {{ size: A4; margin: 10mm; }}
+                body {{ font-family: Helvetica, Arial, sans-serif; padding: 10px; color: #222; background: #fff; margin: 0; font-size: 11px; line-height: 1.2; }}
+                .page-container {{ max-width: 100%; margin: 0 auto; background: #fff; padding: 5px; }}
+                .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; border-bottom: 2px solid #007AFF; padding-bottom: 8px; }}
                 .header-table td {{ vertical-align: top; }}
-                .logo {{ max-height: 60px; max-width: 160px; margin-bottom: 8px; object-fit: contain; }}
-                .company-title {{ font-size: 18px; font-weight: bold; color: #007AFF; margin: 0; }}
-                .invoice-title {{ font-size: 22px; font-weight: bold; text-align: right; color: #333; margin: 0; }}
-                .meta-box {{ background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #e9ecef; }}
+                .logo {{ max-height: 45px; max-width: 140px; margin-bottom: 4px; object-fit: contain; }}
+                .company-title {{ font-size: 15px; font-weight: bold; color: #007AFF; margin: 0; }}
+                .invoice-title {{ font-size: 18px; font-weight: bold; text-align: right; color: #333; margin: 0; }}
+                .meta-box {{ background: #f8f9fa; padding: 8px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #e9ecef; }}
                 .meta-box table {{ width: 100%; border-collapse: collapse; }}
-                .meta-box td {{ padding: 5px; font-size: 13px; }}
-                .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-                .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 10px; text-align: left; font-size: 13px; }}
+                .meta-box td {{ padding: 3px; font-size: 11px; }}
+                .details-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
+                .details-table th, .details-table td {{ border: 1px solid #dee2e6; padding: 6px; text-align: left; font-size: 11px; }}
                 .details-table th {{ background-color: #f1f3f5; color: #333; }}
-                .terms {{ font-size: 10px; color: #666; margin-bottom: 25px; line-height: 1.4; border-left: 3px solid #007AFF; padding-left: 10px; }}
-                .sig-table {{ width: 100%; margin-top: 25px; border-collapse: collapse; font-size: 12px; }}
-                .sig-table td {{ width: 50%; padding: 10px; vertical-align: bottom; }}
+                .terms {{ font-size: 9px; color: #666; margin-bottom: 10px; line-height: 1.25; border-left: 3px solid #007AFF; padding-left: 6px; }}
+                .sig-table {{ width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 10px; }}
+                .sig-table td {{ width: 50%; padding: 5px; vertical-align: bottom; }}
             </style>
         </head>
         <body>
@@ -404,10 +405,7 @@ elif authentication_status == True:
                 key=f"download_web_btn_{key_suffix}"
             )
         
-        # Display helper instruction for iPhone users
-        st.info("💡 **ملاحظة لمستخدمي الآيفون / iPhone:** اضغط على زر التحميل أعلاه لفتح المستند في صفحة مستقلة، ثم اضغط على زر المشاركة في متصفح سفاري (Share) لاختيار 'طباعة' أو 'حفظ كـ PDF'.")
-        
-        st.components.v1.html(html_content, height=750, scrolling=True)
+        st.components.v1.html(html_content, height=620, scrolling=False)
 
     if st.sidebar.button(txt["reset"]):
         if 'active_doc' in st.session_state:
