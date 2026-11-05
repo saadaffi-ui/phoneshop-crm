@@ -96,7 +96,8 @@ elif authentication_status == True:
             "save": "Spara uppgifter",
             "saved_success": "Sparat framgångsrikt!",
             "delete_btn": "🗑️ Radera post",
-            "deleted_success": "Posten har raderats!"
+            "deleted_success": "Posten har raderats!",
+            "recent_records": "Tidigare sparade poster i detta avsnitt:"
         }
     else:
         txt = {
@@ -143,7 +144,8 @@ elif authentication_status == True:
             "save": "حفظ البيانات",
             "saved_success": "تم الحفظ بنجاح!",
             "delete_btn": "🗑️ حذف السجل",
-            "deleted_success": "تم حذف السجل بنجاح!"
+            "deleted_success": "تم حذف السجل بنجاح!",
+            "recent_records": "السجلات المحفوظة حديثاً في هذا القسم:"
         }
 
     st.sidebar.markdown(f"**{txt['welcome']}:** {name}")
@@ -507,6 +509,14 @@ elif authentication_status == True:
                     st.success(txt["success_repair"])
                     st.rerun()
 
+            st.markdown("---")
+            st.subheader(txt["recent_records"])
+            conn = get_db_connection()
+            rep_df = pd.read_sql_query("SELECT id, customer_name, phone, device, price, created_at FROM repairs WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            conn.close()
+            if not rep_df.empty:
+                st.dataframe(rep_df, use_container_width=True)
+
     with tab3:
         st.header(f"{txt['tab_quote']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('quote_new_'):
@@ -580,6 +590,14 @@ elif authentication_status == True:
                     st.success("Kostnadsförslag har sparats!")
                     st.rerun()
 
+            st.markdown("---")
+            st.subheader(txt["recent_records"])
+            conn = get_db_connection()
+            quo_df = pd.read_sql_query("SELECT id, customer_name, phone, device, total, created_at FROM quotes WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            conn.close()
+            if not quo_df.empty:
+                st.dataframe(quo_df, use_container_width=True)
+
     with tab4:
         st.header(f"{txt['tab_invoice']} ({global_branch})")
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('inv_new_'):
@@ -619,6 +637,14 @@ elif authentication_status == True:
                     st.success(txt["success_inv"])
                     st.rerun()
 
+            st.markdown("---")
+            st.subheader(txt["recent_records"])
+            conn = get_db_connection()
+            inv_df = pd.read_sql_query("SELECT id, invoice_no, customer_name, amount, invoice_type, created_at FROM invoices WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            conn.close()
+            if not inv_df.empty:
+                st.dataframe(inv_df, use_container_width=True)
+
     with tab5:
         st.header(f"📦 {txt['tab_sub']} ({global_branch})")
         with st.form("sub_form"):
@@ -635,6 +661,14 @@ elif authentication_status == True:
                 conn.commit()
                 conn.close()
                 st.success(txt["saved_success"])
+
+        st.markdown("---")
+        st.subheader(txt["recent_records"])
+        conn = get_db_connection()
+        sub_df = pd.read_sql_query("SELECT id, customer_name, phone, plan, price, created_at FROM subscriptions WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+        conn.close()
+        if not sub_df.empty:
+            st.dataframe(sub_df, use_container_width=True)
 
     with tab6:
         st.header(f"{txt['tab_buyback']} ({global_branch})")
@@ -673,6 +707,14 @@ elif authentication_status == True:
                     st.success("Kvittens har sparats framgångsrikt!")
                     st.rerun()
 
+            st.markdown("---")
+            st.subheader(txt["recent_records"])
+            conn = get_db_connection()
+            buy_df = pd.read_sql_query("SELECT id, customer_name, person_nr, device, payout, created_at FROM buyback WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            conn.close()
+            if not buy_df.empty:
+                st.dataframe(buy_df, use_container_width=True)
+
     with tab7:
         st.header(f"🎯 {txt['tab_campaign']} ({global_branch})")
         with st.form("campaign_form"):
@@ -689,6 +731,14 @@ elif authentication_status == True:
                 conn.commit()
                 conn.close()
                 st.success(txt["saved_success"])
+
+        st.markdown("---")
+        st.subheader(txt["recent_records"])
+        conn = get_db_connection()
+        camp_df = pd.read_sql_query("SELECT id, campaign_name, discount, start_date, end_date, created_at FROM campaigns WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+        conn.close()
+        if not camp_df.empty:
+            st.dataframe(camp_df, use_container_width=True)
 
     with tab8:
         st.header(f"📋 {txt['tab_preorder']} ({global_branch})")
@@ -707,6 +757,14 @@ elif authentication_status == True:
                 conn.close()
                 st.success(txt["saved_success"])
 
+        st.markdown("---")
+        st.subheader(txt["recent_records"])
+        conn = get_db_connection()
+        pre_df = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+        conn.close()
+        if not pre_df.empty:
+            st.dataframe(pre_df, use_container_width=True)
+
     with tab9:
         st.header(f"📦 {txt['tab_stock']} ({global_branch})")
         with st.form("stock_form"):
@@ -723,6 +781,14 @@ elif authentication_status == True:
                 conn.commit()
                 conn.close()
                 st.success(txt["saved_success"])
+
+        st.markdown("---")
+        st.subheader(txt["recent_records"])
+        conn = get_db_connection()
+        stock_df = pd.read_sql_query("SELECT id, part_name, category, quantity, price, created_at FROM stock WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+        conn.close()
+        if not stock_df.empty:
+            st.dataframe(stock_df, use_container_width=True)
 
     with tab10:
         st.header(f"{txt['tab_search']} ({global_branch})")
@@ -805,7 +871,7 @@ elif authentication_status == True:
                     if sel_buy and st.button("📄 Visa / Skriv ut", key=f"btn_buy_{sel_buy}"):
                         row = buy_res[buy_res['id'] == sel_buy].iloc[0]
                         doc_data = {"branch": global_branch, "repair_id": f"BUY-{str(row['created_at'])[:10].replace('-','')}-{sel_buy:03d}", "customer_name": row['customer_name'], "person_nr": row['person_nr'], "phone": row['phone'], "device": row['device'], "price": row['payout'], "created_at": str(row['created_at'])[:10]}
-                        html = generate_html_document("Kvittens - Enhetsköp (Buyback)", doc_data, COMPANY_INFO)
+                        html = generate_html_document("Kvittens - Enhetsköp (Buyback)", buy_data, COMPANY_INFO)
                         st.session_state['active_doc'] = {'html': html, 'filename': f"Kvittens_{sel_buy}.html", 'key': f"search_buy_{sel_buy}"}
                         st.rerun()
                     if sel_buy and st.button(txt["delete_btn"], key=f"del_buy_{sel_buy}"):
@@ -814,7 +880,7 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
