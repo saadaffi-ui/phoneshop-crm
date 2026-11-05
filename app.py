@@ -79,6 +79,9 @@ elif authentication_status == True:
             "preview": "Dokumentförhandsgranskning",
             "back_app": "Tillbaka till appen",
             "download_web": "Ladda ner som webbsida",
+            "save_pdf": "📄 Spara som PDF",
+            "save_img": "🖼️ Spara som Bild (JPEG)",
+            "print_dir": "🖨️ Skriv ut direkt",
             "inv_no": "Fakturarummer",
             "total_amt": "Totalt belopp (SEK)",
             "inv_type": "Fakturatyp (B2B)",
@@ -126,6 +129,9 @@ elif authentication_status == True:
             "preview": "معاينة المستند",
             "back_app": "العودة إلى التطبيق",
             "download_web": "تحميل كملف ويب",
+            "save_pdf": "📄 حفظ كملف PDF",
+            "save_img": "🖼️ حفظ كصورة (JPEG)",
+            "print_dir": "🖨️ طباعة مباشرة",
             "inv_no": "رقم الفاتورة",
             "total_amt": "المبلغ الإجمالي (SEK)",
             "inv_type": "نوع الفاتورة (B2B)",
@@ -379,7 +385,7 @@ elif authentication_status == True:
             </style>
         </head>
         <body>
-            <div class="page-container">
+            <div class="page-container" id="printable-area">
                 {single_receipt_content}
             </div>
         </body>
@@ -389,7 +395,10 @@ elif authentication_status == True:
 
     def display_document_preview(html_content, file_name, key_suffix):
         st.markdown(f"### 📄 {txt['preview']}")
-        col_back, col_web = st.columns([1, 1])
+        
+        # 5 Action Buttons Layout
+        col_back, col_web, col_pdf, col_img, col_print = st.columns(5)
+        
         with col_back:
             if st.button(f"🔙 {txt['back_app']}", type="primary", key=f"back_app_btn_{key_suffix}"):
                 if 'active_doc' in st.session_state:
@@ -403,6 +412,30 @@ elif authentication_status == True:
                 mime="text/html",
                 key=f"download_web_btn_{key_suffix}"
             )
+        with col_pdf:
+            st.download_button(
+                label=txt["save_pdf"],
+                data=html_content,
+                file_name=file_name.replace(".html", ".pdf"),
+                mime="application/pdf",
+                key=f"save_pdf_btn_{key_suffix}"
+            )
+        with col_img:
+            st.download_button(
+                label=txt["save_img"],
+                data=html_content,
+                file_name=file_name.replace(".html", ".jpeg"),
+                mime="image/jpeg",
+                key=f"save_img_btn_{key_suffix}"
+            )
+        with col_print:
+            if st.button(txt["print_dir"], key=f"print_btn_{key_suffix}"):
+                st.components.v1.html("""
+                    <script>
+                        window.print();
+                    </script>
+                """, height=0)
+
         st.components.v1.html(html_content, height=750, scrolling=True)
 
     if st.sidebar.button(txt["reset"]):
