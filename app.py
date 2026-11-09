@@ -866,7 +866,6 @@ elif authentication_status == True:
     with tab10:
         st.header(f"📅 {txt['tab_schedule']}")
         
-        # Check active document preview for schedule printing if active
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('sch_print_'):
             display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
         else:
@@ -938,16 +937,14 @@ elif authentication_status == True:
 
             elif schedule_mode.startswith("2️⃣"):
                 st.subheader("🗺️ خريطة حالة الأيام والتنبيهات (Color Map & Alerts)")
-                st.markdown("متابعة الأيام (رمادي = لم تُعَبأ بعد | أصفر = تم تعبئتها واعتمادها بنجاح)")
+                st.markdown("متابعة الأيام: ⬜ رمادي (غير معبأ) | 🟧 برتقالي/أصفر (ممتلئ جزئياً - نصف معبأ) | 🟥 أحمر (ممتلئ بالكامل ومعتمد)")
                 
                 conn = get_db_connection()
-                act_df_check = pd.read_sql_query("SELECT schedule_details FROM schedules WHERE schedule_type = 'Actual'", conn)
+                act_df_check = pd.read_sql_query("SELECT employee_name, schedule_details FROM schedules WHERE schedule_type = 'Actual'", conn)
                 conn.close()
                 
-                filled_dates = set()
-                unfilled_dates = []
-                
-                # Generate all 30 upcoming dates
+                # All 4 employees
+                all_employees = ["Ommar", "Hampik", "Saad", "Luay"]
                 all_30_dates = []
                 for i in range(30):
                     curr_d = today_date + timedelta(days=i)
@@ -956,31 +953,53 @@ elif authentication_status == True:
                     d_str = curr_d.strftime("%Y-%m-%d")
                     all_30_dates.append(f"{swe_w} ({d_str})")
 
+                # Track how many employees are scheduled per date
+                date_employee_count = {d: 0 for d in all_30_dates}
+                
                 if not act_df_check.empty:
                     for _, r in act_df_check.iterrows():
                         try:
                             d_dict = json.loads(r['schedule_details'])
                             for dk, dv in d_dict.items():
-                                if " - " in dv and "Ledig" not in dv:
-                                    filled_dates.add(dk)
+                                if dk in date_employee_count and " - " in dv and "Ledig" not in dv:
+                                    date_employee_count[dk] += 1
                         except: pass
 
-                for lbl in all_30_dates:
-                    if lbl not in filled_dates:
-                        unfilled_dates.append(lbl)
+                unfilled_dates = []
+                partial_dates = []
+                full_dates = []
 
-                # --- MANAGER ALERT IF DAYS ARE NOT FILLED ---
+                for d in all_30_dates:
+                    count = date_employee_count[d]
+                    if count == 0:
+                        unfilled_dates.append(d)
+                    elif 0 < count < len(all_employees):
+                        partial_dates.append(d)
+                    else:
+                        full_dates.append(d)
+
+                # --- MANAGER ALERTS ---
                 if unfilled_dates:
-                    st.warning(f"⚠️ **تنبيه للمدير:** يوجد {len(unfilled_dates)} أيام لم يتم تعبئتها أو اعتمادها بعد في جدول العمل الفعلي! يرجى مراجعتها وتعبئتها لكي لا تنسى.")
-                else:
-                    st.success("🎉 ممتاز! جميع أيام الشهر القادم معبأة ومعتمدة بالكامل.")
+                    st.warning(f"⚠️ **تنبيه للمدير:** يوجد {len(unfilled_dates)} أيام **غير معبأة تماماً (رمادي)**! يرجى مراجعتها وتعبئتها.")
+                if partial_dates:
+                    st.info(f"ℹ️ **تنبيه:** يوجد {len(unfilled_dates) + len(partial_dates)} أيام غير ممتلئة بالكامل (نصف معبأة / برتقالي).")
+                if not unfilled_dates and not partial_dates:
+                    st.success("🎉 ممتاز! جميع أيام الشهر ممتلئة ومعتمدة بالكامل (أحمر).")
 
                 cols_map = st.columns(5)
                 for i, lbl in enumerate(all_30_dates):
-                    is_filled = lbl in filled_dates
-                    bg_color = "#ffeb3b" if is_filled else "#e0e0e0"
-                    text_color = "#000"
-                    status_text = "مُعبأ (Yellow)" if is_filled else "غير معبأ (Gray)"
+                    count = date_employee_count[lbl]
+                    if count == 0:
+                        bg_color = "#e0e0e0" # Grey (Not filled)
+                        status_text = "غير معبأ (Gray)"
+                    elif 0 < count < len(all_employees):
+                        bg_color = "#ff9800" # Orange/Yellow (Half colored)
+                        status_text = f"نصف معبأ ({count}/4)"
+                    else:
+                        bg_color = "#f44336" # Red (Full)
+                        status_text = "ممتلئ (Red)"
+                        
+                    text_color = "#fff" if count > 0 else "#000"
                     
                     with cols_map[i % 5]:
                         st.markdown(f"""
@@ -1015,25 +1034,28 @@ elif authentication_status == True:
                         d_str = curr_d.strftime("%Y-%m-%d")
                         lbl = f"{swe_w} ({d_str})"
                         
-                        is_available = True
+                        # Check if employee is available (MUST put themselves available first)
+                        is_available = False
+                        suggested_time = "10:00 - 20:00"
                         for _, av_row in av_records.iterrows():
                             if av_row['employee_name'] == ac_emp and av_row['branch'] == ac_branch:
                                 try:
                                     av_dict = json.loads(av_row['schedule_details'])
                                     t_val = av_dict.get(lbl, "")
-                                    if "Ledig" in t_val:
-                                        is_available = False
+                                    if " - " in t_val and "Ledig" not in t_val:
+                                        is_available = True
+                                        suggested_time = t_val
                                 except: pass
 
                         if is_available:
                             c1, c2, c3 = st.columns([2, 2, 2])
-                            with c1: st.markdown(f"**{lbl}** ✅ متاح")
+                            with c1: st.markdown(f"**{lbl}** ✅ متاح (مُسجل)")
                             with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
                             with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
                             ac_inputs[lbl] = f"{st_t} - {en_t}"
                         else:
                             ac_inputs[lbl] = "Ledig / Off"
-                            st.markdown(f"<span style='color: gray;'>{lbl} ❌ غير متاح (تم استبعاده تلقائياً لعدم وجود توفر)</span>", unsafe_allow_html=True)
+                            st.markdown(f"<span style='color: gray;'>{lbl} ❌ غير متاح (لم يقم بتسجيل نفسه في الأوقات المتاحة أولاً)</span>", unsafe_allow_html=True)
 
                     if st.form_submit_button("حفظ جدول العمل الفعلي / Spara fast schema"):
                         conn = get_db_connection()
@@ -1069,7 +1091,6 @@ elif authentication_status == True:
                                 st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Fast Arbetstid"]), use_container_width=True)
                                 st.markdown(f"### ⏱️ إجمالي ساعات العمل الفعلية للشهر: **{total_hours:.1f} ساعة / Timmar**")
                                 
-                                # --- PRINT & EXPORT BUTTONS ---
                                 col_p1, col_p2, col_p3 = st.columns(3)
                                 with col_p1:
                                     if st.button("🖨️ معاينة وطباعة الشهر (A4)", key=f"print_month_{row['id']}"):
@@ -1081,7 +1102,6 @@ elif authentication_status == True:
                                         }
                                         st.rerun()
                                 with col_p2:
-                                    # Filter first 7 days for weekly print example
                                     weekly_dict = dict(list(d_dict.items())[:7])
                                     if st.button("🖨️ طباعة أول أسبوع (A4)", key=f"print_week_{row['id']}"):
                                         html_print_w = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], weekly_dict, "VECKOSCHEMA (أسبوعي)")
@@ -1190,7 +1210,7 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
