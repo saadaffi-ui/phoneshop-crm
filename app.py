@@ -5,6 +5,7 @@ import sqlite3
 from datetime import date, timedelta
 import io
 import base64
+import json
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -64,6 +65,7 @@ elif authentication_status == True:
             "tab_campaign": "🎯 Kampanjer",
             "tab_preorder": "📋 Förbeställningar",
             "tab_stock": "📦 Lagerhantering",
+            "tab_schedule": "📅 Arbetsschema (Månad)",
             "tab_search": "🔍 Sök & Arkiv",
             "reset": "🔄 Återställ session",
             "comp_name": "Företagsnamn / Kund",
@@ -112,6 +114,7 @@ elif authentication_status == True:
             "tab_campaign": "🎯 الحملات",
             "tab_preorder": "📋 الطلبات المسبقة",
             "tab_stock": "📦 المخزون",
+            "tab_schedule": "📅 جدول أوقات العمل (شهري)",
             "tab_search": "🔍 البحث والأرشيف",
             "reset": "🔄 إعادة ضبط العرض",
             "comp_name": "اسم العميل / البائع",
@@ -234,6 +237,10 @@ elif authentication_status == True:
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, part_name TEXT, category TEXT, 
                             quantity INTEGER, price REAL, employee TEXT, created_at TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS schedules (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            branch TEXT, employee_name TEXT, month_year TEXT, 
+                            schedule_details TEXT, created_at TEXT)''')
 
         migrations = [
             ("invoices", "invoice_type", "TEXT"),
@@ -414,9 +421,9 @@ elif authentication_status == True:
             del st.session_state['active_doc']
         st.rerun()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         txt["tab_dash"], txt["tab_repair"], txt["tab_quote"], txt["tab_invoice"], 
-        txt["tab_sub"], txt["tab_buyback"], txt["tab_campaign"], txt["tab_preorder"], txt["tab_stock"], txt["tab_search"]
+        txt["tab_sub"], txt["tab_buyback"], txt["tab_campaign"], txt["tab_preorder"], txt["tab_stock"], txt["tab_schedule"], txt["tab_search"]
     ])
 
     with tab1:
@@ -791,6 +798,86 @@ elif authentication_status == True:
             st.dataframe(stock_df, use_container_width=True)
 
     with tab10:
+        st.header(f"📅 {txt['tab_schedule']}")
+        st.markdown("اختر اسم الموظف (Ommar, Hampik, Saad, Luay)، الفرع، وأوقات العمل للشهر الحالي (مع حساب مجموع ساعات العمل تلقائياً).")
+        
+        with st.form("schedule_form"):
+            col_s1, col_s2, col_s3 = st.columns(3)
+            with col_s1:
+                sch_emp = st.selectbox("اسم الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"])
+            with col_s2:
+                sch_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="sch_branch_select")
+            with col_s3:
+                sch_month = st.text_input("الشهر والسنة / Månad & År", value=date.today().strftime("%B %Y"))
+            
+            days_in_month = 30
+            day_inputs = {}
+            
+            st.markdown("### جدول أوقات الدوام اليومية (البداية والنهاية أو عطلة)")
+            
+            for d in range(1, days_in_month + 1):
+                col_d1, col_d2, col_d3 = st.columns([1, 2, 2])
+                with col_d1:
+                    st.markdown(f"**Dag {d}**")
+                with col_d2:
+                    start_t = st.selectbox(f"Start {d}", ["10:00", "Ledig / Off", "09:00", "12:00"], key=f"start_{d}", label_visibility="collapsed")
+                with col_d3:
+                    end_t = st.selectbox(f"End {d}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"end_{d}", label_visibility="collapsed")
+                day_inputs[f"Dag {d}"] = f"{start_t} - {end_t}"
+
+            sch_sub = st.form_submit_button("حفظ جدول العمل / Spara schema")
+            if sch_sub:
+                schedule_json = json.dumps(day_inputs)
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_details, created_at) VALUES (?, ?, ?, ?, ?)",
+                               (sch_branch, sch_emp, sch_month, schedule_json, str(date.today())))
+                conn.commit()
+                conn.close()
+                st.success("تم حفظ جدول أوقات العمل بنجاح!")
+                st.rerun()
+
+        st.markdown("---")
+        st.subheader(txt["recent_records"])
+        conn = get_db_connection()
+        sch_df = pd.read_sql_query("SELECT id, employee_name, branch, month_year, schedule_details, created_at FROM schedules ORDER BY id DESC LIMIT 5", conn)
+        conn.close()
+        
+        if not sch_df.empty:
+            for idx, row in sch_df.iterrows():
+                with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ الحفظ: {row['created_at']})"):
+                    try:
+                        details_dict = json.loads(row['schedule_details'])
+                        
+                        # Calculate total hours
+                        total_hours = 0.0
+                        for day_key, val in details_dict.items():
+                            if " - " in val and "Ledig" not in val:
+                                parts = val.split(" - ")
+                                try:
+                                    st_h, st_m = map(int, parts[0].split(":"))
+                                    en_h, en_m = map(int, parts[1].split(":"))
+                                    hours = (en_h + en_m/60.0) - (st_h + st_m/60.0)
+                                    if hours > 0:
+                                        total_hours += hours
+                                except:
+                                    pass
+
+                        sched_df_view = pd.DataFrame(list(details_dict.items()), columns=["Dag", "Arbetstid"])
+                        st.dataframe(sched_df_view, use_container_width=True)
+                        
+                        # Display total hours summary under each schedule table
+                        st.markdown(f"### ⏱️ إجمالي ساعات العمل للشهر: **{total_hours:.1f} ساعة / Timmar**")
+
+                    except Exception as e:
+                        st.write(row['schedule_details'])
+                    
+                    if st.button("🗑️ حذف هذا الجدول", key=f"del_sch_{row['id']}"):
+                        delete_record_by_id("schedules", row['id'])
+                        st.success("تم حذف جدول العمل بنجاح!")
+                        st.rerun()
+
+    with tab11:
         st.header(f"{txt['tab_search']} ({global_branch})")
         if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_')):
             doc_info = st.session_state['active_doc']
