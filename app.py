@@ -943,7 +943,6 @@ elif authentication_status == True:
                 act_df_check = pd.read_sql_query("SELECT employee_name, schedule_details FROM schedules WHERE schedule_type = 'Actual'", conn)
                 conn.close()
                 
-                # All 4 employees
                 all_employees = ["Ommar", "Hampik", "Saad", "Luay"]
                 all_30_dates = []
                 for i in range(30):
@@ -953,7 +952,6 @@ elif authentication_status == True:
                     d_str = curr_d.strftime("%Y-%m-%d")
                     all_30_dates.append(f"{swe_w} ({d_str})")
 
-                # Track how many employees are scheduled per date
                 date_employee_count = {d: 0 for d in all_30_dates}
                 
                 if not act_df_check.empty:
@@ -978,11 +976,10 @@ elif authentication_status == True:
                     else:
                         full_dates.append(d)
 
-                # --- MANAGER ALERTS ---
                 if unfilled_dates:
                     st.warning(f"⚠️ **تنبيه للمدير:** يوجد {len(unfilled_dates)} أيام **غير معبأة تماماً (رمادي)**! يرجى مراجعتها وتعبئتها.")
                 if partial_dates:
-                    st.info(f"ℹ️ **تنبيه:** يوجد {len(unfilled_dates) + len(partial_dates)} أيام غير ممتلئة بالكامل (نصف معبأة / برتقالي).")
+                    st.info(f"ℹ️ **تنبيه:** يوجد {len(partial_dates)} أيام غير ممتلئة بالكامل (نصف معبأة / برتقالي).")
                 if not unfilled_dates and not partial_dates:
                     st.success("🎉 ممتاز! جميع أيام الشهر ممتلئة ومعتمدة بالكامل (أحمر).")
 
@@ -990,13 +987,13 @@ elif authentication_status == True:
                 for i, lbl in enumerate(all_30_dates):
                     count = date_employee_count[lbl]
                     if count == 0:
-                        bg_color = "#e0e0e0" # Grey (Not filled)
+                        bg_color = "#e0e0e0"
                         status_text = "غير معبأ (Gray)"
                     elif 0 < count < len(all_employees):
-                        bg_color = "#ff9800" # Orange/Yellow (Half colored)
+                        bg_color = "#ff9800"
                         status_text = f"نصف معبأ ({count}/4)"
                     else:
-                        bg_color = "#f44336" # Red (Full)
+                        bg_color = "#f44336"
                         status_text = "ممتلئ (Red)"
                         
                     text_color = "#fff" if count > 0 else "#000"
@@ -1034,7 +1031,6 @@ elif authentication_status == True:
                         d_str = curr_d.strftime("%Y-%m-%d")
                         lbl = f"{swe_w} ({d_str})"
                         
-                        # Check if employee is available (MUST put themselves available first)
                         is_available = False
                         suggested_time = "10:00 - 20:00"
                         for _, av_row in av_records.iterrows():
@@ -1210,7 +1206,7 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like))
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
