@@ -883,6 +883,25 @@ elif authentication_status == True:
 
             if schedule_mode.startswith("1️⃣"):
                 st.subheader("إدخال الأوقات المتاحة للموظف (ما يمكنه عمله)")
+                
+                # --- QUICK FILL OPTION FOR REGULAR WORKING HOURS ---
+                st.markdown("⚡ **تعبئة سريعة للأوقات المنتظمة (Quick Fill All Days):**")
+                col_qfill1, col_qfill2, col_qfill3 = st.columns([2, 2, 3])
+                with col_qfill1:
+                    q_start = st.selectbox("وقت البداية المنتظم / Start", ["10:00", "09:00", "12:00", "18:00", "Ledig / Off"], key="q_start_val")
+                with col_qfill2:
+                    q_end = st.selectbox("وقت النهاية المنتظم / End", ["20:00", "18:00", "16:00", "Ledig / Off"], key="q_end_val")
+                with col_qfill3:
+                    st.write("") # Spacer
+                    st.write("")
+                    if st.button("⚡ تطبيق هذا الوقت على جميع الأيام / Apply to All Days"):
+                        for i in range(30):
+                            st.session_state[f"av_st_{i}"] = q_start
+                            st.session_state[f"av_en_{i}"] = q_end
+                        st.success("تم تطبيق الوقت المنتظم على جميع الأيام! يمكنك تعديل الأيام الخاصة أدناه قبل الحفظ.")
+                
+                st.markdown("---")
+
                 with st.form("availability_form"):
                     col_a1, col_a2, col_a3 = st.columns(3)
                     with col_a1:
@@ -903,7 +922,7 @@ elif authentication_status == True:
                         
                         c1, c2, c3 = st.columns([2, 2, 2])
                         with c1: st.markdown(f"**{lbl}**")
-                        with c2: st_t = st.selectbox(f"AvStart {i}", ["10:00", "Ledig / Off", "09:00", "12:00"], key=f"av_st_{i}", label_visibility="collapsed")
+                        with c2: st_t = st.selectbox(f"AvStart {i}", ["10:00", "Ledig / Off", "09:00", "12:00", "18:00"], key=f"av_st_{i}", label_visibility="collapsed")
                         with c3: en_t = st.selectbox(f"AvEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"av_en_{i}", label_visibility="collapsed")
                         av_inputs[lbl] = f"{st_t} - {en_t}"
 
@@ -1031,11 +1050,9 @@ elif authentication_status == True:
                         d_str = curr_d.strftime("%Y-%m-%d")
                         lbl = f"{swe_w} ({d_str})"
                         
-                        # --- SMART FLEXIBLE MATCHING BY DATE ONLY (YYYY-MM-DD) ---
                         is_available = False
                         suggested_time = "10:00 - 20:00"
                         for _, av_row in av_records.iterrows():
-                            # Check match by name ignoring case & branch
                             if av_row['employee_name'].strip().lower() == ac_emp.strip().lower() and av_row['branch'] == ac_branch:
                                 try:
                                     av_dict = json.loads(av_row['schedule_details'])
@@ -1049,7 +1066,7 @@ elif authentication_status == True:
                         if is_available:
                             c1, c2, c3 = st.columns([2, 2, 2])
                             with c1: st.markdown(f"**{lbl}** ✅ متاح ({suggested_time})")
-                            with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
+                            with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "18:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
                             with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
                             ac_inputs[lbl] = f"{st_t} - {en_t}"
                         else:
