@@ -267,7 +267,7 @@ elif authentication_status == True:
         except:
             return str(val)
 
-    # --- DOCUMENT GENERATOR (OPTIMIZED TO FIT EXACTLY ONE A4 PAGE) ---
+    # --- DOCUMENT GENERATOR ---
     def generate_html_document(doc_type, data, company_info):
         branch_info = company_info.get(data['branch'], company_info["Eskilstuna"])
         raw_amount = data.get('price', data.get('amount', data.get('total', data.get('payout', data.get('deposit', 0)))))
@@ -398,7 +398,7 @@ elif authentication_status == True:
         """
         return html_content
 
-    # --- SCHEDULE PRINT DOCUMENT GENERATOR (A4 PRINTABLE) ---
+    # --- SCHEDULE PRINT DOCUMENT GENERATOR ---
     def generate_schedule_print_html(emp_name, branch, month_year, schedule_data, title_prefix):
         branch_info = COMPANY_INFO.get(branch, COMPANY_INFO["Eskilstuna"])
         rows_html = "".join([f"<tr><td>{k}</td><td style='text-align: right;'>{v}</td></tr>" for k, v in schedule_data.items()])
@@ -1031,21 +1031,24 @@ elif authentication_status == True:
                         d_str = curr_d.strftime("%Y-%m-%d")
                         lbl = f"{swe_w} ({d_str})"
                         
+                        # --- SMART FLEXIBLE MATCHING BY DATE ONLY (YYYY-MM-DD) ---
                         is_available = False
                         suggested_time = "10:00 - 20:00"
                         for _, av_row in av_records.iterrows():
-                            if av_row['employee_name'] == ac_emp and av_row['branch'] == ac_branch:
+                            # Check match by name ignoring case & branch
+                            if av_row['employee_name'].strip().lower() == ac_emp.strip().lower() and av_row['branch'] == ac_branch:
                                 try:
                                     av_dict = json.loads(av_row['schedule_details'])
-                                    t_val = av_dict.get(lbl, "")
-                                    if " - " in t_val and "Ledig" not in t_val:
-                                        is_available = True
-                                        suggested_time = t_val
-                                except: pass
+                                    for key_date, t_val in av_dict.items():
+                                        if d_str in key_date and " - " in t_val and "Ledig" not in t_val:
+                                            is_available = True
+                                            suggested_time = t_val
+                                            break
+                                except Exception: pass
 
                         if is_available:
                             c1, c2, c3 = st.columns([2, 2, 2])
-                            with c1: st.markdown(f"**{lbl}** ✅ متاح (مُسجل)")
+                            with c1: st.markdown(f"**{lbl}** ✅ متاح ({suggested_time})")
                             with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
                             with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
                             ac_inputs[lbl] = f"{st_t} - {en_t}"
@@ -1213,7 +1216,7 @@ elif authentication_status == True:
                 with col_pre_a:
                     sel_pre = st.selectbox("🗑️ Välj Förbeställning ID:", pre_res['id'].tolist(), key="sel_pre_id")
                 with col_pre_b:
-                    if sel_pre and st.button(txt["delete_btn"], key=f"del_pre_{sel_pre}"):
+                    if sel_pre and st.button("🗑️ حذف السجل", key=f"del_pre_{sel_pre}"):
                         delete_record_by_id("preorders", sel_pre)
                         st.success(txt["deleted_success"])
                         st.rerun()
