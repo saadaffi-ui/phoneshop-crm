@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- AUTHENTICATION SETUP (TUNAPARK LOGIN) ---
+# --- AUTHENTICATION SETUP (STABLE SESSION) ---
 credentials = {
     'usernames': {
         'tunapark': {
@@ -27,9 +27,9 @@ credentials = {
 
 authenticator = stauth.Authenticate(
     credentials,
-    cookie_name='tunapark_crm_cookie',
-    key='tunapark_signature_key',
-    cookie_expiry_days=30
+    cookie_name='tunapark_crm_secure_cookie',
+    key='tunapark_signature_key_secure',
+    cookie_expiry_days=30  # بقاء الجلسة نشطة لمدة 30 يوماً لمنع تسجيل الخروج المتكرر
 )
 
 try:
@@ -936,7 +936,7 @@ elif authentication_status == True:
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader("الأوقات المتاحة المحفوظة للموظفين (مع زر الحذف لكل سجل خاطئ):")
+                st.subheader("الأوقات المتاحة المحفوظة للموظفين (مع زر الحذف الفوري لكل سجل خاطئ):")
                 conn = get_db_connection()
                 av_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
@@ -953,16 +953,17 @@ elif authentication_status == True:
                                 st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Möjlig tid"]), use_container_width=True)
                             except:
                                 st.write(row['schedule_details'])
-                            if st.button("🗑️ حذف هذا السجل الخاطئ", key=f"del_av_exact_{row['id']}"):
+                            if st.button("🗑️ حذف هذا السجل نهائياً", key=f"del_av_exact_{row['id']}"):
                                 delete_record_by_id("schedules", row['id'])
-                                st.success("تم حذف السجل بنجاح!")
+                                st.success("تم حذف السجل وتحديث النظام بنجاح!")
                                 st.rerun()
 
             elif schedule_mode.startswith("2️⃣"):
                 st.subheader("🗺️ خريطة حالة الأيام والتنبيهات (Color Map & Details)")
-                st.markdown("متابعة الأيام بأسماء الموظفين: 🟥 أحمر (ممتلئ تماماً بجميع الموظفين) | 🟧 برتقالي (ممتلئ جزئياً / بعض الموظفين) | ⬜ رمادي (غير معبأ)")
+                st.markdown("متابعة الأيام بأسماء الموظفين (تتزامن فوريًا مع الجداول الفعلية المعتمدة): 🟥 أحمر (ممتلئ تماماً بجميع الموظفين 4/4) | 🟧 برتقالي (ممتلئ جزئياً) | ⬜ رمادي (غير معبأ)")
                 
                 conn = get_db_connection()
+                # جلب أحدث جدول عمل فعلي معتمد لكل موظف لضمان التزامن التام والتحديث الفوري عند الحذف
                 act_records = pd.read_sql_query("""
                     SELECT employee_name, branch, schedule_details 
                     FROM schedules 
@@ -1009,7 +1010,7 @@ elif authentication_status == True:
                     else:
                         bg_color = "#f44336"
                         text_color = "#fff"
-                        status_title = "🟥 ممتلئ بالكامل (Red)"
+                        status_title = "🟥 ممتلئ بالكامل (4/4)"
 
                     emp_names_str = "<br>".join([f"• {e}" for e in emp_list]) if emp_list else "لا يوجد موظفين مسجلين"
 
@@ -1236,7 +1237,6 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            # [تم تصحيح بارامترات الاستعلام هنا لمنع خطأ الـ ProgrammingError]
             pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
@@ -1255,7 +1255,7 @@ elif authentication_status == True:
                 st.dataframe(stock_res, use_container_width=True)
                 col_st_a, col_st_b = st.columns([2, 1])
                 with col_st_a:
-                    sel_st = st.selectbox("🗑️ Välj Lager ID:", stock_res['id'].tolist(), key="sel_st_id")
+                    sel_st = st.selectbox("🗑️ Lager ID:", stock_res['id'].tolist(), key="sel_st_id")
                 with col_st_b:
                     if sel_st and st.button(txt["delete_btn"], key=f"del_st_{sel_st}"):
                         delete_record_by_id("stock", sel_st)
