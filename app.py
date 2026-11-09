@@ -981,7 +981,6 @@ elif authentication_status == True:
                     d_str = curr_d.strftime("%Y-%m-%d")
                     all_30_dates.append(f"{swe_w} ({d_str})")
 
-                # جمع بيانات الموظفين لكل يوم
                 day_employees_map = {d: [] for d in all_30_dates}
                 
                 if not act_records.empty:
@@ -1237,7 +1236,8 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like))
+            # [تم تصحيح بارامترات الاستعلام هنا لمنع خطأ الـ ProgrammingError]
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
