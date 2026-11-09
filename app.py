@@ -398,6 +398,71 @@ elif authentication_status == True:
         """
         return html_content
 
+    # --- SCHEDULE PRINT DOCUMENT GENERATOR (A4 PRINTABLE) ---
+    def generate_schedule_print_html(emp_name, branch, month_year, schedule_data, title_prefix):
+        branch_info = COMPANY_INFO.get(branch, COMPANY_INFO["Eskilstuna"])
+        rows_html = "".join([f"<tr><td>{k}</td><td style='text-align: right;'>{v}</td></tr>" for k, v in schedule_data.items()])
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="sv">
+        <head>
+            <meta charset="UTF-8">
+            <title>Arbetsschema - {emp_name}</title>
+            <style>
+                @page {{ size: A4; margin: 15mm; }}
+                body {{ font-family: Helvetica, Arial, sans-serif; color: #222; background: #fff; margin: 0; font-size: 12px; line-height: 1.4; }}
+                .container {{ max-width: 100%; margin: 0 auto; }}
+                .header {{ border-bottom: 2px solid #007AFF; padding-bottom: 10px; margin-bottom: 20px; width: 100%; }}
+                .header table {{ width: 100%; border-collapse: collapse; }}
+                .title {{ font-size: 20px; font-weight: bold; color: #007AFF; margin: 0; }}
+                .sub-title {{ font-size: 14px; font-weight: bold; color: #333; margin: 5px 0; }}
+                .table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+                .table th, .table td {{ border: 1px solid #dee2e6; padding: 8px 12px; font-size: 12px; text-align: left; }}
+                .table th {{ background-color: #f1f3f5; color: #333; }}
+                .footer {{ margin-top: 30px; font-size: 11px; text-align: center; color: #666; border-top: 1px solid #ddd; padding-top: 10px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <table>
+                        <tr>
+                            <td>
+                                <p class="title">30 Minutes Phone Fix</p>
+                                <p style="margin: 2px 0;"><strong>{branch_info['name']}</strong></p>
+                                <p style="margin: 0; color: #555;">Org.nr: {branch_info['org_nr']} | Tel: {branch_info['phone']}</p>
+                            </td>
+                            <td style="text-align: right;">
+                                <p class="sub-title">{title_prefix}</p>
+                                <p style="margin: 2px 0;"><strong>Anställd / الموظف:</strong> {emp_name}</p>
+                                <p style="margin: 0;"><strong>Månad / الشهر:</strong> {month_year}</p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Datum & Dag (التاريخ واليوم)</th>
+                            <th style="text-align: right;">Arbetstid (وقت العمل)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows_html}
+                    </tbody>
+                </table>
+
+                <div class="footer">
+                    <p>30 Minutes Phone Fix - Arbetsschema &bull; Utskriftsdatum: {date.today()}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html_content
+
     def display_document_preview(html_content, file_name, key_suffix):
         st.markdown(f"### 📄 {txt['preview']}")
         col_back, col_web = st.columns([1, 1])
@@ -801,183 +866,243 @@ elif authentication_status == True:
     with tab10:
         st.header(f"📅 {txt['tab_schedule']}")
         
-        schedule_mode = st.radio("اختر القسم / Välj sektion", [
-            "1️⃣ الأوقات المتاحة للموظفين (Availability)", 
-            "2️⃣ جدول العمل الفعلي المعتمد للمدير (Actual Schedule)",
-            "3️⃣ من يستطيع العمل في هذا اليوم؟ (Daily Working Staff)"
-        ])
-        
-        swedish_days = {
-            "Monday": "Måndag", "Tuesday": "Tisdag", "Wednesday": "Onsdag",
-            "Thursday": "Torsdag", "Friday": "Fredag", "Saturday": "Lördag", "Sunday": "Söndag"
-        }
-        today_date = date.today()
-
-        if schedule_mode.startswith("1️⃣"):
-            st.subheader("إدخال الأوقات المتاحة للموظف (ما يمكنه عمله)")
-            with st.form("availability_form"):
-                col_a1, col_a2, col_a3 = st.columns(3)
-                with col_a1:
-                    av_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="av_emp")
-                with col_a2:
-                    av_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="av_branch")
-                with col_a3:
-                    av_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="av_month")
-                
-                av_inputs = {}
-                st.markdown("### الأوقات المتاحة لكل يوم:")
-                for i in range(30):
-                    curr_d = today_date + timedelta(days=i)
-                    eng_w = curr_d.strftime("%A")
-                    swe_w = swedish_days.get(eng_w, eng_w)
-                    d_str = curr_d.strftime("%Y-%m-%d")
-                    lbl = f"{swe_w} ({d_str})"
-                    
-                    c1, c2, c3 = st.columns([2, 2, 2])
-                    with c1: st.markdown(f"**{lbl}**")
-                    with c2: st_t = st.selectbox(f"AvStart {i}", ["10:00", "Ledig / Off", "09:00", "12:00"], key=f"av_st_{i}", label_visibility="collapsed")
-                    with c3: en_t = st.selectbox(f"AvEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"av_en_{i}", label_visibility="collapsed")
-                    av_inputs[lbl] = f"{st_t} - {en_t}"
-
-                if st.form_submit_button("حفظ الأوقات المتاحة / Spara tillgänglighet"):
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                   (av_branch, av_emp, av_month, "Availability", json.dumps(av_inputs), str(today_date)))
-                    conn.commit()
-                    conn.close()
-                    st.success("تم حفظ أوقات الموظف بنجاح!")
-                    st.rerun()
-
-            st.markdown("---")
-            st.subheader("الأوقات المتاحة المحفوظة للموظفين:")
-            conn = get_db_connection()
-            av_df = pd.read_sql_query("SELECT id, employee_name, branch, month_year, schedule_details, created_at FROM schedules WHERE schedule_type = 'Availability' ORDER BY id DESC", conn)
-            conn.close()
-            if not av_df.empty:
-                for idx, row in av_df.iterrows():
-                    with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']})"):
-                        try:
-                            d_dict = json.loads(row['schedule_details'])
-                            st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Möjlig tid"]), use_container_width=True)
-                        except:
-                            st.write(row['schedule_details'])
-                        if st.button("🗑️ حذف", key=f"del_av_{row['id']}"):
-                            delete_record_by_id("schedules", row['id'])
-                            st.success("تم الحذف بنجاح!")
-                            st.rerun()
-
-        elif schedule_mode.startswith("2️⃣"):
-            st.subheader("جدول العمل الفعلي المعتمد (الذي يعدله المدير)")
-            with st.form("actual_schedule_form"):
-                col_ac1, col_ac2, col_ac3 = st.columns(3)
-                with col_ac1:
-                    ac_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="ac_emp")
-                with col_ac2:
-                    ac_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="ac_branch")
-                with col_ac3:
-                    ac_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="ac_month")
-                
-                ac_inputs = {}
-                st.markdown("### جدول العمل الفعلي المعتمد:")
-                for i in range(30):
-                    curr_d = today_date + timedelta(days=i)
-                    eng_w = curr_d.strftime("%A")
-                    swe_w = swedish_days.get(eng_w, eng_w)
-                    d_str = curr_d.strftime("%Y-%m-%d")
-                    lbl = f"{swe_w} ({d_str})"
-                    
-                    c1, c2, c3 = st.columns([2, 2, 2])
-                    with c1: st.markdown(f"**{lbl}**")
-                    with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "Ledig / Off", "09:00", "12:00"], key=f"ac_st_{i}", label_visibility="collapsed")
-                    with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
-                    ac_inputs[lbl] = f"{st_t} - {en_t}"
-
-                if st.form_submit_button("حفظ جدول العمل الفعلي / Spara fast schema"):
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                   (ac_branch, ac_emp, ac_month, "Actual", json.dumps(ac_inputs), str(today_date)))
-                    conn.commit()
-                    conn.close()
-                    st.success("تم حفظ جدول العمل الفعلي المعتمد بنجاح!")
-                    st.rerun()
-
-            st.markdown("---")
-            st.subheader("جداول العمل الفعلي المعتمدة المحفوظة:")
-            conn = get_db_connection()
-            ac_df = pd.read_sql_query("SELECT id, employee_name, branch, month_year, schedule_details, created_at FROM schedules WHERE schedule_type = 'Actual' OR schedule_type IS NULL ORDER BY id DESC", conn)
-            conn.close()
-            if not ac_df.empty:
-                for idx, row in ac_df.iterrows():
-                    with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']})"):
-                        try:
-                            d_dict = json.loads(row['schedule_details'])
-                            total_hours = 0.0
-                            for day_key, val in d_dict.items():
-                                if " - " in val and "Ledig" not in val:
-                                    parts = val.split(" - ")
-                                    try:
-                                        st_h, st_m = map(int, parts[0].split(":"))
-                                        en_h, en_m = map(int, parts[1].split(":"))
-                                        hrs = (en_h + en_m/60.0) - (st_h + st_m/60.0)
-                                        if hrs > 0: total_hours += hrs
-                                    except: pass
-
-                            st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Fast Arbetstid"]), use_container_width=True)
-                            st.markdown(f"### ⏱️ إجمالي ساعات العمل الفعلية للشهر: **{total_hours:.1f} ساعة / Timmar**")
-                        except:
-                            st.write(row['schedule_details'])
-                        if st.button("🗑️ حذف", key=f"del_ac_{row['id']}"):
-                            delete_record_by_id("schedules", row['id'])
-                            st.success("تم الحذف بنجاح!")
-                            st.rerun()
-
+        # Check active document preview for schedule printing if active
+        if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('sch_print_'):
+            display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
         else:
-            st.subheader("🔍 من يستطيع العمل في يوم معين؟ (عرض الموظفين المتاحين فقط)")
-            conn = get_db_connection()
-            schedules_res = pd.read_sql_query("SELECT employee_name, branch, schedule_details FROM schedules WHERE schedule_type = 'Actual' OR schedule_type IS NULL", conn)
-            conn.close()
+            schedule_mode = st.radio("اختر القسم / Välj sektion", [
+                "1️⃣ الأوقات المتاحة للموظفين (Availability)", 
+                "2️⃣ خريطة حالة الأيام والتنبيهات (Color Map & Alerts)",
+                "3️⃣ جدول العمل الفعلي المعتمد للمدير (Actual Schedule)"
+            ])
+            
+            swedish_days = {
+                "Monday": "Måndag", "Tuesday": "Tisdag", "Wednesday": "Onsdag",
+                "Thursday": "Torsdag", "Friday": "Fredag", "Saturday": "Lördag", "Sunday": "Söndag"
+            }
+            today_date = date.today()
 
-            if schedules_res.empty:
-                st.warning("لا توجد جداول عمل فعلية محفوظة بعد. يرجى إدخال جدول العمل الفعلي أولاً من القسم الثاني.")
-            else:
-                # Get unique dates from the first available record
-                try:
-                    first_details = json.loads(schedules_res.iloc[0]['schedule_details'])
-                    available_dates = list(first_details.keys())
-                except:
-                    available_dates = []
-
-                if available_dates:
-                    selected_date = st.selectbox("اختر التاريخ / Välj Datum", available_dates)
+            if schedule_mode.startswith("1️⃣"):
+                st.subheader("إدخال الأوقات المتاحة للموظف (ما يمكنه عمله)")
+                with st.form("availability_form"):
+                    col_a1, col_a2, col_a3 = st.columns(3)
+                    with col_a1:
+                        av_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="av_emp")
+                    with col_a2:
+                        av_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="av_branch")
+                    with col_a3:
+                        av_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="av_month")
                     
-                    st.markdown(f"### الموظفون المتاحون للعمل في تاريخ: **{selected_date}**")
-                    working_staff = []
+                    av_inputs = {}
+                    st.markdown("### الأوقات المتاحة لكل يوم:")
+                    for i in range(30):
+                        curr_d = today_date + timedelta(days=i)
+                        eng_w = curr_d.strftime("%A")
+                        swe_w = swedish_days.get(eng_w, eng_w)
+                        d_str = curr_d.strftime("%Y-%m-%d")
+                        lbl = f"{swe_w} ({d_str})"
+                        
+                        c1, c2, c3 = st.columns([2, 2, 2])
+                        with c1: st.markdown(f"**{lbl}**")
+                        with c2: st_t = st.selectbox(f"AvStart {i}", ["10:00", "Ledig / Off", "09:00", "12:00"], key=f"av_st_{i}", label_visibility="collapsed")
+                        with c3: en_t = st.selectbox(f"AvEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"av_en_{i}", label_visibility="collapsed")
+                        av_inputs[lbl] = f"{st_t} - {en_t}"
 
-                    for idx, row in schedules_res.iterrows():
-                        emp = row['employee_name']
-                        br = row['branch']
+                    if st.form_submit_button("حفظ الأوقات المتاحة / Spara tillgänglighet"):
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                       (av_branch, av_emp, av_month, "Availability", json.dumps(av_inputs), str(today_date)))
+                        conn.commit()
+                        conn.close()
+                        st.success("تم حفظ أوقات الموظف بنجاح!")
+                        st.rerun()
+
+                st.markdown("---")
+                st.subheader("الأوقات المتاحة المحفوظة للموظفين:")
+                conn = get_db_connection()
+                av_df = pd.read_sql_query("SELECT id, employee_name, branch, month_year, schedule_details, created_at FROM schedules WHERE schedule_type = 'Availability' ORDER BY id DESC", conn)
+                conn.close()
+                if not av_df.empty:
+                    for idx, row in av_df.iterrows():
+                        with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']})"):
+                            try:
+                                d_dict = json.loads(row['schedule_details'])
+                                st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Möjlig tid"]), use_container_width=True)
+                            except:
+                                st.write(row['schedule_details'])
+                            if st.button("🗑️ حذف", key=f"del_av_{row['id']}"):
+                                delete_record_by_id("schedules", row['id'])
+                                st.success("تم الحذف بنجاح!")
+                                st.rerun()
+
+            elif schedule_mode.startswith("2️⃣"):
+                st.subheader("🗺️ خريطة حالة الأيام والتنبيهات (Color Map & Alerts)")
+                st.markdown("متابعة الأيام (رمادي = لم تُعَبأ بعد | أصفر = تم تعبئتها واعتمادها بنجاح)")
+                
+                conn = get_db_connection()
+                act_df_check = pd.read_sql_query("SELECT schedule_details FROM schedules WHERE schedule_type = 'Actual'", conn)
+                conn.close()
+                
+                filled_dates = set()
+                unfilled_dates = []
+                
+                # Generate all 30 upcoming dates
+                all_30_dates = []
+                for i in range(30):
+                    curr_d = today_date + timedelta(days=i)
+                    eng_w = curr_d.strftime("%A")
+                    swe_w = swedish_days.get(eng_w, eng_w)
+                    d_str = curr_d.strftime("%Y-%m-%d")
+                    all_30_dates.append(f"{swe_w} ({d_str})")
+
+                if not act_df_check.empty:
+                    for _, r in act_df_check.iterrows():
                         try:
-                            details = json.loads(row['schedule_details'])
-                            time_val = details.get(selected_date, "Ledig / Off")
-                            if "Ledig" not in time_val and " - " in time_val:
-                                working_staff.append({
-                                    "الموظف / Anställd": emp,
-                                    "الفرع / Butik": br,
-                                    "وقت العمل / Arbetstid": time_val
-                                })
-                        except:
-                            pass
+                            d_dict = json.loads(r['schedule_details'])
+                            for dk, dv in d_dict.items():
+                                if " - " in dv and "Ledig" not in dv:
+                                    filled_dates.add(dk)
+                        except: pass
 
-                    if working_staff:
-                        st.dataframe(pd.DataFrame(working_staff), use_container_width=True)
-                    else:
-                        st.info("لا يوجد موظفون مسجلون للعمل في هذا اليوم (الجميع عطلة).")
+                for lbl in all_30_dates:
+                    if lbl not in filled_dates:
+                        unfilled_dates.append(lbl)
+
+                # --- MANAGER ALERT IF DAYS ARE NOT FILLED ---
+                if unfilled_dates:
+                    st.warning(f"⚠️ **تنبيه للمدير:** يوجد {len(unfilled_dates)} أيام لم يتم تعبئتها أو اعتمادها بعد في جدول العمل الفعلي! يرجى مراجعتها وتعبئتها لكي لا تنسى.")
+                else:
+                    st.success("🎉 ممتاز! جميع أيام الشهر القادم معبأة ومعتمدة بالكامل.")
+
+                cols_map = st.columns(5)
+                for i, lbl in enumerate(all_30_dates):
+                    is_filled = lbl in filled_dates
+                    bg_color = "#ffeb3b" if is_filled else "#e0e0e0"
+                    text_color = "#000"
+                    status_text = "مُعبأ (Yellow)" if is_filled else "غير معبأ (Gray)"
+                    
+                    with cols_map[i % 5]:
+                        st.markdown(f"""
+                            <div style="background-color: {bg_color}; color: {text_color}; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #ccc;">
+                                <strong style="font-size: 11px;">{lbl}</strong><br><span style="font-size: 10px;">{status_text}</span>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+            else:
+                st.subheader("📅 جدول العمل الفعلي المعتمد للمدير (فلترة الموظفين المتاحين فقط)")
+                
+                conn = get_db_connection()
+                av_records = pd.read_sql_query("SELECT employee_name, branch, schedule_details FROM schedules WHERE schedule_type = 'Availability'", conn)
+                conn.close()
+
+                with st.form("actual_schedule_form"):
+                    col_ac1, col_ac2, col_ac3 = st.columns(3)
+                    with col_ac1:
+                        ac_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="ac_emp")
+                    with col_ac2:
+                        ac_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="ac_branch")
+                    with col_ac3:
+                        ac_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="ac_month")
+                    
+                    ac_inputs = {}
+                    st.markdown("### جدول العمل الفعلي المعتمد:")
+                    
+                    for i in range(30):
+                        curr_d = today_date + timedelta(days=i)
+                        eng_w = curr_d.strftime("%A")
+                        swe_w = swedish_days.get(eng_w, eng_w)
+                        d_str = curr_d.strftime("%Y-%m-%d")
+                        lbl = f"{swe_w} ({d_str})"
+                        
+                        is_available = True
+                        for _, av_row in av_records.iterrows():
+                            if av_row['employee_name'] == ac_emp and av_row['branch'] == ac_branch:
+                                try:
+                                    av_dict = json.loads(av_row['schedule_details'])
+                                    t_val = av_dict.get(lbl, "")
+                                    if "Ledig" in t_val:
+                                        is_available = False
+                                except: pass
+
+                        if is_available:
+                            c1, c2, c3 = st.columns([2, 2, 2])
+                            with c1: st.markdown(f"**{lbl}** ✅ متاح")
+                            with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
+                            with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
+                            ac_inputs[lbl] = f"{st_t} - {en_t}"
+                        else:
+                            ac_inputs[lbl] = "Ledig / Off"
+                            st.markdown(f"<span style='color: gray;'>{lbl} ❌ غير متاح (تم استبعاده تلقائياً لعدم وجود توفر)</span>", unsafe_allow_html=True)
+
+                    if st.form_submit_button("حفظ جدول العمل الفعلي / Spara fast schema"):
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                       (ac_branch, ac_emp, ac_month, "Actual", json.dumps(ac_inputs), str(today_date)))
+                        conn.commit()
+                        conn.close()
+                        st.success("تم حفظ جدول العمل الفعلي المعتمد بنجاح!")
+                        st.rerun()
+
+                st.markdown("---")
+                st.subheader("جداول العمل الفعلي المعتمدة المحفوظة (مع خيارات الطباعة A4):")
+                conn = get_db_connection()
+                ac_df = pd.read_sql_query("SELECT id, employee_name, branch, month_year, schedule_details, created_at FROM schedules WHERE schedule_type = 'Actual' ORDER BY id DESC", conn)
+                conn.close()
+                if not ac_df.empty:
+                    for idx, row in ac_df.iterrows():
+                        with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']})"):
+                            try:
+                                d_dict = json.loads(row['schedule_details'])
+                                total_hours = 0.0
+                                for day_key, val in d_dict.items():
+                                    if " - " in val and "Ledig" not in val:
+                                        parts = val.split(" - ")
+                                        try:
+                                            st_h, st_m = map(int, parts[0].split(":"))
+                                            en_h, en_m = map(int, parts[1].split(":"))
+                                            hrs = (en_h + en_m/60.0) - (st_h + st_m/60.0)
+                                            if hrs > 0: total_hours += hrs
+                                        except: pass
+
+                                st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Fast Arbetstid"]), use_container_width=True)
+                                st.markdown(f"### ⏱️ إجمالي ساعات العمل الفعلية للشهر: **{total_hours:.1f} ساعة / Timmar**")
+                                
+                                # --- PRINT & EXPORT BUTTONS ---
+                                col_p1, col_p2, col_p3 = st.columns(3)
+                                with col_p1:
+                                    if st.button("🖨️ معاينة وطباعة الشهر (A4)", key=f"print_month_{row['id']}"):
+                                        html_print = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], d_dict, "MÅNADSSCHEMA (شهرى)")
+                                        st.session_state['active_doc'] = {
+                                            'html': html_print,
+                                            'filename': f"Schema_Month_{row['employee_name']}.html",
+                                            'key': f"sch_print_{row['id']}"
+                                        }
+                                        st.rerun()
+                                with col_p2:
+                                    # Filter first 7 days for weekly print example
+                                    weekly_dict = dict(list(d_dict.items())[:7])
+                                    if st.button("🖨️ طباعة أول أسبوع (A4)", key=f"print_week_{row['id']}"):
+                                        html_print_w = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], weekly_dict, "VECKOSCHEMA (أسبوعي)")
+                                        st.session_state['active_doc'] = {
+                                            'html': html_print_w,
+                                            'filename': f"Schema_Week_{row['employee_name']}.html",
+                                            'key': f"sch_print_w_{row['id']}"
+                                        }
+                                        st.rerun()
+                                with col_p3:
+                                    if st.button("🗑️ حذف هذا الجدول", key=f"del_ac_{row['id']}"):
+                                        delete_record_by_id("schedules", row['id'])
+                                        st.success("تم الحذف بنجاح!")
+                                        st.rerun()
+
+                            except Exception as e:
+                                st.write(row['schedule_details'])
 
     with tab11:
         st.header(f"{txt['tab_search']} ({global_branch})")
-        if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_')):
+        if 'active_doc' in st.session_state and not st.session_state['active_doc'].get('key', '').startswith(('rep_new_', 'quote_new_', 'inv_new_', 'buy_new_', 'sch_print_')):
             doc_info = st.session_state['active_doc']
             if st.button(f"🔙 {txt['back_app']}", type="primary", key="top_back_nav_search"):
                 del st.session_state['active_doc']
