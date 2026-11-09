@@ -29,7 +29,7 @@ authenticator = stauth.Authenticate(
     credentials,
     cookie_name='tunapark_crm_secure_cookie',
     key='tunapark_signature_key_secure',
-    cookie_expiry_days=30  # بقاء الجلسة نشطة لمدة 30 يوماً لمنع تسجيل الخروج المتكرر
+    cookie_expiry_days=30
 )
 
 try:
@@ -48,6 +48,20 @@ elif authentication_status == True:
 
     authenticator.logout('تسجيل الخروج / Logga ut', 'sidebar', key='logout_btn')
     
+    # --- TIME SLOTS CONFIGURATION (30-MINUTE INTERVALS) ---
+    TIME_OPTIONS_START = [
+        "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
+        "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", 
+        "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", 
+        "20:00", "Ledig / Off"
+    ]
+    
+    TIME_OPTIONS_END = [
+        "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", 
+        "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", 
+        "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "Ledig / Off"
+    ]
+
     # --- LANGUAGE SELECTOR ---
     lang = st.sidebar.radio("🌐 Language / اللغة", ["Svenska", "العربية"])
 
@@ -887,9 +901,9 @@ elif authentication_status == True:
                 st.markdown("⚡ **تعبئة سريعة للأوقات المنتظمة (Quick Fill All Days):**")
                 col_qfill1, col_qfill2, col_qfill3 = st.columns([2, 2, 3])
                 with col_qfill1:
-                    q_start = st.selectbox("وقت البداية المنتظم / Start", ["10:00", "09:00", "12:00", "18:00", "Ledig / Off"], key="q_start_val")
+                    q_start = st.selectbox("وقت البداية المنتظم / Start", TIME_OPTIONS_START, index=4, key="q_start_val")
                 with col_qfill2:
-                    q_end = st.selectbox("وقت النهاية المنتظم / End", ["20:00", "18:00", "16:00", "Ledig / Off"], key="q_end_val")
+                    q_end = st.selectbox("وقت النهاية المنتظم / End", TIME_OPTIONS_END, index=16, key="q_end_val")
                 with col_qfill3:
                     st.write("")
                     st.write("")
@@ -921,8 +935,8 @@ elif authentication_status == True:
                         
                         c1, c2, c3 = st.columns([2, 2, 2])
                         with c1: st.markdown(f"**{lbl}**")
-                        with c2: st_t = st.selectbox(f"AvStart {i}", ["10:00", "Ledig / Off", "09:00", "12:00", "18:00"], key=f"av_st_{i}", label_visibility="collapsed")
-                        with c3: en_t = st.selectbox(f"AvEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"av_en_{i}", label_visibility="collapsed")
+                        with c2: st_t = st.selectbox(f"AvStart {i}", TIME_OPTIONS_START, index=4, key=f"av_st_{i}", label_visibility="collapsed")
+                        with c3: en_t = st.selectbox(f"AvEnd {i}", TIME_OPTIONS_END, index=16, key=f"av_en_{i}", label_visibility="collapsed")
                         av_inputs[lbl] = f"{st_t} - {en_t}"
 
                     if st.form_submit_button("حفظ الأوقات المتاحة / Spara tillgänglighet"):
@@ -963,7 +977,6 @@ elif authentication_status == True:
                 st.markdown("متابعة الأيام بأسماء الموظفين (تتزامن فوريًا مع الجداول الفعلية المعتمدة): 🟥 أحمر (ممتلئ تماماً بجميع الموظفين 4/4) | 🟧 برتقالي (ممتلئ جزئياً) | ⬜ رمادي (غير معبأ)")
                 
                 conn = get_db_connection()
-                # جلب أحدث جدول عمل فعلي معتمد لكل موظف لضمان التزامن التام والتحديث الفوري عند الحذف
                 act_records = pd.read_sql_query("""
                     SELECT employee_name, branch, schedule_details 
                     FROM schedules 
@@ -1071,8 +1084,8 @@ elif authentication_status == True:
                         if is_available:
                             c1, c2, c3 = st.columns([2, 2, 2])
                             with c1: st.markdown(f"**{lbl}** ✅ متاح ({suggested_time})")
-                            with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "15:00", "18:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
-                            with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "20:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
+                            with c2: st_t = st.selectbox(f"AcStart {i}", TIME_OPTIONS_START, index=4, key=f"ac_st_{i}", label_visibility="collapsed")
+                            with c3: en_t = st.selectbox(f"AcEnd {i}", TIME_OPTIONS_END, index=16, key=f"ac_en_{i}", label_visibility="collapsed")
                             ac_inputs[lbl] = f"{st_t} - {en_t}"
                         else:
                             ac_inputs[lbl] = "Ledig / Off"
