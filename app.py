@@ -936,37 +936,34 @@ elif authentication_status == True:
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader("الأوقات المتاحة المحفوظة للموظفين (أحدث سجل لكل موظف):")
+                st.subheader("الأوقات المتاحة المحفوظة للموظفين (مع زر الحذف لكل سجل خاطئ):")
                 conn = get_db_connection()
-                # جلب أحدث سجل لكل موظف وفرع حصرياً
                 av_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
                     FROM schedules 
                     WHERE schedule_type = 'Availability' 
-                    GROUP BY employee_name, branch 
                     ORDER BY id DESC
                 """, conn)
                 conn.close()
                 if not av_df.empty:
                     for idx, row in av_df.iterrows():
-                        with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']})"):
+                        with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']}) - ID: {row['id']}"):
                             try:
                                 d_dict = json.loads(row['schedule_details'])
                                 st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Möjlig tid"]), use_container_width=True)
                             except:
                                 st.write(row['schedule_details'])
-                            if st.button("🗑️ حذف", key=f"del_av_{row['id']}"):
+                            if st.button("🗑️ حذف هذا السجل الخاطئ", key=f"del_av_exact_{row['id']}"):
                                 delete_record_by_id("schedules", row['id'])
-                                st.success("تم الحذف بنجاح!")
+                                st.success("تم حذف السجل بنجاح!")
                                 st.rerun()
 
             elif schedule_mode.startswith("2️⃣"):
-                st.subheader("🗺️ خريطة حالة الأيام والتنبيهات (Color Map & Alerts)")
-                st.markdown("متابعة الأيام بناءً على الجداول الفعلية المعتمدة: ⬜ رمادي (غير معبأ) | 🟧 برتقالي (نصف معبأ) | 🟥 أحمر (ممتلئ بالكامل)")
+                st.subheader("🗺️ خريطة حالة الأيام والتنبيهات (Color Map & Details)")
+                st.markdown("متابعة الأيام بأسماء الموظفين: 🟥 أحمر (ممتلئ تماماً بجميع الموظفين) | 🟧 برتقالي (ممتلئ جزئياً / بعض الموظفين) | ⬜ رمادي (غير معبأ)")
                 
                 conn = get_db_connection()
-                # جلب أحدث جدول عمل فعلي معتمد لكل موظف وفرع لضمان التزامن
-                act_df_check = pd.read_sql_query("""
+                act_records = pd.read_sql_query("""
                     SELECT employee_name, branch, schedule_details 
                     FROM schedules 
                     WHERE schedule_type = 'Actual' 
@@ -984,56 +981,45 @@ elif authentication_status == True:
                     d_str = curr_d.strftime("%Y-%m-%d")
                     all_30_dates.append(f"{swe_w} ({d_str})")
 
-                date_employee_count = {d: 0 for d in all_30_dates}
+                # جمع بيانات الموظفين لكل يوم
+                day_employees_map = {d: [] for d in all_30_dates}
                 
-                if not act_df_check.empty:
-                    for _, r in act_df_check.iterrows():
+                if not act_records.empty:
+                    for _, r in act_records.iterrows():
+                        emp_n = r['employee_name']
                         try:
                             d_dict = json.loads(r['schedule_details'])
                             for dk, dv in d_dict.items():
-                                if dk in date_employee_count and " - " in dv and "Ledig" not in dv:
-                                    date_employee_count[dk] += 1
+                                if dk in day_employees_map and " - " in dv and "Ledig" not in dv:
+                                    day_employees_map[dk].append(f"{emp_n} ({dv})")
                         except: pass
 
-                unfilled_dates = []
-                partial_dates = []
-                full_dates = []
-
-                for d in all_30_dates:
-                    count = date_employee_count[d]
-                    if count == 0:
-                        unfilled_dates.append(d)
-                    elif 0 < count < len(all_employees):
-                        partial_dates.append(d)
-                    else:
-                        full_dates.append(d)
-
-                if unfilled_dates:
-                    st.warning(f"⚠️ **تنبيه للمدير:** يوجد {len(unfilled_dates)} أيام **غير معبأة تماماً (رمادي)** في الجداول الفعلية المعتمدة!")
-                if partial_dates:
-                    st.info(f"ℹ️ **تنبيه:** يوجد {len(partial_dates)} أيام ممتلئة جزئياً (نصف معبأة / برتقالي).")
-                if not unfilled_dates and not partial_dates:
-                    st.success("🎉 ممتاز! جميع أيام الشهر ممتلئة ومعتمدة بالكامل في الجداول الفعلية (أحمر).")
-
-                cols_map = st.columns(5)
+                cols_map = st.columns(3)
                 for i, lbl in enumerate(all_30_dates):
-                    count = date_employee_count[lbl]
+                    emp_list = day_employees_map[lbl]
+                    count = len(emp_list)
+                    
                     if count == 0:
                         bg_color = "#e0e0e0"
-                        status_text = "غير معبأ (Gray)"
+                        text_color = "#000"
+                        status_title = "⬜ غير معبأ (Gray)"
                     elif 0 < count < len(all_employees):
                         bg_color = "#ff9800"
-                        status_text = f"نصف معبأ ({count}/4)"
+                        text_color = "#fff"
+                        status_title = f"🟧 نصف معبأ ({count}/4)"
                     else:
                         bg_color = "#f44336"
-                        status_text = "ممتلئ (Red)"
-                        
-                    text_color = "#fff" if count > 0 else "#000"
-                    
-                    with cols_map[i % 5]:
+                        text_color = "#fff"
+                        status_title = "🟥 ممتلئ بالكامل (Red)"
+
+                    emp_names_str = "<br>".join([f"• {e}" for e in emp_list]) if emp_list else "لا يوجد موظفين مسجلين"
+
+                    with cols_map[i % 3]:
                         st.markdown(f"""
-                            <div style="background-color: {bg_color}; color: {text_color}; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #ccc;">
-                                <strong style="font-size: 11px;">{lbl}</strong><br><span style="font-size: 10px;">{status_text}</span>
+                            <div style="background-color: {bg_color}; color: {text_color}; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <strong style="font-size: 13px;">📅 {lbl}</strong><br>
+                                <span style="font-size: 11px; font-weight: bold;">{status_title}</span><hr style="margin: 5px 0; border-color: rgba(255,255,255,0.3);">
+                                <div style="font-size: 11px; line-height: 1.4;">{emp_names_str}</div>
                             </div>
                         """, unsafe_allow_html=True)
 
@@ -1041,7 +1027,6 @@ elif authentication_status == True:
                 st.subheader("📅 جدول العمل الفعلي المعتمد للمدير (فلترة الموظفين المتاحين فقط)")
                 
                 conn = get_db_connection()
-                # جلب أحدث أوقات متاحة للموظفين لضمان دقة الفلترة
                 av_records = pd.read_sql_query("""
                     SELECT employee_name, branch, schedule_details 
                     FROM schedules 
@@ -1086,8 +1071,8 @@ elif authentication_status == True:
                         if is_available:
                             c1, c2, c3 = st.columns([2, 2, 2])
                             with c1: st.markdown(f"**{lbl}** ✅ متاح ({suggested_time})")
-                            with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "18:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
-                            with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
+                            with c2: st_t = st.selectbox(f"AcStart {i}", ["10:00", "09:00", "12:00", "15:00", "18:00", "Ledig / Off"], key=f"ac_st_{i}", label_visibility="collapsed")
+                            with c3: en_t = st.selectbox(f"AcEnd {i}", ["20:00", "18:00", "16:00", "20:00", "Ledig / Off"], key=f"ac_en_{i}", label_visibility="collapsed")
                             ac_inputs[lbl] = f"{st_t} - {en_t}"
                         else:
                             ac_inputs[lbl] = "Ledig / Off"
@@ -1104,9 +1089,8 @@ elif authentication_status == True:
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader("جداول العمل الفعلي المعتمدة المحفوظة (أحدث سجل لكل موظف مع خيارات الطباعة A4):")
+                st.subheader("جداول العمل الفعلي المعتمدة المحفوظة (مع خيارات الطباعة A4 الشهرية):")
                 conn = get_db_connection()
-                # جلب أحدث جدول عمل فعلي لكل موظف وفرع
                 ac_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
                     FROM schedules 
@@ -1136,7 +1120,7 @@ elif authentication_status == True:
                                 
                                 col_p1, col_p2, col_p3 = st.columns(3)
                                 with col_p1:
-                                    if st.button("🖨️ معاينة وطباعة الشهر (A4)", key=f"print_month_{row['id']}"):
+                                    if st.button("🖨️ معاينة وطباعة الشهر بالكامل (A4)", key=f"print_month_{row['id']}"):
                                         html_print = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], d_dict, "MÅNADSSCHEMA (شهرى)")
                                         st.session_state['active_doc'] = {
                                             'html': html_print,
@@ -1253,7 +1237,7 @@ elif authentication_status == True:
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
