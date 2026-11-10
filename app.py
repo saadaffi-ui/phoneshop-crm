@@ -43,12 +43,12 @@ except Exception as e:
 if authentication_status == False:
     st.error('اسم المستخدم أو كلمة المرور غير صحيحة / Felaktigt användarnamn eller lösenord')
 elif authentication_status == None:
-    st.warning('Vänligen logga in')
+    st.warning('Vänligen logga in / يرجى تسجيل الدخول')
 elif authentication_status == True:
 
     authenticator.logout('تسجيل الخروج / Logga ut', 'sidebar', key='logout_btn')
     
-    # --- TIME SLOTS CONFIGURATION (30-MINUTE INTERVALS) ---
+    # --- TIME SLOTS CONFIGURATION ---
     TIME_OPTIONS_START = [
         "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
         "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", 
@@ -65,7 +65,7 @@ elif authentication_status == True:
     # --- LANGUAGE SELECTOR ---
     lang = st.sidebar.radio("🌐 Language / اللغة", ["Svenska", "العربية"])
 
-    # --- LOCALIZATION DICTIONARY ---
+    # --- STRICT LOCALIZATION DICTIONARY ---
     if lang == "Svenska":
         txt = {
             "welcome": "Välkommen",
@@ -95,13 +95,12 @@ elif authentication_status == True:
             "preview": "Dokumentförhandsgranskning",
             "back_app": "Tillbaka till appen",
             "download_web": "🌐 Öppna / Ladda ner dokument",
-            "inv_no": "Fakturarummer",
+            "inv_no": "Fakturanummer",
             "total_amt": "Totalt belopp (SEK)",
             "inv_type": "Fakturatyp (B2B)",
             "create_inv": "Skapa och förhandsgranska faktura",
             "success_inv": "Fakturan har sparats!",
             "search_q": "Sök på namn, org.nr, personnummer, enhet eller nummer...",
-            "select_item_print": "Välj ID för att skriva ut eller visa:",
             "service_header": "⚙️ Välj fel och specifika reparationer (Pris per del)",
             "sub_plan": "Prenumerationstyp / Plan",
             "buy_model": "Enhet / Skick (Gradering A/B/C) & IMEI-nr",
@@ -113,7 +112,22 @@ elif authentication_status == True:
             "saved_success": "Sparat framgångsrikt!",
             "delete_btn": "🗑️ Radera post",
             "deleted_success": "Posten har raderats!",
-            "recent_records": "Tidigare sparade poster i detta avsnitt:"
+            "recent_records": "Tidigare sparade poster i detta avsnitt:",
+            "sch_mode_1": "1️⃣ Anställdas tillgänglighet (Availability)",
+            "sch_mode_2": "2️⃣ Färgkarta & Dagstatus (Color Map & Alerts)",
+            "sch_mode_3": "3️⃣ Fast arbetsschema för chef (Actual Schedule)",
+            "q_fill_title": "⚡ Snabbfyllning för alla dagar (Quick Fill All Days)",
+            "q_fill_btn": "⚡ Applicera på alla dagar / Apply to All Days",
+            "save_avail": "Spara tillgänglighet",
+            "saved_avail_success": "Tillgängligheten har sparats!",
+            "saved_avail_title": "Sparade tillgänglighetstider:",
+            "save_actual": "Spara fast schema",
+            "saved_actual_success": "Det fasta schemat har sparats!",
+            "saved_actual_title": "Sparade fasta scheman (med A4-utskrift):",
+            "print_month": "🖨️ Förhandsgranska & Skriv ut hel månad (A4)",
+            "print_week": "🖨️ Skriv ut första veckan (A4)",
+            "delete_schedule": "🗑️ Radera detta schema",
+            "total_hours": "Totalt antal arbetstimmar för månaden:"
         }
     else:
         txt = {
@@ -124,21 +138,21 @@ elif authentication_status == True:
             "tab_quote": "💡 عرض سعر",
             "tab_invoice": "📄 فواتير الشركات (B2B)",
             "tab_sub": "📦 الاشتراكات",
-            "tab_buyback": "🔄 شراء الأجهزة / Kvittens (Buyback)",
+            "tab_buyback": "🔄 شراء الأجهزة (Buyback)",
             "tab_campaign": "🎯 الحملات",
             "tab_preorder": "📋 الطلبات المسبقة",
             "tab_stock": "📦 المخزون",
             "tab_schedule": "📅 جدول أوقات العمل (شهري)",
             "tab_search": "🔍 البحث والأرشيف",
             "reset": "🔄 إعادة ضبط العرض",
-            "comp_name": "اسم العميل / البائع",
-            "org_nr_cust": "رقم الهوية الشخصية (Personnummer) / Org.nr",
+            "comp_name": "اسم العميل / الشركة",
+            "org_nr_cust": "رقم الهوية / السجل التجاري (Personnummer / Org.nr)",
             "phone": "رقم الهاتف",
             "address": "العنوان",
             "device": "نوع الجهاز / الموديل",
             "issue": "وصف العطل / الإجراء",
             "price": "السعر / المبلغ (SEK)",
-            "employee": "اسم الموظف / المسؤول",
+            "employee": "اسم الموظف المسؤول",
             "save_repair": "حفظ إيصال الإصلاح",
             "success_repair": "تم حفظ الإصلاح بنجاح!",
             "preview": "معاينة المستند",
@@ -149,8 +163,7 @@ elif authentication_status == True:
             "inv_type": "نوع الفاتورة (B2B)",
             "create_inv": "إصدار ومعاينة الفاتورة",
             "success_inv": "تم إصدار الفاتورة بنجاح!",
-            "search_q": "بحث بالاسم، رقم الهوية الشخصية، الجهاز أو الرقم...",
-            "select_item_print": "اختر المعرف (ID) لطباعة أو عرض المستند:",
+            "search_q": "بحث بالاسم، رقم الهوية، الجهاز أو الرقم...",
             "service_header": "⚙️ تحديد الأعطال وتكلفة كل قطعة منفصلة",
             "sub_plan": "نوع الاشتراكات / الخطة",
             "buy_model": "الجهاز المراد شراؤه / الحالة / رقم IMEI",
@@ -162,7 +175,22 @@ elif authentication_status == True:
             "saved_success": "تم الحفظ بنجاح!",
             "delete_btn": "🗑️ حذف السجل",
             "deleted_success": "تم حذف السجل بنجاح!",
-            "recent_records": "السجلات المحفوظة حديثاً في هذا القسم:"
+            "recent_records": "السجلات المحفوظة حديثاً في هذا القسم:",
+            "sch_mode_1": "1️⃣ أوقات عمل الموظفين المتاحة (Availability)",
+            "sch_mode_2": "2️⃣ خريطة حالة الأيام والتنبيهات (Color Map & Alerts)",
+            "sch_mode_3": "3️⃣ جدول العمل الفعلي المعتمد (Actual Schedule)",
+            "q_fill_title": "⚡ تعبئة سريعة لجميع الأيام (Quick Fill All Days)",
+            "q_fill_btn": "⚡ تطبيق الوقت على جميع الأيام",
+            "save_avail": "حفظ الأوقات المتاحة",
+            "saved_avail_success": "تم حفظ أوقات الموظف بنجاح!",
+            "saved_avail_title": "الأوقات المتاحة المحفوظة للموظفين:",
+            "save_actual": "حفظ جدول العمل الفعلي",
+            "saved_actual_success": "تم حفظ جدول العمل الفعلي المعتمد بنجاح!",
+            "saved_actual_title": "جداول العمل الفعلي المعتمدة المحفوظة:",
+            "print_month": "🖨️ معاينة وطباعة الشهر بالكامل (A4)",
+            "print_week": "🖨️ طباعة أول أسبوع (A4)",
+            "delete_schedule": "🗑️ حذف هذا الجدول",
+            "total_hours": "إجمالي ساعات العمل الفعلية للشهر:"
         }
 
     st.sidebar.markdown(f"**{txt['welcome']}:** {name}")
@@ -200,7 +228,7 @@ elif authentication_status == True:
 
     logo_base64 = get_image_base64(LOGO_PATH)
 
-    # --- DATABASE SETUP (2-BRANCH OPTIMIZED SCHEMA) ---
+    # --- DATABASE SETUP ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -431,8 +459,8 @@ elif authentication_status == True:
                             </td>
                             <td style="text-align: right;">
                                 <p class="sub-title">{title_prefix}</p>
-                                <p style="margin: 2px 0;"><strong>Anställd / الموظف:</strong> {emp_name}</p>
-                                <p style="margin: 0;"><strong>Månad / الشهر:</strong> {month_year}</p>
+                                <p style="margin: 2px 0;"><strong>Anställd:</strong> {emp_name}</p>
+                                <p style="margin: 0;"><strong>Månad:</strong> {month_year}</p>
                             </td>
                         </tr>
                     </table>
@@ -441,8 +469,8 @@ elif authentication_status == True:
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Datum & Dag (التاريخ واليوم)</th>
-                            <th style="text-align: right;">Arbetstid (وقت العمل)</th>
+                            <th>Datum & Dag</th>
+                            <th style="text-align: right;">Arbetstid</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -865,10 +893,10 @@ elif authentication_status == True:
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('sch_print_'):
             display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
         else:
-            schedule_mode = st.radio("اختر القسم / Välj sektion", [
-                "1️⃣ الأوقات المتاحة للموظفين (Availability)", 
-                "2️⃣ خريطة حالة الأيام والتنبيهات (Color Map & Alerts)",
-                "3️⃣ جدول العمل الفعلي المعتمد للمدير (Actual Schedule)"
+            schedule_mode = st.radio("Välj sektion / اختر القسم", [
+                txt["sch_mode_1"], 
+                txt["sch_mode_2"],
+                txt["sch_mode_3"]
             ])
             
             swedish_days = {
@@ -878,34 +906,33 @@ elif authentication_status == True:
             today_date = date.today()
 
             if schedule_mode.startswith("1️⃣"):
-                st.subheader(f"إدخال الأوقات المتاحة للموظف - فرع {global_branch}")
+                st.markdown(f"### {txt['sch_mode_1']}")
                 
-                st.markdown("⚡ **تعبئة سريعة للأوقات المنتظمة (Quick Fill All Days):**")
+                st.markdown(f"**{txt['q_fill_title']}**")
                 col_qfill1, col_qfill2, col_qfill3 = st.columns([2, 2, 3])
                 with col_qfill1:
-                    q_start = st.selectbox("وقت البداية المنتظم / Start", TIME_OPTIONS_START, index=4, key="q_start_val")
+                    q_start = st.selectbox("Start", TIME_OPTIONS_START, index=4, key="q_start_val")
                 with col_qfill2:
-                    q_end = st.selectbox("وقت النهاية المنتظم / End", TIME_OPTIONS_END, index=16, key="q_end_val")
+                    q_end = st.selectbox("End", TIME_OPTIONS_END, index=16, key="q_end_val")
                 with col_qfill3:
                     st.write("")
                     st.write("")
-                    if st.button("⚡ تطبيق هذا الوقت على جميع الأيام / Apply to All Days"):
+                    if st.button(txt["q_fill_btn"]):
                         for i in range(30):
                             st.session_state[f"av_st_{i}"] = q_start
                             st.session_state[f"av_en_{i}"] = q_end
-                        st.success("تم تطبيق الوقت المنتظم على جميع الأيام!")
+                        st.success("OK!")
                 
                 st.markdown("---")
 
                 with st.form("availability_form"):
                     col_a1, col_a2 = st.columns(2)
                     with col_a1:
-                        av_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="av_emp")
+                        av_emp = st.selectbox(txt["employee"], ["Ommar", "Hampik", "Saad", "Luay"], key="av_emp")
                     with col_a2:
-                        av_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="av_month")
+                        av_month = st.text_input("Månad / الشهر", value=today_date.strftime("%B %Y"), key="av_month")
                     
                     av_inputs = {}
-                    st.markdown("### الأوقات المتاحة لكل يوم:")
                     for i in range(30):
                         curr_d = today_date + timedelta(days=i)
                         eng_w = curr_d.strftime("%A")
@@ -919,18 +946,18 @@ elif authentication_status == True:
                         with c3: en_t = st.selectbox(f"AvEnd {i}", TIME_OPTIONS_END, index=16, key=f"av_en_{i}", label_visibility="collapsed")
                         av_inputs[lbl] = f"{st_t} - {en_t}"
 
-                    if st.form_submit_button("حفظ الأوقات المتاحة / Spara tillgänglighet"):
+                    if st.form_submit_button(txt["save_avail"]):
                         conn = get_db_connection()
                         cursor = conn.cursor()
                         cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                                        (global_branch, av_emp, av_month, "Availability", json.dumps(av_inputs), str(today_date)))
                         conn.commit()
                         conn.close()
-                        st.success("تم حفظ أوقات الموظف بنجاح!")
+                        st.success(txt["saved_avail_success"])
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader(f"الأوقات المتاحة المحفوظة - فرع {global_branch}:")
+                st.subheader(txt["saved_avail_title"])
                 conn = get_db_connection()
                 av_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
@@ -941,20 +968,19 @@ elif authentication_status == True:
                 conn.close()
                 if not av_df.empty:
                     for idx, row in av_df.iterrows():
-                        with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']}) - ID: {row['id']}"):
+                        with st.expander(f"👤 Anställd: {row['employee_name']} | Månad: {row['month_year']} (ID: {row['id'])"):
                             try:
                                 d_dict = json.loads(row['schedule_details'])
                                 st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Möjlig tid"]), use_container_width=True)
                             except:
                                 st.write(row['schedule_details'])
-                            if st.button("🗑️ حذف هذا السجل نهائياً", key=f"del_av_exact_{row['id']}"):
+                            if st.button(txt["delete_btn"], key=f"del_av_exact_{row['id']}"):
                                 delete_record_by_id("schedules", row['id'])
-                                st.success("تم حذف السجل وتحديث النظام بنجاح!")
+                                st.success(txt["deleted_success"])
                                 st.rerun()
 
             elif schedule_mode.startswith("2️⃣"):
-                st.subheader(f"🗺️ خريطة حالة الأيام والتنبيهات - فرع {global_branch}")
-                st.markdown("متابعة الأيام بأسماء الموظفين (تتزامن فوريًا مع الفرع النشط): 🟥 أحمر (ممتلئ تماماً 4/4) | 🟧 برتقالي (ممتلئ جزئياً) | ⬜ رمادي (غير معبأ)")
+                st.markdown(f"### {txt['sch_mode_2']}")
                 
                 conn = get_db_connection()
                 act_records = pd.read_sql_query("""
@@ -995,17 +1021,17 @@ elif authentication_status == True:
                     if count == 0:
                         bg_color = "#e0e0e0"
                         text_color = "#000"
-                        status_title = "⬜ غير معبأ (Gray)"
+                        status_title = "⬜ Tom / فارغ"
                     elif 0 < count < len(all_employees):
                         bg_color = "#ff9800"
                         text_color = "#fff"
-                        status_title = f"🟧 نصف معبأ ({count}/4)"
+                        status_title = f"🟧 Delvis ({count}/4)"
                     else:
                         bg_color = "#f44336"
                         text_color = "#fff"
-                        status_title = "🟥 ممتلئ بالكامل (4/4)"
+                        status_title = "🟥 Fullbokat (4/4)"
 
-                    emp_names_str = "<br>".join([f"• {e}" for e in emp_list]) if emp_list else "لا يوجد موظفين مسجلين"
+                    emp_names_str = "<br>".join([f"• {e}" for e in emp_list]) if emp_list else "Inga anställda"
 
                     with cols_map[i % 3]:
                         st.markdown(f"""
@@ -1017,7 +1043,7 @@ elif authentication_status == True:
                         """, unsafe_allow_html=True)
 
             else:
-                st.subheader(f"📅 جدول العمل الفعلي المعتمد للمدير - فرع {global_branch}")
+                st.markdown(f"### {txt['sch_mode_3']}")
                 
                 conn = get_db_connection()
                 av_records = pd.read_sql_query("""
@@ -1032,13 +1058,11 @@ elif authentication_status == True:
                 with st.form("actual_schedule_form"):
                     col_ac1, col_ac2 = st.columns(2)
                     with col_ac1:
-                        ac_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="ac_emp")
+                        ac_emp = st.selectbox(txt["employee"], ["Ommar", "Hampik", "Saad", "Luay"], key="ac_emp")
                     with col_ac2:
-                        ac_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="ac_month")
+                        ac_month = st.text_input("Månad / الشهر", value=today_date.strftime("%B %Y"), key="ac_month")
                     
                     ac_inputs = {}
-                    st.markdown("### جدول العمل الفعلي المعتمد:")
-                    
                     for i in range(30):
                         curr_d = today_date + timedelta(days=i)
                         eng_w = curr_d.strftime("%A")
@@ -1061,26 +1085,26 @@ elif authentication_status == True:
 
                         if is_available:
                             c1, c2, c3 = st.columns([2, 2, 2])
-                            with c1: st.markdown(f"**{lbl}** ✅ متاح ({suggested_time})")
+                            with c1: st.markdown(f"**{lbl}** ✅ Tillgänglig ({suggested_time})")
                             with c2: st_t = st.selectbox(f"AcStart {i}", TIME_OPTIONS_START, index=4, key=f"ac_st_{i}", label_visibility="collapsed")
                             with c3: en_t = st.selectbox(f"AcEnd {i}", TIME_OPTIONS_END, index=16, key=f"ac_en_{i}", label_visibility="collapsed")
                             ac_inputs[lbl] = f"{st_t} - {en_t}"
                         else:
                             ac_inputs[lbl] = "Ledig / Off"
-                            st.markdown(f"<span style='color: gray;'>{lbl} ❌ غير متاح (لم يقم بتسجيل نفسه في الأوقات المتاحة أولاً)</span>", unsafe_allow_html=True)
+                            st.markdown(f"<span style='color: gray;'>{lbl} ❌ Ej tillgänglig</span>", unsafe_allow_html=True)
 
-                    if st.form_submit_button("حفظ جدول العمل الفعلي / Spara fast schema"):
+                    if st.form_submit_button(txt["save_actual"]):
                         conn = get_db_connection()
                         cursor = conn.cursor()
                         cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                                        (global_branch, ac_emp, ac_month, "Actual", json.dumps(ac_inputs), str(today_date)))
                         conn.commit()
                         conn.close()
-                        st.success("تم حفظ جدول العمل الفعلي المعتمد بنجاح!")
+                        st.success(txt["saved_actual_success"])
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader(f"جداول العمل الفعلي المعتمدة - فرع {global_branch}:")
+                st.subheader(txt["saved_actual_title"])
                 conn = get_db_connection()
                 ac_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
@@ -1092,7 +1116,7 @@ elif authentication_status == True:
                 conn.close()
                 if not ac_df.empty:
                     for idx, row in ac_df.iterrows():
-                        with st.expander(f"👤 الموظف: {row['employee_name']} | الفرع: {row['branch']} | الشهر: {row['month_year']} (تاريخ: {row['created_at']})"):
+                        with st.expander(f"👤 Anställd: {row['employee_name']} | Månad: {row['month_year']}"):
                             try:
                                 d_dict = json.loads(row['schedule_details'])
                                 total_hours = 0.0
@@ -1106,13 +1130,13 @@ elif authentication_status == True:
                                             if hrs > 0: total_hours += hrs
                                         except: pass
 
-                                st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Fast Arbetstid"]), use_container_width=True)
-                                st.markdown(f"### ⏱️ إجمالي ساعات العمل الفعلية للشهر: **{total_hours:.1f} ساعة / Timmar**")
+                                st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Arbetstid"]), use_container_width=True)
+                                st.markdown(f"### ⏱️ {txt['total_hours']} **{total_hours:.1f} timmar**")
                                 
                                 col_p1, col_p2, col_p3 = st.columns(3)
                                 with col_p1:
-                                    if st.button("🖨️ معاينة وطباعة الشهر بالكامل (A4)", key=f"print_month_{row['id']}"):
-                                        html_print = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], d_dict, "MÅNADSSCHEMA (شهرى)")
+                                    if st.button(txt["print_month"], key=f"print_month_{row['id']}"):
+                                        html_print = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], d_dict, "MÅNADSSCHEMA")
                                         st.session_state['active_doc'] = {
                                             'html': html_print,
                                             'filename': f"Schema_Month_{row['employee_name']}.html",
@@ -1121,8 +1145,8 @@ elif authentication_status == True:
                                         st.rerun()
                                 with col_p2:
                                     weekly_dict = dict(list(d_dict.items()[:7]))
-                                    if st.button("🖨️ طباعة أول أسبوع (A4)", key=f"print_week_{row['id']}"):
-                                        html_print_w = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], weekly_dict, "VECKOSCHEMA (أسبوعي)")
+                                    if st.button(txt["print_week"], key=f"print_week_{row['id']}"):
+                                        html_print_w = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], weekly_dict, "VECKOSCHEMA")
                                         st.session_state['active_doc'] = {
                                             'html': html_print_w,
                                             'filename': f"Schema_Week_{row['employee_name']}.html",
@@ -1130,9 +1154,9 @@ elif authentication_status == True:
                                         }
                                         st.rerun()
                                 with col_p3:
-                                    if st.button("🗑️ حذف هذا الجدول", key=f"del_ac_{row['id']}"):
+                                    if st.button(txt["delete_schedule"], key=f"del_ac_{row['id']}"):
                                         delete_record_by_id("schedules", row['id'])
-                                        st.success("تم الحذف بنجاح!")
+                                        st.success(txt["deleted_success"])
                                         st.rerun()
 
                             except Exception as e:
