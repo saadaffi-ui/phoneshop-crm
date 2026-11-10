@@ -200,7 +200,7 @@ elif authentication_status == True:
 
     logo_base64 = get_image_base64(LOGO_PATH)
 
-    # --- SIMPLIFIED & SAFE DATABASE SETUP ---
+    # --- DATABASE SETUP (2-BRANCH OPTIMIZED SCHEMA) ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -216,7 +216,6 @@ elif authentication_status == True:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # جدول المعاملات الموحد (يجمع Repairs, Invoices, Quotes, Buyback, Preorders)
         cursor.execute('''CREATE TABLE IF NOT EXISTS transactions (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT,
@@ -861,7 +860,7 @@ elif authentication_status == True:
             st.dataframe(stock_df, use_container_width=True)
 
     with tab10:
-        st.header(f"📅 {txt['tab_schedule']}")
+        st.header(f"📅 {txt['tab_schedule']} ({global_branch})")
         
         if 'active_doc' in st.session_state and st.session_state['active_doc'].get('key', '').startswith('sch_print_'):
             display_document_preview(st.session_state['active_doc']['html'], st.session_state['active_doc']['filename'], st.session_state['active_doc']['key'])
@@ -879,7 +878,7 @@ elif authentication_status == True:
             today_date = date.today()
 
             if schedule_mode.startswith("1️⃣"):
-                st.subheader("إدخال الأوقات المتاحة للموظف (ما يمكنه عمله)")
+                st.subheader(f"إدخال الأوقات المتاحة للموظف - فرع {global_branch}")
                 
                 st.markdown("⚡ **تعبئة سريعة للأوقات المنتظمة (Quick Fill All Days):**")
                 col_qfill1, col_qfill2, col_qfill3 = st.columns([2, 2, 3])
@@ -899,12 +898,10 @@ elif authentication_status == True:
                 st.markdown("---")
 
                 with st.form("availability_form"):
-                    col_a1, col_a2, col_a3 = st.columns(3)
+                    col_a1, col_a2 = st.columns(2)
                     with col_a1:
                         av_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="av_emp")
                     with col_a2:
-                        av_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="av_branch")
-                    with col_a3:
                         av_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="av_month")
                     
                     av_inputs = {}
@@ -926,21 +923,21 @@ elif authentication_status == True:
                         conn = get_db_connection()
                         cursor = conn.cursor()
                         cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                       (av_branch, av_emp, av_month, "Availability", json.dumps(av_inputs), str(today_date)))
+                                       (global_branch, av_emp, av_month, "Availability", json.dumps(av_inputs), str(today_date)))
                         conn.commit()
                         conn.close()
                         st.success("تم حفظ أوقات الموظف بنجاح!")
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader("الأوقات المتاحة المحفوظة للموظفين (مع زر الحذف الفوري لكل سجل خاطئ):")
+                st.subheader(f"الأوقات المتاحة المحفوظة - فرع {global_branch}:")
                 conn = get_db_connection()
                 av_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
                     FROM schedules 
-                    WHERE schedule_type = 'Availability' 
+                    WHERE schedule_type = 'Availability' AND branch = ?
                     ORDER BY id DESC
-                """, conn)
+                """, conn, params=(global_branch,))
                 conn.close()
                 if not av_df.empty:
                     for idx, row in av_df.iterrows():
@@ -956,17 +953,17 @@ elif authentication_status == True:
                                 st.rerun()
 
             elif schedule_mode.startswith("2️⃣"):
-                st.subheader("🗺️ خريطة حالة الأيام والتنبيهات (Color Map & Details)")
-                st.markdown("متابعة الأيام بأسماء الموظفين (تتزامن فوريًا مع الجداول الفعلية المعتمدة): 🟥 أحمر (ممتلئ تماماً بجميع الموظفين 4/4) | 🟧 برتقالي (ممتلئ جزئياً) | ⬜ رمادي (غير معبأ)")
+                st.subheader(f"🗺️ خريطة حالة الأيام والتنبيهات - فرع {global_branch}")
+                st.markdown("متابعة الأيام بأسماء الموظفين (تتزامن فوريًا مع الفرع النشط): 🟥 أحمر (ممتلئ تماماً 4/4) | 🟧 برتقالي (ممتلئ جزئياً) | ⬜ رمادي (غير معبأ)")
                 
                 conn = get_db_connection()
                 act_records = pd.read_sql_query("""
                     SELECT employee_name, branch, schedule_details 
                     FROM schedules 
-                    WHERE schedule_type = 'Actual' 
+                    WHERE schedule_type = 'Actual' AND branch = ?
                     GROUP BY employee_name, branch 
                     ORDER BY id DESC
-                """, conn)
+                """, conn, params=(global_branch,))
                 conn.close()
                 
                 all_employees = ["Ommar", "Hampik", "Saad", "Luay"]
@@ -1020,25 +1017,23 @@ elif authentication_status == True:
                         """, unsafe_allow_html=True)
 
             else:
-                st.subheader("📅 جدول العمل الفعلي المعتمد للمدير (فلترة الموظفين المتاحين فقط)")
+                st.subheader(f"📅 جدول العمل الفعلي المعتمد للمدير - فرع {global_branch}")
                 
                 conn = get_db_connection()
                 av_records = pd.read_sql_query("""
                     SELECT employee_name, branch, schedule_details 
                     FROM schedules 
-                    WHERE schedule_type = 'Availability' 
+                    WHERE schedule_type = 'Availability' AND branch = ?
                     GROUP BY employee_name, branch 
                     ORDER BY id DESC
-                """, conn)
+                """, conn, params=(global_branch,))
                 conn.close()
 
                 with st.form("actual_schedule_form"):
-                    col_ac1, col_ac2, col_ac3 = st.columns(3)
+                    col_ac1, col_ac2 = st.columns(2)
                     with col_ac1:
                         ac_emp = st.selectbox("الموظف / Anställd", ["Ommar", "Hampik", "Saad", "Luay"], key="ac_emp")
                     with col_ac2:
-                        ac_branch = st.selectbox("الفرع / Butik", ["Eskilstuna", "Västerås"], key="ac_branch")
-                    with col_ac3:
                         ac_month = st.text_input("الشهر والسنة / Månad", value=today_date.strftime("%B %Y"), key="ac_month")
                     
                     ac_inputs = {}
@@ -1054,7 +1049,7 @@ elif authentication_status == True:
                         is_available = False
                         suggested_time = "10:00 - 20:00"
                         for _, av_row in av_records.iterrows():
-                            if av_row['employee_name'].strip().lower() == ac_emp.strip().lower() and av_row['branch'] == ac_branch:
+                            if av_row['employee_name'].strip().lower() == ac_emp.strip().lower():
                                 try:
                                     av_dict = json.loads(av_row['schedule_details'])
                                     for key_date, t_val in av_dict.items():
@@ -1078,22 +1073,22 @@ elif authentication_status == True:
                         conn = get_db_connection()
                         cursor = conn.cursor()
                         cursor.execute("INSERT INTO schedules (branch, employee_name, month_year, schedule_type, schedule_details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                       (ac_branch, ac_emp, ac_month, "Actual", json.dumps(ac_inputs), str(today_date)))
+                                       (global_branch, ac_emp, ac_month, "Actual", json.dumps(ac_inputs), str(today_date)))
                         conn.commit()
                         conn.close()
                         st.success("تم حفظ جدول العمل الفعلي المعتمد بنجاح!")
                         st.rerun()
 
                 st.markdown("---")
-                st.subheader("جداول العمل الفعلي المعتمدة المحفوظة (مع خيارات الطباعة A4 الشهرية):")
+                st.subheader(f"جداول العمل الفعلي المعتمدة - فرع {global_branch}:")
                 conn = get_db_connection()
                 ac_df = pd.read_sql_query("""
                     SELECT id, employee_name, branch, month_year, schedule_details, created_at 
                     FROM schedules 
-                    WHERE schedule_type = 'Actual' 
+                    WHERE schedule_type = 'Actual' AND branch = ?
                     GROUP BY employee_name, branch 
                     ORDER BY id DESC
-                """, conn)
+                """, conn, params=(global_branch,))
                 conn.close()
                 if not ac_df.empty:
                     for idx, row in ac_df.iterrows():
