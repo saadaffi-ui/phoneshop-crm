@@ -200,7 +200,7 @@ elif authentication_status == True:
 
     logo_base64 = get_image_base64(LOGO_PATH)
 
-    # --- SAFE DATABASE SETUP WITH NON-DESTRUCTIVE MIGRATIONS ---
+    # --- SIMPLIFIED & SAFE DATABASE SETUP ---
     def get_db_connection():
         conn = sqlite3.connect("phoneshop_crm.db", check_same_thread=False)
         return conn
@@ -216,37 +216,33 @@ elif authentication_status == True:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute('''CREATE TABLE IF NOT EXISTS repairs (
+        # جدول المعاملات الموحد (يجمع Repairs, Invoices, Quotes, Buyback, Preorders)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS transactions (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            branch TEXT, customer_name TEXT, phone TEXT, 
-                            device TEXT, issue TEXT, price REAL, status TEXT, 
-                            employee TEXT, created_at TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS invoices (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            branch TEXT, invoice_no TEXT, customer_name TEXT, 
-                            customer_org TEXT, phone TEXT, address TEXT, amount REAL, moms REAL, 
-                            invoice_type TEXT, employee TEXT, created_at TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS quotes (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            branch TEXT, customer_name TEXT, phone TEXT, 
-                            device TEXT, issues TEXT, total REAL, profit REAL, 
-                            employee TEXT, created_at TEXT)''')
+                            branch TEXT,
+                            type TEXT, 
+                            invoice_no TEXT,
+                            customer_name TEXT,
+                            customer_org_or_person TEXT,
+                            phone TEXT,
+                            address TEXT,
+                            device_or_item TEXT,
+                            issue_or_details TEXT,
+                            amount REAL,
+                            moms REAL,
+                            invoice_type TEXT,
+                            status TEXT,
+                            employee TEXT,
+                            created_at TEXT)''')
+
         cursor.execute('''CREATE TABLE IF NOT EXISTS subscriptions (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, customer_name TEXT, phone TEXT, 
                             plan TEXT, price REAL, employee TEXT, created_at TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS buyback (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            branch TEXT, customer_name TEXT, person_nr TEXT, phone TEXT, 
-                            device TEXT, payout REAL, employee TEXT, created_at TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS campaigns (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, campaign_name TEXT, discount TEXT, 
                             start_date TEXT, end_date TEXT, employee TEXT, created_at TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS preorders (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            branch TEXT, customer_name TEXT, phone TEXT, 
-                            item TEXT, deposit REAL, employee TEXT, created_at TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS stock (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, part_name TEXT, category TEXT, 
@@ -255,19 +251,6 @@ elif authentication_status == True:
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             branch TEXT, employee_name TEXT, month_year TEXT, 
                             schedule_type TEXT, schedule_details TEXT, created_at TEXT)''')
-
-        migrations = [
-            ("invoices", "invoice_type", "TEXT"),
-            ("invoices", "customer_org", "TEXT"),
-            ("buyback", "person_nr", "TEXT"),
-            ("schedules", "schedule_type", "TEXT")
-        ]
-        
-        for table, col, col_type in migrations:
-            cursor.execute(f"PRAGMA table_info({table})")
-            existing_cols = [row[1] for row in cursor.fetchall()]
-            if col not in existing_cols:
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
 
         conn.commit()
         conn.close()
@@ -509,11 +492,11 @@ elif authentication_status == True:
     with tab1:
         st.header(f"{txt['tab_dash']} ({global_branch})")
         conn = get_db_connection()
-        rep_count = pd.read_sql_query("SELECT COUNT(*) FROM repairs WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
-        inv_count = pd.read_sql_query("SELECT COUNT(*) FROM invoices WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
-        quote_count = pd.read_sql_query("SELECT COUNT(*) FROM quotes WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
-        buy_count = pd.read_sql_query("SELECT COUNT(*) FROM buyback WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
-        pre_count = pd.read_sql_query("SELECT COUNT(*) FROM preorders WHERE branch = ?", conn, params=(global_branch,)).iloc[0,0]
+        rep_count = pd.read_sql_query("SELECT COUNT(*) FROM transactions WHERE branch = ? AND type = 'repair'", conn, params=(global_branch,)).iloc[0,0]
+        inv_count = pd.read_sql_query("SELECT COUNT(*) FROM transactions WHERE branch = ? AND type = 'invoice'", conn, params=(global_branch,)).iloc[0,0]
+        quote_count = pd.read_sql_query("SELECT COUNT(*) FROM transactions WHERE branch = ? AND type = 'quote'", conn, params=(global_branch,)).iloc[0,0]
+        buy_count = pd.read_sql_query("SELECT COUNT(*) FROM transactions WHERE branch = ? AND type = 'buyback'", conn, params=(global_branch,)).iloc[0,0]
+        pre_count = pd.read_sql_query("SELECT COUNT(*) FROM transactions WHERE branch = ? AND type = 'preorder'", conn, params=(global_branch,)).iloc[0,0]
         conn.close()
 
         col_d1, col_d2, col_d3, col_d4 = st.columns(4)
@@ -575,8 +558,8 @@ elif authentication_status == True:
 
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("INSERT INTO repairs (branch, customer_name, phone, device, issue, price, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, c_name, c_phone, c_device, summary_text, total_calculated, "Pending", c_emp, str(date.today())))
+                    cursor.execute("INSERT INTO transactions (branch, type, customer_name, phone, device_or_item, issue_or_details, amount, status, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (global_branch, "repair", c_name, c_phone, c_device, summary_text, total_calculated, "Pending", c_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
@@ -599,7 +582,7 @@ elif authentication_status == True:
             st.markdown("---")
             st.subheader(txt["recent_records"])
             conn = get_db_connection()
-            rep_df = pd.read_sql_query("SELECT id, customer_name, phone, device, price, created_at FROM repairs WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            rep_df = pd.read_sql_query("SELECT id, customer_name, phone, device_or_item as device, amount as price, created_at FROM transactions WHERE branch = ? AND type = 'repair' ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
             conn.close()
             if not rep_df.empty:
                 st.dataframe(rep_df, use_container_width=True)
@@ -657,8 +640,8 @@ elif authentication_status == True:
                     
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("INSERT INTO quotes (branch, customer_name, phone, device, issues, total, profit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, q_name, q_phone, q_device, summary_text, total_calculated, total_calculated * 0.3, q_emp, str(date.today())))
+                    cursor.execute("INSERT INTO transactions (branch, type, customer_name, phone, device_or_item, issue_or_details, amount, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (global_branch, "quote", q_name, q_phone, q_device, summary_text, total_calculated, q_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
@@ -680,7 +663,7 @@ elif authentication_status == True:
             st.markdown("---")
             st.subheader(txt["recent_records"])
             conn = get_db_connection()
-            quo_df = pd.read_sql_query("SELECT id, customer_name, phone, device, total, created_at FROM quotes WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            quo_df = pd.read_sql_query("SELECT id, customer_name, phone, device_or_item as device, amount as total, created_at FROM transactions WHERE branch = ? AND type = 'quote' ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
             conn.close()
             if not quo_df.empty:
                 st.dataframe(quo_df, use_container_width=True)
@@ -704,8 +687,8 @@ elif authentication_status == True:
                 if i_sub:
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("INSERT INTO invoices (branch, invoice_no, customer_name, customer_org, phone, address, amount, moms, invoice_type, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, i_no, i_name, i_org, i_phone, i_addr, i_amt, i_amt * 0.2 if "25%" in i_type else 0, i_type, i_emp, str(date.today())))
+                    cursor.execute("INSERT INTO transactions (branch, type, invoice_no, customer_name, customer_org_or_person, phone, address, issue_or_details, amount, moms, invoice_type, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (global_branch, "invoice", i_no, i_name, i_org, i_phone, i_addr, i_desc, i_amt, i_amt * 0.2 if "25%" in i_type else 0, i_type, i_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
@@ -727,7 +710,7 @@ elif authentication_status == True:
             st.markdown("---")
             st.subheader(txt["recent_records"])
             conn = get_db_connection()
-            inv_df = pd.read_sql_query("SELECT id, invoice_no, customer_name, amount, invoice_type, created_at FROM invoices WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            inv_df = pd.read_sql_query("SELECT id, invoice_no, customer_name, amount, invoice_type, created_at FROM transactions WHERE branch = ? AND type = 'invoice' ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
             conn.close()
             if not inv_df.empty:
                 st.dataframe(inv_df, use_container_width=True)
@@ -773,8 +756,8 @@ elif authentication_status == True:
                 if b_sub_btn:
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("INSERT INTO buyback (branch, customer_name, person_nr, phone, device, payout, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                   (global_branch, b_name, b_person_nr, b_phone, b_device, b_payout, b_emp, str(date.today())))
+                    cursor.execute("INSERT INTO transactions (branch, type, customer_name, customer_org_or_person, phone, device_or_item, amount, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (global_branch, "buyback", b_name, b_person_nr, b_phone, b_device, b_payout, b_emp, str(date.today())))
                     conn.commit()
                     last_id = cursor.lastrowid
                     conn.close()
@@ -797,7 +780,7 @@ elif authentication_status == True:
             st.markdown("---")
             st.subheader(txt["recent_records"])
             conn = get_db_connection()
-            buy_df = pd.read_sql_query("SELECT id, customer_name, person_nr, device, payout, created_at FROM buyback WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+            buy_df = pd.read_sql_query("SELECT id, customer_name, customer_org_or_person as person_nr, device_or_item as device, amount as payout, created_at FROM transactions WHERE branch = ? AND type = 'buyback' ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
             conn.close()
             if not buy_df.empty:
                 st.dataframe(buy_df, use_container_width=True)
@@ -838,8 +821,8 @@ elif authentication_status == True:
             if st.form_submit_button(txt["save"]):
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO preorders (branch, customer_name, phone, item, deposit, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                               (global_branch, p_name, p_phone, p_item, p_dep, p_emp, str(date.today())))
+                cursor.execute("INSERT INTO transactions (branch, type, customer_name, phone, device_or_item, amount, employee, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                               (global_branch, "preorder", p_name, p_phone, p_item, p_dep, p_emp, str(date.today())))
                 conn.commit()
                 conn.close()
                 st.success(txt["saved_success"])
@@ -847,7 +830,7 @@ elif authentication_status == True:
         st.markdown("---")
         st.subheader(txt["recent_records"])
         conn = get_db_connection()
-        pre_df = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
+        pre_df = pd.read_sql_query("SELECT id, customer_name, phone, device_or_item as item, amount as deposit, created_at FROM transactions WHERE branch = ? AND type = 'preorder' ORDER BY id DESC LIMIT 5", conn, params=(global_branch,))
         conn.close()
         if not pre_df.empty:
             st.dataframe(pre_df, use_container_width=True)
@@ -1142,7 +1125,7 @@ elif authentication_status == True:
                                         }
                                         st.rerun()
                                 with col_p2:
-                                    weekly_dict = dict(list(d_dict.items())[:7])
+                                    weekly_dict = dict(list(d_dict.items()[:7]))
                                     if st.button("🖨️ طباعة أول أسبوع (A4)", key=f"print_week_{row['id']}"):
                                         html_print_w = generate_schedule_print_html(row['employee_name'], row['branch'], row['month_year'], weekly_dict, "VECKOSCHEMA (أسبوعي)")
                                         st.session_state['active_doc'] = {
@@ -1174,7 +1157,7 @@ elif authentication_status == True:
             q_like = f"%{search_query}%" if search_query else "%"
 
             st.subheader("📄 Företagsfakturor Arkiv")
-            inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, customer_org, phone, amount, invoice_type, created_at FROM invoices WHERE branch = ? AND (customer_name LIKE ? OR customer_org LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+            inv_res = pd.read_sql_query("SELECT id, invoice_no, customer_name, customer_org_or_person as customer_org, phone, amount, invoice_type, created_at FROM transactions WHERE branch = ? AND type = 'invoice' AND (customer_name LIKE ? OR customer_org_or_person LIKE ? OR invoice_no LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not inv_res.empty:
                 st.dataframe(inv_res, use_container_width=True)
                 col_inv_a, col_inv_b = st.columns([2, 1])
@@ -1188,12 +1171,12 @@ elif authentication_status == True:
                         st.session_state['active_doc'] = {'html': html, 'filename': f"{row['invoice_no']}.html", 'key': f"search_inv_{sel_inv}"}
                         st.rerun()
                     if sel_inv and st.button(txt["delete_btn"], key=f"del_inv_{sel_inv}"):
-                        delete_record_by_id("invoices", sel_inv)
+                        delete_record_by_id("transactions", sel_inv)
                         st.success(txt["deleted_success"])
                         st.rerun()
 
             st.subheader("🛠️ Reparationer Arkiv")
-            rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issue, price, created_at FROM repairs WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+            rep_res = pd.read_sql_query("SELECT id, customer_name, phone, device_or_item as device, issue_or_details as issue, amount as price, created_at FROM transactions WHERE branch = ? AND type = 'repair' AND (customer_name LIKE ? OR device_or_item LIKE ? OR phone LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not rep_res.empty:
                 st.dataframe(rep_res, use_container_width=True)
                 col_rep_a, col_rep_b = st.columns([2, 1])
@@ -1207,12 +1190,12 @@ elif authentication_status == True:
                         st.session_state['active_doc'] = {'html': html, 'filename': f"Inlamningskvitto_{sel_rep}.html", 'key': f"search_rep_{sel_rep}"}
                         st.rerun()
                     if sel_rep and st.button(txt["delete_btn"], key=f"del_rep_{sel_rep}"):
-                        delete_record_by_id("repairs", sel_rep)
+                        delete_record_by_id("transactions", sel_rep)
                         st.success(txt["deleted_success"])
                         st.rerun()
 
             st.subheader("💡 Kostnadsförslag Arkiv")
-            quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device, issues, total, created_at FROM quotes WHERE branch = ? AND (customer_name LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like))
+            quote_res = pd.read_sql_query("SELECT id, customer_name, phone, device_or_item as device, issue_or_details as issues, amount as total, created_at FROM transactions WHERE branch = ? AND type = 'quote' AND (customer_name LIKE ? OR device_or_item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not quote_res.empty:
                 st.dataframe(quote_res, use_container_width=True)
                 col_q_a, col_q_b = st.columns([2, 1])
@@ -1226,12 +1209,12 @@ elif authentication_status == True:
                         st.session_state['active_doc'] = {'html': html, 'filename': f"Kostnadsforslag_{sel_q}.html", 'key': f"search_q_{sel_q}"}
                         st.rerun()
                     if sel_q and st.button(txt["delete_btn"], key=f"del_q_{sel_q}"):
-                        delete_record_by_id("quotes", sel_q)
+                        delete_record_by_id("transactions", sel_q)
                         st.success(txt["deleted_success"])
                         st.rerun()
 
             st.subheader("🔄 Uppköp / Kvittens Arkiv (Buyback)")
-            buy_res = pd.read_sql_query("SELECT id, customer_name, person_nr, phone, device, payout, created_at FROM buyback WHERE branch = ? AND (customer_name LIKE ? OR person_nr LIKE ? OR device LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
+            buy_res = pd.read_sql_query("SELECT id, customer_name, customer_org_or_person as person_nr, phone, device_or_item as device, amount as payout, created_at FROM transactions WHERE branch = ? AND type = 'buyback' AND (customer_name LIKE ? OR customer_org_or_person LIKE ? OR device_or_item LIKE ?)", conn, params=(global_branch, q_like, q_like, q_like))
             if not buy_res.empty:
                 st.dataframe(buy_res, use_container_width=True)
                 col_buy_a, col_buy_b = st.columns([2, 1])
@@ -1245,12 +1228,12 @@ elif authentication_status == True:
                         st.session_state['active_doc'] = {'html': html, 'filename': f"Kvittens_{sel_buy}.html", 'key': f"search_buy_{sel_buy}"}
                         st.rerun()
                     if sel_buy and st.button(txt["delete_btn"], key=f"del_buy_{sel_buy}"):
-                        delete_record_by_id("buyback", sel_buy)
+                        delete_record_by_id("transactions", sel_buy)
                         st.success(txt["deleted_success"])
                         st.rerun()
 
             st.subheader("📋 Förbeställningar Arkiv (Preorders)")
-            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, item, deposit, created_at FROM preorders WHERE branch = ? AND (customer_name LIKE ? OR item LIKE ?)", conn, params=(global_branch, q_like, q_like))
+            pre_res = pd.read_sql_query("SELECT id, customer_name, phone, device_or_item as item, amount as deposit, created_at FROM transactions WHERE branch = ? AND type = 'preorder' AND (customer_name LIKE ? OR device_or_item LIKE ?)", conn, params=(global_branch, q_like, q_like))
             if not pre_res.empty:
                 st.dataframe(pre_res, use_container_width=True)
                 col_pre_a, col_pre_b = st.columns([2, 1])
@@ -1258,7 +1241,7 @@ elif authentication_status == True:
                     sel_pre = st.selectbox("🗑️ Välj Förbeställning ID:", pre_res['id'].tolist(), key="sel_pre_id")
                 with col_pre_b:
                     if sel_pre and st.button(txt["delete_btn"], key=f"del_pre_{sel_pre}"):
-                        delete_record_by_id("preorders", sel_pre)
+                        delete_record_by_id("transactions", sel_pre)
                         st.success(txt["deleted_success"])
                         st.rerun()
 
