@@ -95,7 +95,7 @@ elif authentication_status == True:
             "preview": "Dokumentförhandsgranskning",
             "back_app": "Tillbaka till appen",
             "download_web": "🌐 Öppna / Ladda ner dokument",
-            "inv_no": "Fakturanummer",
+            "inv_no": "Fakturarummer",
             "total_amt": "Totalt belopp (SEK)",
             "inv_type": "Fakturatyp (B2B)",
             "create_inv": "Skapa och förhandsgranska faktura",
@@ -968,7 +968,7 @@ elif authentication_status == True:
                 conn.close()
                 if not av_df.empty:
                     for idx, row in av_df.iterrows():
-                        with st.expander(f"👤 Anställd: {row['employee_name']} | Månad: {row['month_year']} (ID: {row['id'])"):
+                        with st.expander(f"👤 Anställd: {row['employee_name']} | Månad: {row['month_year']} (ID: {row['id']})"):
                             try:
                                 d_dict = json.loads(row['schedule_details'])
                                 st.dataframe(pd.DataFrame(list(d_dict.items()), columns=["Datum & Dag", "Möjlig tid"]), use_container_width=True)
